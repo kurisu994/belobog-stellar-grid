@@ -155,6 +155,36 @@ wasm-pack build --target web   # 构建
 wasm-opt -Oz pkg/*.wasm -o pkg/*.wasm  # 优化（可选）
 ```
 
+### 发布 npm 包
+
+项目使用 `just` 进行发布管理（需要安装 [just](https://github.com/casey/just) 和 [cargo-edit](https://github.com/killercup/cargo-edit)）。
+
+**发布流程**：
+```bash
+# 1. 升级版本
+just bump patch    # 补丁版本 (1.0.0 -> 1.0.1)
+just bump minor    # 次要版本 (1.0.0 -> 1.1.0)
+just bump major    # 主要版本 (1.0.0 -> 2.0.0)
+
+# 2. 提交更改
+git add .
+git commit -m "chore: bump version"
+
+# 3. 发布到 npm
+just publish latest    # 稳定版
+just publish beta      # beta 版
+just publish next      # next 版
+```
+
+**其他发布命令**：
+```bash
+just info       # 查看当前版本
+just test       # 运行测试
+just build      # 构建 WASM
+just optimize   # 优化 WASM
+just dry-run    # 发布前测试
+```
+
 ---
 
 ## 关键设计原则
