@@ -74,8 +74,13 @@ fn process_data(data: String) { }
 ## 测试要求
 
 ```bash
-# 运行所有测试（39个，都在 tests/ 目录）
+# 运行所有测试（47个，都在 tests/ 目录）
 cargo test
+
+# 运行单个测试文件
+cargo test --test lib_tests
+cargo test --test test_resource
+cargo test --test test_unified_api
 
 # 运行 src/ 下的测试（当前为 0 个）
 cargo test --lib
@@ -140,7 +145,7 @@ export_table("my-table", "数据", ExportFormat.Csv, (p) => {
 - CSV/Excel 导出: `src/core/export_csv.rs`, `src/core/export_xlsx.rs`
 - 异步分批: `src/batch_export.rs`
 - 验证/资源: `src/validation.rs`, `src/resource.rs`
-- 测试: `tests/lib_tests.rs` (35 个), `tests/test_unified_api.rs` (4 个)
+- 测试: `tests/lib_tests.rs` (35 个), `tests/test_resource.rs` (8 个), `tests/test_unified_api.rs` (4 个)
 
 ### 构建和优化
 
