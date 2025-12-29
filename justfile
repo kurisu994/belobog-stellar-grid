@@ -12,7 +12,7 @@ build:
 
 # 优化 WASM
 optimize:
-    @#!/bin/bash
+    #!/bin/bash
     if command -v wasm-opt &> /dev/null; then
         echo "⚡ 优化 WASM 文件..."
         wasm-opt -Oz pkg/belobog_stellar_grid_bg.wasm -o pkg/belobog_stellar_grid_bg.wasm
@@ -33,7 +33,7 @@ dry-run:
 
 # 发布到 npm
 publish: test build optimize info dry-run
-    @#!/bin/bash
+    #!/bin/bash
     echo ""
     echo "⚠️  即将发布到 npm (https://registry.npmjs.org/)"
     read -p "确认发布? (y/N) " -n 1 -r
