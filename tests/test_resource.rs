@@ -9,7 +9,7 @@ fn test_url_guard_creation() {
     // 测试创建 UrlGuard
     let test_url = "blob:http://example.com/test-uuid-123";
     let guard = UrlGuard::new(test_url);
-    
+
     // UrlGuard 应该成功创建（内部存储 URL）
     // 由于 UrlGuard 字段是私有的，我们无法直接访问，
     // 但能成功创建已经证明了功能正常
@@ -24,7 +24,7 @@ fn test_url_guard_with_different_urls() {
         "blob:https://example.com/uuid-2",
         "blob:http://192.168.1.1/uuid-3",
     ];
-    
+
     for url in urls {
         let guard = UrlGuard::new(url);
         // 每个 guard 都应该成功创建
@@ -69,7 +69,7 @@ fn test_url_guard_multiple_guards() {
     let guard1 = UrlGuard::new("blob:http://example.com/multi-1");
     let guard2 = UrlGuard::new("blob:http://example.com/multi-2");
     let guard3 = UrlGuard::new("blob:http://example.com/multi-3");
-    
+
     // 所有 guard 应该独立工作
     drop(guard2); // 先释放 guard2
     drop(guard1); // 再释放 guard1

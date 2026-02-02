@@ -10,11 +10,11 @@ mod validation;
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
 // 重新导出所有公共 API
-pub use validation::{ensure_extension, validate_filename};
 pub use resource::UrlGuard;
+pub use validation::{ensure_extension, validate_filename};
 
 // 导出新的统一接口
-pub use core::{export_table, ExportFormat};
+pub use core::{ExportFormat, export_table};
 
 // 导出分批异步导出
 pub use batch_export::export_table_to_csv_batch;

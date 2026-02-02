@@ -1,9 +1,11 @@
 /// 分批异步导出功能模块
 ///
 /// 提供大数据量表格的分批处理功能，避免阻塞主线程
+/// 支持合并单元格（colspan/rowspan）
 use crate::resource::UrlGuard;
 use crate::validation::{ensure_extension, validate_filename};
 use csv::Writer;
+use std::collections::HashMap;
 use std::io::Cursor;
 use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::*;
@@ -13,10 +15,33 @@ use web_sys::{
     HtmlTableSectionElement, Url,
 };
 
+/// 单元格跨度信息
+struct CellSpan {
+    /// 单元格文本内容
+    text: String,
+    /// 列跨度（colspan 属性值）
+    colspan: u32,
+    /// 行跨度（rowspan 属性值）
+    rowspan: u32,
+}
+
+/// 获取单元格的跨度信息
+fn get_cell_span(cell: &HtmlTableCellElement) -> CellSpan {
+    let text = cell.inner_text();
+    let colspan = cell.col_span().max(1);
+    let rowspan = cell.row_span().max(1);
+    CellSpan {
+        text,
+        colspan,
+        rowspan,
+    }
+}
+
 /// 分批异步导出 HTML 表格到 CSV 文件
 ///
 /// 这个函数将表格数据分批处理，在批次之间让出控制权给浏览器事件循环，
 /// 从而避免在处理大量数据时阻塞主线程导致页面卡死。
+/// 支持合并单元格（colspan/rowspan）的正确处理。
 ///
 /// # 参数
 /// * `table_id` - 要导出的 HTML 表格元素的 ID
@@ -113,6 +138,9 @@ pub async fn export_table_to_csv_batch(
         let _ = callback.call1(&JsValue::NULL, &JsValue::from_f64(0.0));
     }
 
+    // 用于追踪被 rowspan 占用的位置: (row, col) -> cell_text
+    let mut rowspan_tracker: HashMap<(usize, usize), String> = HashMap::new();
+
     // 分批处理数据
     let mut current_row = 0;
     while current_row < total_rows {
@@ -140,25 +168,64 @@ pub async fn export_table_to_csv_batch(
                 .map_err(|_| JsValue::from_str(&format!("第 {} 行不是有效的表格行", i + 1)))?;
 
             let mut row_data = Vec::new();
-            // 遍历每一行中的每一个单元格
             let cells = row.cells();
             let cell_count = cells.length();
 
-            for j in 0..cell_count {
-                let cell = cells.get_with_index(j).ok_or_else(|| {
-                    JsValue::from_str(&format!("无法获取第 {} 行第 {} 列单元格", i + 1, j + 1))
+            // col_idx: 实际输出列位置（考虑 colspan/rowspan 后的逻辑位置）
+            let mut col_idx: usize = 0;
+
+            for cell_idx in 0..cell_count {
+                // 处理被上方 rowspan 占用的列
+                while let Some(text) = rowspan_tracker.remove(&(i, col_idx)) {
+                    row_data.push(text);
+                    col_idx += 1;
+                }
+
+                let cell = cells.get_with_index(cell_idx).ok_or_else(|| {
+                    JsValue::from_str(&format!(
+                        "无法获取第 {} 行第 {} 列单元格",
+                        i + 1,
+                        cell_idx + 1
+                    ))
                 })?;
 
                 let cell = cell.dyn_into::<HtmlTableCellElement>().map_err(|_| {
                     JsValue::from_str(&format!(
                         "第 {} 行第 {} 列不是有效的表格单元格",
                         i + 1,
-                        j + 1
+                        cell_idx + 1
                     ))
                 })?;
 
-                let cell_text = cell.inner_text();
-                row_data.push(cell_text);
+                let span = get_cell_span(&cell);
+
+                // 处理 rowspan: 将当前单元格内容预填到后续行的对应位置
+                if span.rowspan > 1 {
+                    for r in 1..span.rowspan as usize {
+                        for c in 0..span.colspan as usize {
+                            let fill_text = if c == 0 {
+                                span.text.clone()
+                            } else {
+                                String::new()
+                            };
+                            rowspan_tracker.insert((i + r, col_idx + c), fill_text);
+                        }
+                    }
+                }
+
+                // 处理 colspan: 当前单元格内容 + 空白填充
+                row_data.push(span.text);
+                for _ in 1..span.colspan {
+                    row_data.push(String::new());
+                }
+
+                col_idx += span.colspan as usize;
+            }
+
+            // 处理行尾残留的 rowspan 占位
+            while let Some(text) = rowspan_tracker.remove(&(i, col_idx)) {
+                row_data.push(text);
+                col_idx += 1;
             }
 
             // 安全地将行数据写入 CSV

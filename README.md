@@ -170,7 +170,7 @@ await export_table_to_csv_batch(
   1000, // 每批处理 1000 行
   (progress) => {
     console.log(`进度: ${Math.round(progress)}%`);
-  }
+  },
 );
 ```
 

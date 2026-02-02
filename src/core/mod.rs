@@ -77,4 +77,3 @@ pub fn export_table(
         ExportFormat::Xlsx => export_as_xlsx(table_data, filename, progress_callback),
     }
 }
-

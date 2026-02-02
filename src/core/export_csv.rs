@@ -40,10 +40,11 @@ pub fn export_as_csv(
 
         // 定期报告进度（每10行或最后一行）
         if let Some(ref callback) = progress_callback
-            && (index % 10 == 0 || index == total_rows - 1) {
-                let progress = ((index + 1) as f64 / total_rows as f64) * 100.0;
-                let _ = callback.call1(&JsValue::NULL, &JsValue::from_f64(progress));
-            }
+            && (index % 10 == 0 || index == total_rows - 1)
+        {
+            let progress = ((index + 1) as f64 / total_rows as f64) * 100.0;
+            let _ = callback.call1(&JsValue::NULL, &JsValue::from_f64(progress));
+        }
     }
 
     // 安全地完成 CSV 写入

@@ -43,10 +43,11 @@ pub fn export_as_xlsx(
 
         // 定期报告进度（每10行或最后一行）
         if let Some(ref callback) = progress_callback
-            && (i % 10 == 0 || i == total_rows - 1) {
-                let progress = ((i + 1) as f64 / total_rows as f64) * 100.0;
-                let _ = callback.call1(&JsValue::NULL, &JsValue::from_f64(progress));
-            }
+            && (i % 10 == 0 || i == total_rows - 1)
+        {
+            let progress = ((i + 1) as f64 / total_rows as f64) * 100.0;
+            let _ = callback.call1(&JsValue::NULL, &JsValue::from_f64(progress));
+        }
     }
 
     // 将工作簿写入内存缓冲区

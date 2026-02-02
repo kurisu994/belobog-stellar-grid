@@ -39,7 +39,7 @@ impl Drop for UrlGuard {
                 wasm_bindgen::JsValue::from_str(&format!("释放 URL 资源失败: {:?}", e));
             }
         }
-        
+
         // 在非 WASM 环境（测试环境）中，不执行任何操作
         #[cfg(not(target_arch = "wasm32"))]
         {
