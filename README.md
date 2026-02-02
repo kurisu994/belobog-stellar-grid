@@ -321,7 +321,9 @@ basic-http-server .
 
 ### 发布到 npm
 
-项目使用 `just` 进行发布管理。需要先安装 [just](https://github.com/casey/just) 和 [cargo-edit](https://github.com/killercup/cargo-edit)：
+项目支持两种发布方式：**GitHub Actions 自动发布**（推荐）和**本地手动发布**。
+
+#### 前置要求
 
 ```bash
 # 安装 just
@@ -331,32 +333,52 @@ cargo install just
 cargo install cargo-edit
 ```
 
-**发布流程**：
+#### 🚀 自动发布（推荐）
+
+使用 GitHub Actions 自动构建和发布，只需一行命令：
+
+```bash
+just ci-release patch   # 补丁版本 1.0.0 -> 1.0.1
+just ci-release minor   # 次要版本 1.0.0 -> 1.1.0
+just ci-release major   # 主要版本 1.0.0 -> 2.0.0
+```
+
+该命令会自动：
+
+1. 升级版本号
+2. 提交更改并打标签
+3. 推送到 GitHub
+4. 触发 GitHub Actions 自动发布到 npm
+
+> ⚠️ 需要在 GitHub 仓库设置 `NPM_TOKEN` secret
+
+#### 🔧 手动发布
+
+如需本地手动发布：
 
 ```bash
 # 1. 升级版本
-just bump patch    # 1.0.0 -> 1.0.1 (补丁版本)
-just bump minor    # 1.0.0 -> 1.1.0 (次要版本)
-just bump major    # 1.0.0 -> 2.0.0 (主要版本)
+just bump patch
 
-# 2. 提交更改
-git add .
-git commit -m "chore: bump version"
+# 2. 构建和优化
+just build
+just optimize
 
-# 3. 发布到 npm
+# 3. 发布前测试
+just dry-run
+
+# 4. 发布到 npm
 just publish latest    # 发布稳定版
 just publish beta      # 发布 beta 版
-just publish next      # 发布 next 版
 ```
 
-**其他发布相关命令**：
+#### 其他命令
 
 ```bash
 just info       # 查看当前版本
 just test       # 运行测试
 just build      # 构建 WASM
 just optimize   # 优化 WASM 文件大小
-just dry-run    # 发布前测试
 ```
 
 ### 项目结构
