@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
@@ -345,7 +345,14 @@
         </div>
       </div>
 
-      <button id="export-btn" onclick="exportWithProgress()">🚀 开始导出（带进度显示）</button>
+      <button id="export-btn" onclick="exportWithProgress('csv')">🚀 导出 CSV（分批异步）</button>
+      <button
+        id="export-xlsx-btn"
+        onclick="exportWithProgress('xlsx')"
+        style="margin-top: 10px; background: linear-gradient(135deg, #28a745 0%, #20c997 100%)"
+      >
+        📗 导出 Excel（分批异步）
+      </button>
 
       <div class="log" id="log">
         <div class="log-entry">
@@ -365,7 +372,7 @@
     </div>
 
     <script type="module">
-      import init, { export_table_to_csv_batch } from "../pkg/belobog_stellar_grid.js";
+      import init, { export_table_to_csv_batch, export_table_to_xlsx_batch } from "../pkg/belobog_stellar_grid.js";
 
       // 使用 Web Worker 生成大量测试数据
       function generateTableData(rowCount = 1000) {
@@ -416,8 +423,8 @@
                       rowData.category === "电子产品"
                         ? "primary"
                         : rowData.category === "家居用品"
-                        ? "success"
-                        : "warning"
+                          ? "success"
+                          : "warning"
                     }">${rowData.category}</span></td>
                     <td>${rowData.price}</td>
                     <td>${rowData.stock}</td>
@@ -504,11 +511,12 @@
       }
 
       // 导出函数 - 带进度显示
-      window.exportWithProgress = async function () {
+      window.exportWithProgress = async function (format = "csv") {
+        const isXlsx = format === "xlsx";
         try {
           await initWasm();
 
-          const btn = document.getElementById("export-btn");
+          const btn = document.getElementById(isXlsx ? "export-xlsx-btn" : "export-btn");
           const progressContainer = document.getElementById("progress-container");
           const progressBar = document.getElementById("progress-bar");
           const progressText = document.getElementById("progress-text");
@@ -516,7 +524,7 @@
 
           // 禁用按钮
           btn.disabled = true;
-          btn.textContent = "⏳ 正在导出...";
+          btn.textContent = isXlsx ? "⏳ 正在导出 Excel..." : "⏳ 正在导出 CSV...";
 
           // 显示进度条
           progressContainer.classList.add("show");
@@ -543,15 +551,13 @@
 
           // 执行导出 - 使用分批异步处理（DOM读取模式）
           const today = new Date().toISOString().split("T")[0];
-          const filename = `产品数据_${today}.csv`;
+          const filename = `产品数据_${today}.${isXlsx ? "xlsx" : "csv"}`;
 
-          await export_table_to_csv_batch(
-            "large-data-table",
-            "table-body", // 传入 tbody ID，支持分离的表格结构
-            filename,
-            1000, // 每批处理 1000 行
-            progressCallback
-          );
+          if (isXlsx) {
+            await export_table_to_xlsx_batch("large-data-table", "table-body", filename, 1000, progressCallback);
+          } else {
+            await export_table_to_csv_batch("large-data-table", "table-body", filename, 1000, progressCallback);
+          }
 
           const endTime = performance.now();
           const duration = ((endTime - startTime) / 1000).toFixed(2);
@@ -565,7 +571,7 @@
           setTimeout(() => {
             progressContainer.classList.remove("show");
             btn.disabled = false;
-            btn.textContent = "🚀 开始导出（带进度显示）";
+            btn.textContent = isXlsx ? "📗 导出 Excel（分批异步）" : "🚀 导出 CSV（分批异步）";
           }, 2000);
         } catch (error) {
           addLog("❌ 导出失败: " + error);
@@ -575,7 +581,7 @@
           const progressContainer = document.getElementById("progress-container");
 
           btn.disabled = false;
-          btn.textContent = "🚀 开始导出（带进度显示）";
+          btn.textContent = isXlsx ? "📗 导出 Excel（分批异步）" : "🚀 导出 CSV（分批异步）";
           progressContainer.classList.remove("show");
         }
       };

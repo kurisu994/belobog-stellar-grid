@@ -7,11 +7,13 @@
 ### 前置要求
 
 1. 构建 WASM 包：
+
 ```bash
 wasm-pack build --target web
 ```
 
 2. 启动本地服务器：
+
 ```bash
 # 推荐：使用 basic-http-server（Rust 实现，快速简单）
 # 如果尚未安装，使用以下命令安装：
@@ -36,81 +38,105 @@ npx http-server .
 ## 📋 示例清单
 
 ### 1. basic-export.html - 基本导出示例
+
 **功能**：
+
 - ✅ 使用默认文件名导出
 - ✅ 使用自定义文件名导出
 - ✅ 使用带日期的文件名导出
 
 **适用场景**：
+
 - 快速上手
 - 简单的表格导出需求
 - 学习基本 API 用法
 
 **关键代码**：
+
 ```javascript
-import init, { export_table_to_csv } from '../pkg/belobog_stellar_grid.js';
+import init, { export_table_to_csv } from "../pkg/belobog_stellar_grid.js";
 
 await init();
-export_table_to_csv('table-id', '文件名.csv');
+export_table_to_csv("table-id", "文件名.csv");
 ```
 
 ---
 
 ### 2. progress-export.html - 进度条导出示例
+
 **功能**：
+
 - ✅ 大数据集导出
 - ✅ 实时进度显示
+- ✅ CSV 分批异步导出
+- ✅ **XLSX 分批异步导出** 🆕
 - ✅ 导出性能统计
 - ✅ 操作日志记录
 
 **适用场景**：
+
 - 导出大型表格（100+ 行）
 - 需要用户反馈的场景
 - 性能监控和优化
 
 **关键代码**：
+
 ```javascript
-import init, { export_table_to_csv_with_progress } from '../pkg/belobog_stellar_grid.js';
+import init, { export_table_to_csv_batch, export_table_to_xlsx_batch } from "../pkg/belobog_stellar_grid.js";
 
 await init();
-export_table_to_csv_with_progress(
-    'table-id',
-    '文件名.csv',
-    (progress) => {
-        console.log(`进度: ${progress}%`);
-        updateProgressBar(progress);
-    }
+
+// 导出 CSV
+await export_table_to_csv_batch(
+  "table-id",
+  "tbody-id", // 可选的 tbody ID
+  "文件名.csv",
+  1000, // 每批 1000 行
+  (progress) => {
+    console.log(`进度: ${progress}%`);
+  },
 );
+
+// 导出 Excel
+await export_table_to_xlsx_batch("table-id", "tbody-id", "文件名.xlsx", 1000, (progress) => {
+  console.log(`进度: ${progress}%`);
+});
 ```
 
 ---
 
 ### 3. advanced-features.html - 高级特性示例
+
 **功能**：
+
 - ✅ 自定义文件名
 - ✅ 文件名安全验证演示
 - ✅ 批量导出多个表格
 - ✅ 错误处理演示
 
 **适用场景**：
+
 - 复杂的导出需求
 - 需要批量处理
 - 学习错误处理最佳实践
 
 **关键代码**：
+
 ```javascript
 // 批量导出
-const tables = ['table-1', 'table-2', 'table-3'];
+const tables = ["table-1", "table-2", "table-3"];
 for (const tableId of tables) {
-    export_table_to_csv(tableId, `${tableId}.csv`);
-    await new Promise(resolve => setTimeout(resolve, 100));
+  export_table_to_csv(tableId, `${tableId}.csv`);
+  await new Promise((resolve) => setTimeout(resolve, 100));
 }
 ```
 
 ---
 
 ### 4. virtual-scroll-export.html - 虚拟滚动示例 🚀
+
 **功能**：
+
 - ✅ 支持百万级数据渲染
 - ✅ 虚拟滚动技术（高性能）
 - ✅ 智能选择渲染模式
@@ -118,31 +144,35 @@ for (const tableId of tables) {
 - ✅ 实时性能统计
 
 **适用场景**：
+
 - 超大数据集（10000+ 行）
 - 需要极致性能的场景
 - 百万级数据导出
 - 性能对比演示
 
 **性能对比**：
+
 - 传统渲染 100 万行：~60 秒，内存 ~1GB，可能崩溃
 - 虚拟滚动 100 万行：<0.1 秒，内存 ~50MB，丝滑流畅
 
 **关键代码**：
+
 ```javascript
 // 虚拟滚动只渲染可见区域
 class VirtualScrollRenderer {
-    render() {
-        const start = Math.floor(scrollTop / ROW_HEIGHT);
-        const end = Math.ceil((scrollTop + containerHeight) / ROW_HEIGHT);
-        // 只渲染可见行 + 缓冲区
-        for (let i = start; i < end; i++) {
-            // 创建行...
-        }
+  render() {
+    const start = Math.floor(scrollTop / ROW_HEIGHT);
+    const end = Math.ceil((scrollTop + containerHeight) / ROW_HEIGHT);
+    // 只渲染可见行 + 缓冲区
+    for (let i = start; i < end; i++) {
+      // 创建行...
     }
+  }
 }
 ```
 
 **技术亮点**：
+
 - 📊 只渲染 20-30 个可见 DOM 节点
 - 💾 内存占用减少 95%
 - ⚡ 渲染速度提升 600 倍
@@ -153,62 +183,64 @@ class VirtualScrollRenderer {
 ### 基本使用流程
 
 1. **初始化 WASM 模块**
+
 ```javascript
-import init from '../pkg/belobog_stellar_grid.js';
+import init from "../pkg/belobog_stellar_grid.js";
 await init();
 ```
 
 2. **导出表格**
+
 ```javascript
-import { export_table_to_csv } from '../pkg/belobog_stellar_grid.js';
-export_table_to_csv('your-table-id', '文件名');
+import { export_table_to_csv } from "../pkg/belobog_stellar_grid.js";
+export_table_to_csv("your-table-id", "文件名");
 ```
 
 3. **错误处理**
+
 ```javascript
 try {
-    export_table_to_csv('table-id', '文件名');
+  export_table_to_csv("table-id", "文件名");
 } catch (error) {
-    console.error('导出失败:', error);
+  console.error("导出失败:", error);
 }
 ```
 
 ### 进阶使用
 
 #### 带进度回调
-```javascript
-import { export_table_to_csv_with_progress } from '../pkg/belobog_stellar_grid.js';
 
-export_table_to_csv_with_progress(
-    'large-table',
-    'data.csv',
-    (progress) => {
-        // 更新 UI
-        document.getElementById('progress').textContent = `${Math.round(progress)}%`;
-    }
-);
+```javascript
+import { export_table_to_csv_with_progress } from "../pkg/belobog_stellar_grid.js";
+
+export_table_to_csv_with_progress("large-table", "data.csv", (progress) => {
+  // 更新 UI
+  document.getElementById("progress").textContent = `${Math.round(progress)}%`;
+});
 ```
 
 #### 动态文件名
+
 ```javascript
-const today = new Date().toISOString().split('T')[0];
+const today = new Date().toISOString().split("T")[0];
 const filename = `数据_${today}.csv`;
-export_table_to_csv('table-id', filename);
+export_table_to_csv("table-id", filename);
 ```
 
 #### 批量导出
+
 ```javascript
 async function exportAll() {
-    const tables = [
-        { id: 'sales', name: '销售数据' },
-        { id: 'products', name: '产品信息' },
-        { id: 'customers', name: '客户列表' }
-    ];
+  const tables = [
+    { id: "sales", name: "销售数据" },
+    { id: "products", name: "产品信息" },
+    { id: "customers", name: "客户列表" },
+  ];
 
-    for (const table of tables) {
-        export_table_to_csv(table.id, table.name);
-        await new Promise(r => setTimeout(r, 200)); // 避免浏览器限制
-    }
+  for (const table of tables) {
+    export_table_to_csv(table.id, table.name);
+    await new Promise((r) => setTimeout(r, 200)); // 避免浏览器限制
+  }
 }
 ```
 
@@ -217,6 +249,7 @@ async function exportAll() {
 库会自动验证文件名的安全性：
 
 ### ✅ 允许的字符
+
 - 字母数字：`A-Z a-z 0-9`
 - 下划线和连字符：`_ -`
 - 点号：`.`（不在开头和结尾）
@@ -224,36 +257,46 @@ async function exportAll() {
 - Unicode 字符（中文、日文、韩文等）
 
 ### ❌ 禁止的字符
+
 - 路径分隔符：`/ \`
 - 危险字符：`< > : " | ? *`
 - Windows 保留名称：`CON PRN AUX NUL COM1-9 LPT1-9`
 
 ### 📏 长度限制
+
 - 最小：1 字符
 - 最大：255 字符
 
 ## 🔧 故障排除
 
 ### 问题：WASM 模块加载失败
+
 **解决方案**：
+
 1. 确保使用 HTTP 服务器（不是 file://）
 2. 检查 pkg/ 目录是否存在
 3. 确认路径正确（例如：`../pkg/belobog_stellar_grid.js`）
 
 ### 问题：找不到表格元素
+
 **解决方案**：
+
 1. 检查表格 ID 是否正确
 2. 确保 DOM 已加载完成
 3. 使用浏览器开发工具检查元素
 
 ### 问题：文件名验证失败
+
 **解决方案**：
+
 1. 检查文件名是否包含非法字符
 2. 确认文件名长度不超过 255 字符
 3. 避免使用 Windows 保留名称
 
 ### 问题：下载被浏览器阻止
+
 **解决方案**：
+
 1. 检查浏览器的下载设置
 2. 允许该网站的弹出窗口和下载
 3. 批量下载时添加延迟
@@ -261,9 +304,11 @@ async function exportAll() {
 ## 📖 API 参考
 
 ### export_table_to_csv(table_id, filename?)
+
 导出 HTML 表格为 CSV 文件。
 
 **参数**：
+
 - `table_id` (string): 表格元素的 ID
 - `filename` (string, 可选): 导出文件名，默认 "table_export.csv"
 
@@ -272,58 +317,101 @@ async function exportAll() {
 ---
 
 ### export_table_to_csv_with_progress(table_id, filename?, callback?)
+
 带进度回调的表格导出。
 
 **参数**：
+
 - `table_id` (string): 表格元素的 ID
 - `filename` (string, 可选): 导出文件名
 - `callback` (function, 可选): 进度回调函数，接收 0-100 的进度值
 
 **返回**：无（成功）或抛出异常（失败）
 
+---
+
+### export_table_to_csv_batch(table_id, tbody_id?, filename?, batch_size?, callback?)
+
+分批异步导出表格为 CSV，适用于大数据量导出。
+
+**参数**：
+
+- `table_id` (string): 表格元素的 ID
+- `tbody_id` (string, 可选): 数据 tbody 的 ID，用于分离表头和数据
+- `filename` (string, 可选): 导出文件名
+- `batch_size` (number, 可选): 每批处理的行数，默认 1000
+- `callback` (function, 可选): 进度回调函数
+
+**返回**：Promise<void>
+
+---
+
+### export_table_to_xlsx_batch(table_id, tbody_id?, filename?, batch_size?, callback?) 🆕
+
+分批异步导出表格为 Excel，解决大数据量 Excel 导出卡死问题。
+
+**参数**：
+
+- `table_id` (string): 表格元素的 ID
+- `tbody_id` (string, 可选): 数据 tbody 的 ID
+- `filename` (string, 可选): 导出文件名，默认 "table_export.xlsx"
+- `batch_size` (number, 可选): 每批处理的行数，默认 1000
+- `callback` (function, 可选): 进度回调函数，接收 0-100 的进度值
+
+**特性**：
+
+- 采用两阶段策略：分批读取 DOM (80%) + 同步生成 XLSX (20%)
+- 每批处理后让出控制权给浏览器，保持页面响应性
+
+**返回**：Promise<void>
+
 ## 🌐 浏览器兼容性
 
-| 浏览器 | 最低版本 | 说明 |
-|--------|---------|------|
-| Chrome | 90+ | ✅ 完全支持 |
-| Firefox | 88+ | ✅ 完全支持 |
-| Safari | 14+ | ✅ 完全支持 |
-| Edge | 90+ | ✅ 完全支持 |
+| 浏览器  | 最低版本 | 说明        |
+| ------- | -------- | ----------- |
+| Chrome  | 90+      | ✅ 完全支持 |
+| Firefox | 88+      | ✅ 完全支持 |
+| Safari  | 14+      | ✅ 完全支持 |
+| Edge    | 90+      | ✅ 完全支持 |
 
 ## 💡 最佳实践
 
 1. **始终进行错误处理**
+
 ```javascript
 try {
-    export_table_to_csv('table-id', 'filename');
+  export_table_to_csv("table-id", "filename");
 } catch (error) {
-    // 向用户显示友好的错误信息
-    alert('导出失败，请重试');
+  // 向用户显示友好的错误信息
+  alert("导出失败，请重试");
 }
 ```
 
 2. **大表格使用进度回调**
+
 ```javascript
 // 对于 > 100 行的表格，使用进度版本
 if (rowCount > 100) {
-    export_table_to_csv_with_progress(id, name, updateProgress);
+  export_table_to_csv_with_progress(id, name, updateProgress);
 } else {
-    export_table_to_csv(id, name);
+  export_table_to_csv(id, name);
 }
 ```
 
 3. **批量导出添加延迟**
+
 ```javascript
 // 避免浏览器下载限制
 for (const table of tables) {
-    export_table_to_csv(table.id, table.name);
-    await new Promise(r => setTimeout(r, 200));
+  export_table_to_csv(table.id, table.name);
+  await new Promise((r) => setTimeout(r, 200));
 }
 ```
 
 4. **使用有意义的文件名**
+
 ```javascript
-const date = new Date().toISOString().split('T')[0];
+const date = new Date().toISOString().split("T")[0];
 const filename = `${reportType}_${date}.csv`;
 ```
 
@@ -338,7 +426,7 @@ const filename = `${reportType}_${date}.csv`;
 ---
 
 **需要帮助？**
+
 - 查看主项目 [README](../README.md)
 - 提交 [Issue](https://github.com/kurisu994/belobog-stellar-grid/issues)
 - 阅读 [API 文档](../EXAMPLES.md)
-
