@@ -1,4 +1,5 @@
 mod batch_export;
+mod batch_export_xlsx;
 mod core;
 mod resource;
 mod utils;
@@ -18,6 +19,7 @@ pub use core::{ExportFormat, export_table};
 
 // 导出分批异步导出
 pub use batch_export::export_table_to_csv_batch;
+pub use batch_export_xlsx::export_table_to_xlsx_batch;
 
 // 导出 utils 模块的公共函数
 pub use utils::set_panic_hook;
