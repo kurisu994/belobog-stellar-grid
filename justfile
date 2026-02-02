@@ -12,6 +12,56 @@ bump level:
     echo ""
     echo "请检查并提交更改后再次运行 just publish"
 
+# 🚀 一键发布到 npm（通过 GitHub Actions）
+# 用法: just ci-release patch   # 或 minor/major
+ci-release level:
+    #!/bin/bash
+    set -e
+    
+    # 检查工作区是否干净
+    if ! git diff --quiet; then
+        echo "⚠️  工作区有未提交的更改，请先处理"
+        git status --short
+        exit 1
+    fi
+    
+    # 获取当前版本
+    current=$(grep "^version" Cargo.toml | sed 's/version = "\(.*\)"/\1/')
+    echo "📌 当前版本: $current"
+    echo "🔖 升级级别: {{level}}"
+    
+    # 升级版本
+    cargo bump {{level}}
+    new=$(grep "^version" Cargo.toml | sed 's/version = "\(.*\)"/\1/')
+    echo "✅ 新版本: $new"
+    
+    # 显示变更
+    echo ""
+    echo "📋 将要执行的操作:"
+    echo "   1. git add ."
+    echo "   2. git commit -m \"chore: bump version to $new\""
+    echo "   3. git tag v$new"
+    echo "   4. git push origin main --tags"
+    echo ""
+    read -p "确认发布 v$new 到 npm? (y/N) " -n 1 -r
+    echo
+    
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo "❌ 已取消，回滚版本..."
+        git checkout Cargo.toml
+        exit 1
+    fi
+    
+    # 提交和推送
+    git add .
+    git commit -m "chore: bump version to $new"
+    git tag "v$new"
+    git push origin main --tags
+    
+    echo ""
+    echo "🎉 已推送 v$new，GitHub Actions 将自动发布到 npm"
+    echo "📦 查看进度: https://github.com/kurisu994/belobog-stellar-grid/actions"
+
 # 升级版本并发布
 release level:
     @#!/bin/bash

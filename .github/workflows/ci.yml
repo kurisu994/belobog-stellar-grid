@@ -58,13 +58,14 @@ jobs:
       - name: 检查包大小
         run: |
           echo "WebAssembly 文件大小:"
-          ls -lh pkg/excel_exporter_bg.wasm
+          ls -lh pkg/belobog_stellar_grid_bg.wasm
 
-          PACKAGE_SIZE=$(stat -c%s pkg/excel_exporter_bg.wasm)
+          PACKAGE_SIZE=$(stat -c%s pkg/belobog_stellar_grid_bg.wasm)
           echo "包大小: ${PACKAGE_SIZE} bytes"
 
-          if [ $PACKAGE_SIZE -gt 100000 ]; then
-            echo "⚠️ 警告: 包大小超过 100KB"
+          # WASM 文件大小限制调整为 200KB（包含 xlsx 支持后体积增大）
+          if [ $PACKAGE_SIZE -gt 200000 ]; then
+            echo "⚠️ 警告: 包大小超过 200KB"
           else
             echo "✅ 包大小合理"
           fi
@@ -98,8 +99,8 @@ jobs:
 
       - name: 创建测试页面
         run: |
-          mkdir -p browser-test
-          cat > browser-test/index.html << 'EOF'
+          # 将测试页面放在项目根目录，方便引用 pkg/
+          cat > test-page.html << 'EOF'
           <!DOCTYPE html>
           <html>
           <head>
@@ -112,23 +113,23 @@ jobs:
               <tr><td>测试数据1</td><td>测试数据2</td></tr>
               <tr><td>测试数据3</td><td>测试数据4</td></tr>
             </table>
-            <button onclick="runTest()">运行测试</button>
+            <button id="test-btn">运行测试</button>
             <div id="result"></div>
 
             <script type="module">
-              import init, { export_table_to_csv } from './pkg/excel_exporter.js';
+              import init, { export_table } from './pkg/belobog_stellar_grid.js';
 
-              async function runTest() {
+              document.getElementById('test-btn').addEventListener('click', async () => {
                 try {
                   await init();
-                  await export_table_to_csv('test-table', 'test.csv');
+                  export_table('test-table', 'test.csv');
                   document.getElementById('result').innerHTML =
                     '<div style="color: green;">✅ 测试成功</div>';
                 } catch (error) {
                   document.getElementById('result').innerHTML =
                     '<div style="color: red;">❌ 测试失败: ' + error.message + '</div>';
                 }
-              }
+              });
             </script>
           </body>
           </html>
@@ -136,14 +137,17 @@ jobs:
 
       - name: 在浏览器中测试
         run: |
-          # 安装 Puppeteer 进行浏览器测试
-          npm install puppeteer
+          # 安装测试依赖
+          npm install puppeteer http-server
 
-          # 运行测试
-          node -e "
+          # 启动 HTTP 服务器（后台运行）
+          npx http-server . -p 8080 --silent &
+          SERVER_PID=$!
+          sleep 2
+
+          # 运行 Puppeteer 测试
+          node << 'SCRIPT'
           const puppeteer = require('puppeteer');
-          const fs = require('fs');
-          const path = require('path');
 
           (async () => {
             const browser = await puppeteer.launch({
@@ -156,38 +160,50 @@ jobs:
               console.log('Browser console:', msg.text());
             });
 
-            const testPage = 'file://' + path.resolve(__dirname, 'browser-test/index.html');
-            await page.goto(testPage);
+            page.on('pageerror', error => {
+              console.error('Page error:', error.message);
+            });
 
-            // 等待页面加载
-            await page.waitForSelector('h1');
+            try {
+              await page.goto('http://localhost:8080/test-page.html', { waitUntil: 'networkidle0' });
 
-            // 点击测试按钮
-            await page.click('button');
+              // 等待页面加载
+              await page.waitForSelector('h1');
 
-            // 等待测试结果
-            await page.waitForSelector('#result div', { timeout: 5000 });
+              // 点击测试按钮
+              await page.click('#test-btn');
 
-            const result = await page.$eval('#result', el => el.textContent);
-            console.log('Test result:', result);
+              // 等待测试结果
+              await page.waitForSelector('#result div', { timeout: 10000 });
 
-            if (result.includes('测试成功')) {
-              console.log('✅ WebAssembly 测试通过');
-              process.exit(0);
-            } else {
-              console.log('❌ WebAssembly 测试失败');
+              const result = await page.$eval('#result', el => el.textContent);
+              console.log('Test result:', result);
+
+              await browser.close();
+
+              if (result.includes('测试成功')) {
+                console.log('✅ WebAssembly 测试通过');
+                process.exit(0);
+              } else {
+                console.log('❌ WebAssembly 测试失败');
+                process.exit(1);
+              }
+            } catch (error) {
+              console.error('Test error:', error.message);
+              await browser.close();
               process.exit(1);
             }
-
-            await browser.close();
           })();
-          "
+          SCRIPT
 
-  # 发布准备
-  release-prep:
-    name: 发布准备
+          # 清理 HTTP 服务器
+          kill $SERVER_PID 2>/dev/null || true
+
+  # 发布到 npm
+  publish-npm:
+    name: 发布到 npm
     runs-on: ubuntu-latest
-    needs: [check, build-wasm]
+    needs: [check, build-wasm, browser-test]
     if: startsWith(github.ref, 'refs/tags/v')
 
     steps:
@@ -198,6 +214,12 @@ jobs:
         with:
           name: wasm-package
           path: pkg/
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          registry-url: "https://registry.npmjs.org"
 
       - name: 检查版本一致性
         run: |
@@ -213,20 +235,31 @@ jobs:
 
           echo "✅ 版本一致性检查通过"
 
-      - name: 创建发布包
+      - name: 准备发布
+        working-directory: pkg
         run: |
-          # 更新 package.json 版本
+          # 确保 package.json 存在
+          if [ ! -f package.json ]; then
+            echo "❌ pkg/package.json 不存在"
+            exit 1
+          fi
+
+          # 显示包信息
+          echo "📦 包信息:"
+          cat package.json
+
+          echo ""
+          echo "� 包内容:"
+          ls -la
+
+      - name: 发布到 npm
+        working-directory: pkg
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: 发布成功通知
+        run: |
           VERSION=$(echo ${{ github.ref }} | sed 's/refs\/tags\/v//')
-          npm version $VERSION --no-git-tag-version
-
-          # 运行完整测试
-          npm test || true  # 允许失败，因为可能需要真实浏览器
-
-          echo "📦 发布包准备完成"
-
-      - name: 上传发布产物
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-package
-          path: pkg/
-          retention-days: 90
+          echo "🎉 成功发布 belobog-stellar-grid@$VERSION 到 npm!"
+          echo "📦 https://www.npmjs.com/package/belobog-stellar-grid"
