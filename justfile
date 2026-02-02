@@ -6,7 +6,7 @@ bump level:
     current=$(grep "^version" Cargo.toml | sed 's/version = "\(.*\)"/\1/')
     echo "📌 当前版本: $current"
     echo "🔖 升级级别: {{level}}"
-    cargo bump {{level}}
+    cargo set-version --bump {{level}}
     new=$(grep "^version" Cargo.toml | sed 's/version = "\(.*\)"/\1/')
     echo "✅ 版本已更新: $current -> $new"
     echo ""
@@ -31,7 +31,7 @@ ci-release level:
     echo "🔖 升级级别: {{level}}"
     
     # 升级版本
-    cargo bump {{level}}
+    cargo set-version --bump {{level}}
     new=$(grep "^version" Cargo.toml | sed 's/version = "\(.*\)"/\1/')
     echo "✅ 新版本: $new"
     
@@ -68,7 +68,7 @@ release level:
     current=$(grep "^version" Cargo.toml | sed 's/version = "\(.*\)"/\1/')
     echo "📌 当前版本: $current"
     echo "🔖 升级级别: {{level}}"
-    cargo bump {{level}}
+    cargo set-version --bump {{level}}
     new=$(grep "^version" Cargo.toml | sed 's/version = "\(.*\)"/\1/')
     echo "✅ 版本已更新: $current -> $new"
 
