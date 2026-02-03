@@ -2,194 +2,76 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## 核心约束（必须遵守）
+## 常用命令 (Commands)
 
-### 1. 模块化原则
+### 构建与测试
+- **构建 WASM**: `wasm-pack build --target web` 或 `just build`
+- **运行所有测试**: `cargo test` (位于 `tests/` 目录)
+- **运行特定测试**: `cargo test --test lib_tests`
+- **代码检查**: `cargo clippy -- -D warnings`
+- **格式化**: `cargo fmt`
+- **WASM 优化**: `wasm-opt -Oz pkg/*.wasm -o pkg/*.wasm` 或 `just optimize`
 
+### 版本发布 (使用 Just)
+- **CI 自动发布 (推荐)**: `just ci-release [patch|minor|major]`
+- **手动升级版本**: `just bump [patch|minor|major]`
+- **发布前检查**: `just dry-run`
+- **手动发布到 npm**: `just publish [latest|beta|next]`
+
+## 项目架构 (Architecture)
+
+### 核心设计
+这是一个 Rust 编写的 WebAssembly 库，用于在浏览器端导出 Excel/CSV。设计遵循 **RAII 资源管理**、**零拷贝** 和 **模块化** 原则。
+
+### 目录结构
 ```
 src/
-├── lib.rs              # 仅做模块声明和重导出
-├── validation.rs       # 文件名验证
-├── resource.rs         # 资源管理（RAII）
-├── core/               # 核心导出模块组
-│   ├── mod.rs          # 统一 API 和协调
-│   ├── table_extractor.rs  # 表格数据提取
-│   ├── export_csv.rs   # CSV 导出
-│   └── export_xlsx.rs  # XLSX 导出
-├── batch_export.rs     # 异步分批导出
-└── utils.rs            # 调试工具
+├── lib.rs              # WASM 入口，仅做模块声明和重导出 (Re-exports only)
+├── core/               # 核心业务逻辑
+│   ├── mod.rs          # 统一 API (export_table) 和协调层
+│   ├── table_extractor.rs  # DOM 解析与数据提取 (零拷贝设计)
+│   ├── export_csv.rs   # CSV 格式生成
+│   └── export_xlsx.rs  # XLSX 格式生成
+├── batch_export.rs     # 异步分批处理 (针对大数据量，防止 UI 阻塞)
+├── validation.rs       # 安全模块：文件名与输入验证
+├── resource.rs         # RAII 模式：UrlGuard 自动管理 Blob URL 生命周期
+└── utils.rs            # 调试与辅助工具
 ```
 
-**禁止**：❌ 在 `lib.rs` 中添加业务逻辑 | ❌ 跨模块混合职责 | ❌ 绕过模块边界访问
+### 关键数据流
+1.  **输入**: 用户传入 HTML `table_id` 或数据。
+2.  **验证**: `validation.rs` 检查文件名安全性 (防止路径遍历)。
+3.  **提取**: `table_extractor.rs` 遍历 DOM 提取数据 (使用 `web-sys`)。
+4.  **生成**: 根据格式调用 `export_csv` 或 `export_xlsx` 生成二进制数据 (`Vec<u8>`)。
+5.  **导出**: 创建 `Blob` 和 `ObjectUrl`，触发浏览器下载。
+6.  **清理**: `UrlGuard` 在作用域结束时自动 revoke URL，防止内存泄漏。
 
-### 2. 安全优先
+## 编码规范 (Coding Guidelines)
 
-- ✅ 文件名必须通过 `validate_filename()` 验证
-- ✅ DOM 操作必须检查返回值
-- ✅ 使用 `Result<T, JsValue>` 而非 `panic!`
-- ✅ 中文错误消息
+### 语言与交流
+- **中文优先**: 所有注释、文档、错误消息必须使用中文。
+- **命名**: 变量/函数使用英文，注释说明用途。
 
-### 3. RAII 资源管理
+### 核心约束 (Critical Constraints)
+1.  **模块隔离**: `lib.rs` 不含业务逻辑；核心逻辑必须在 `src/core/` 中。
+2.  **安全优先**:
+    - 导出前必须调用 `validate_filename()`。
+    - 必须使用 `Result<T, JsValue>` 处理错误，**严禁** `panic!`。
+3.  **RAII 资源管理**:
+    - **必须**使用 `UrlGuard::new(&url)` 管理 Blob URL。
+    - 禁止手动调用 `revoke_object_url`。
+4.  **WASM 兼容性**:
+    - 导出函数必须标记 `#[wasm_bindgen]`。
+    - 尽量使用引用 `&str` 传递字符串以减少拷贝。
 
-```rust
-// ✅ 正确：自动管理
-let _url_guard = UrlGuard::new(&url);
+### 常见错误速查
+| 错误类型 | ❌ 错误写法 | ✅ 正确写法 |
+|---------|------------|------------|
+| **验证** | `fn export(name: String)` | `validate_filename(&name)?;` |
+| **资源** | 手动 revoke URL | `let _guard = UrlGuard::new(&url);` |
+| **错误** | `panic!("error")` | `Err(JsValue::from_str("错误说明"))` |
+| **文本** | `"File not found"` | `"未找到文件"` |
 
-// ❌ 错误：手动管理（异常时泄漏）
-let url = create_object_url();
-Url::revoke_object_url(&url);
-```
-
-### 4. 零拷贝原则
-
-```rust
-// ✅ 使用引用
-fn process_data(data: &str) { }
-
-// ❌ 获取所有权
-fn process_data(data: String) { }
-```
-
----
-
-## 代码修改规范
-
-### 添加新功能
-
-1. **确定模块**：导出 → `core/`，数据提取 → `core/table_extractor.rs`，验证 → `validation.rs`
-2. **编写函数**：必须包含中文文档注释和 `#[wasm_bindgen]`
-3. **在 `lib.rs` 重导出**：`pub use module::new_function;`
-4. **添加测试**
-
-### 修改前检查
-
-- [ ] 是否破坏向后兼容？需要 `#[deprecated]`
-- [ ] 错误处理完整（中文）
-- [ ] 使用 RAII 管理资源
-- [ ] 无 `panic!` / `unwrap()`
-- [ ] 添加测试
-
----
-
-## 测试要求
-
-```bash
-# 运行所有测试（47个，都在 tests/ 目录）
-cargo test
-
-# 运行单个测试文件
-cargo test --test lib_tests
-cargo test --test test_resource
-cargo test --test test_unified_api
-
-# 运行 src/ 下的测试（当前为 0 个）
-cargo test --lib
-
-# 检查和格式化
-cargo clippy -- -D warnings
-cargo fmt
-```
-
-**必须测试**：正常输入、边界值、非法输入、Unicode、大数据
-
----
-
-## 常见错误速查
-
-| 错误类型       | ❌ 错误                           | ✅ 正确                          |
-| -------------- | --------------------------------- | -------------------------------- |
-| **忘记验证**   | `pub fn export(filename: String)` | `validate_filename(&filename)?;` |
-| **资源泄漏**   | 手动 `revoke_object_url()`        | 使用 `UrlGuard`                  |
-| **使用 panic** | `panic!("数据为空")`              | `Err(JsValue::from_str("..."))`  |
-| **英文错误**   | `"File not found"`                | `"未找到文件"`                   |
-
----
-
-## 快速参考
-
-### 技术栈
-
-- Rust Edition 2024 + WebAssembly
-- wasm-bindgen, web-sys, csv, rust_xlsxwriter
-
-### 核心 API（推荐使用）
-
-```rust
-#[wasm_bindgen]
-pub fn export_table(
-    table_id: &str,
-    filename: Option<String>,
-    format: Option<ExportFormat>,  // Csv | Xlsx
-    progress_callback: Option<js_sys::Function>,
-) -> Result<(), JsValue>
-```
-
-**JavaScript 示例**：
-
-```javascript
-import init, { export_table, ExportFormat } from "./pkg/belobog_stellar_grid.js";
-await init();
-
-export_table("my-table"); // 最简单
-export_table("my-table", "报表.xlsx", ExportFormat.Xlsx); // 指定格式
-export_table("my-table", "数据", ExportFormat.Csv, (p) => {
-  // 带进度
-  console.log(`进度: ${p.toFixed(1)}%`);
-});
-```
-
-### 重要路径
-
-- 核心 API: `src/core/mod.rs`
-- 数据提取: `src/core/table_extractor.rs`
-- CSV/Excel 导出: `src/core/export_csv.rs`, `src/core/export_xlsx.rs`
-- 异步分批: `src/batch_export.rs`
-- 验证/资源: `src/validation.rs`, `src/resource.rs`
-- 测试: `tests/lib_tests.rs` (35 个), `tests/test_resource.rs` (8 个), `tests/test_unified_api.rs` (4 个)
-
-### 构建和优化
-
-```bash
-wasm-pack build --target web   # 构建
-./build.sh                      # 一键构建（推荐）
-wasm-opt -Oz pkg/*.wasm -o pkg/*.wasm  # 优化（可选）
-```
-
-### 发布 npm 包
-
-项目使用 `just` 进行发布管理（需要安装 [just](https://github.com/casey/just) 和 [cargo-edit](https://github.com/killercup/cargo-edit)）。
-
-**发布流程**：
-```bash
-# 1. 升级版本
-just bump patch    # 补丁版本 (1.0.0 -> 1.0.1)
-just bump minor    # 次要版本 (1.0.0 -> 1.1.0)
-just bump major    # 主要版本 (1.0.0 -> 2.0.0)
-
-# 2. 提交更改
-git add .
-git commit -m "chore: bump version"
-
-# 3. 发布到 npm
-just publish latest    # 稳定版
-just publish beta      # beta 版
-just publish next      # next 版
-```
-
-**其他发布命令**：
-```bash
-just info       # 查看当前版本
-just test       # 运行测试
-just build      # 构建 WASM
-just optimize   # 优化 WASM
-just dry-run    # 发布前测试
-```
-
----
-
-## 关键设计原则
-
-1. **简洁至上** - 最简单的解决方案
-2. **安全第一** - 验证输入、优雅错误处理、中文消息
-3. **模块化** - 清晰的职责分离
-4. **性能优化** - 零拷贝 + 分批异步 + RAII
+## 测试指南
+- 所有测试位于 `tests/` 目录，涵盖正常输入、边界值、Unicode 字符和大数据量。
+- 新功能必须添加对应的集成测试。
