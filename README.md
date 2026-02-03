@@ -447,7 +447,7 @@ belobog-stellar-grid/
 
 - [ ] 导出时保留合并单元格状态
 - [ ] 支持多工作表导出（多表格导出到同一 Excel 文件的不同 sheet）
-- [ ] 支持检测并排除隐藏行/列（`display: none`）
+- [x] 支持检测并排除隐藏行/列（`display: none`）
 
 ### 数据选择与过滤
 
