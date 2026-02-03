@@ -29,6 +29,7 @@ pub enum ExportFormat {
 /// * `table_id` - 要导出的 HTML 表格元素的 ID
 /// * `filename` - 可选的导出文件名（不包含扩展名时会自动添加）
 /// * `format` - 导出格式（Csv 或 Xlsx），默认为 Csv
+/// * `exclude_hidden` - 可选，是否排除隐藏的行和列（默认为 false）
 /// * `progress_callback` - 可选的进度回调函数，接收 0-100 的进度值
 ///
 /// # 返回值
@@ -44,13 +45,13 @@ pub enum ExportFormat {
 /// export_table('my-table');
 /// export_table('my-table', '数据.csv');
 ///
-/// // 导出为 CSV（带进度回调）
-/// export_table('my-table', '数据', ExportFormat.Csv, (progress) => {
+/// // 导出为 CSV（带进度回调，不排除隐藏行）
+/// export_table('my-table', '数据', ExportFormat.Csv, false, (progress) => {
 ///     console.log(`进度: ${progress.toFixed(1)}%`);
 /// });
 ///
-/// // 导出为 Excel（带进度回调）
-/// export_table('my-table', '报表', ExportFormat.Xlsx, (progress) => {
+/// // 导出为 Excel（带进度回调，排除隐藏行）
+/// export_table('my-table', '报表', ExportFormat.Xlsx, true, (progress) => {
 ///     document.getElementById('progress').style.width = `${progress}%`;
 /// });
 /// ```
@@ -59,9 +60,11 @@ pub fn export_table(
     table_id: &str,
     filename: Option<String>,
     format: Option<ExportFormat>,
+    exclude_hidden: Option<bool>,
     progress_callback: Option<js_sys::Function>,
 ) -> Result<(), JsValue> {
     let format = format.unwrap_or_default();
+    let exclude_hidden = exclude_hidden.unwrap_or(false);
 
     // 输入验证
     if table_id.is_empty() {
@@ -69,7 +72,7 @@ pub fn export_table(
     }
 
     // 提取表格数据
-    let table_data = extract_table_data(table_id)?;
+    let table_data = extract_table_data(table_id, exclude_hidden)?;
 
     // 根据格式导出
     match format {

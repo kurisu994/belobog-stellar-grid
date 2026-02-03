@@ -64,6 +64,7 @@ async fn test_batch_export_function() {
         None, // tbody_id
         Some("test_batch.csv".to_string()),
         Some(100), // batch_size
+        None, // exclude_hidden
         None, // progress_callback
     ).await;
 
@@ -82,6 +83,7 @@ async fn test_batch_export_with_tbody() {
         Some("test_with_tbody.csv".to_string()),
         Some(500), // batch_size
         None,
+        None,
     ).await;
 
     assert!(result.is_ok() || result.is_err());
@@ -96,6 +98,7 @@ async fn test_batch_export_small_batch() {
         None,
         Some("test_small_batch.csv".to_string()),
         Some(1), // 最小批次大小
+        None,
         None,
     ).await;
 

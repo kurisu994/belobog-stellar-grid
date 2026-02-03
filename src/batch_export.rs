@@ -4,6 +4,7 @@
 /// 支持合并单元格（colspan/rowspan）
 use crate::resource::UrlGuard;
 use crate::validation::{ensure_extension, validate_filename};
+use crate::utils::is_element_hidden;
 use csv::Writer;
 use std::collections::HashMap;
 use std::io::Cursor;
@@ -48,6 +49,7 @@ fn get_cell_span(cell: &HtmlTableCellElement) -> CellSpan {
 /// * `tbody_id` - 可选的数据表格体 ID（用于分离表头和数据）
 /// * `filename` - 可选的导出文件名（可选，默认为 "table_export.csv"）
 /// * `batch_size` - 每批处理的行数（默认 1000）
+/// * `exclude_hidden` - 可选，是否排除隐藏的行和列（默认为 false）
 /// * `progress_callback` - 进度回调函数，接收进度百分比 (0-100)
 ///
 /// # 返回值
@@ -62,6 +64,7 @@ fn get_cell_span(cell: &HtmlTableCellElement) -> CellSpan {
 ///     'my-tbody',  // 可选的 tbody ID
 ///     'data.csv',
 ///     1000,  // 每批 1000 行
+///     false, // 不排除隐藏行
 ///     (progress) => {
 ///         console.log(`进度: ${progress}%`);
 ///     }
@@ -73,6 +76,7 @@ pub async fn export_table_to_csv_batch(
     tbody_id: Option<String>,
     filename: Option<String>,
     batch_size: Option<u32>,
+    exclude_hidden: Option<bool>,
     progress_callback: Option<js_sys::Function>,
 ) -> Result<JsValue, JsValue> {
     // 输入验证
@@ -81,6 +85,7 @@ pub async fn export_table_to_csv_batch(
     }
 
     let batch_size = batch_size.unwrap_or(1000) as usize;
+    let exclude_hidden = exclude_hidden.unwrap_or(false);
     if batch_size == 0 {
         return Err(JsValue::from_str("批次大小必须大于 0"));
     }
@@ -167,6 +172,11 @@ pub async fn export_table_to_csv_batch(
                 .dyn_into::<HtmlTableRowElement>()
                 .map_err(|_| JsValue::from_str(&format!("第 {} 行不是有效的表格行", i + 1)))?;
 
+            // 如果需要排除隐藏行
+            if exclude_hidden && is_element_hidden(&row) {
+                continue;
+            }
+
             let mut row_data = Vec::new();
             let cells = row.cells();
             let cell_count = cells.length();
@@ -196,6 +206,11 @@ pub async fn export_table_to_csv_batch(
                         cell_idx + 1
                     ))
                 })?;
+
+                // 如果需要排除隐藏列
+                if exclude_hidden && is_element_hidden(&cell) {
+                    continue;
+                }
 
                 let span = get_cell_span(&cell);
 

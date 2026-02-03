@@ -552,11 +552,12 @@
           // 执行导出 - 使用分批异步处理（DOM读取模式）
           const today = new Date().toISOString().split("T")[0];
           const filename = `产品数据_${today}.${isXlsx ? "xlsx" : "csv"}`;
+          const excludeHidden = false; // 不排除隐藏行
 
           if (isXlsx) {
-            await export_table_to_xlsx_batch("large-data-table", "table-body", filename, 1000, progressCallback);
+            await export_table_to_xlsx_batch("large-data-table", "table-body", filename, 1000, excludeHidden, progressCallback);
           } else {
-            await export_table_to_csv_batch("large-data-table", "table-body", filename, 1000, progressCallback);
+            await export_table_to_csv_batch("large-data-table", "table-body", filename, 1000, excludeHidden, progressCallback);
           }
 
           const endTime = performance.now();

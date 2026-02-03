@@ -9,3 +9,18 @@ pub fn set_panic_hook() {
     #[cfg(feature = "console_error_panic_hook")]
     console_error_panic_hook::set_once();
 }
+
+/// 检查元素是否隐藏 (display: none)
+pub fn is_element_hidden(element: &web_sys::Element) -> bool {
+    let window = match web_sys::window() {
+        Some(w) => w,
+        None => return false,
+    };
+
+    if let Ok(Some(style)) = window.get_computed_style(element) {
+        if let Ok(display) = style.get_property_value("display") {
+            return display == "none";
+        }
+    }
+    false
+}

@@ -143,33 +143,56 @@
             <button class="btn-primary" onclick="exportDefault()">📄 导出为 CSV（默认）</button>
             <button class="btn-primary" onclick="exportWithFilename()">📄 导出为 CSV（自定义文件名）</button>
             <button class="btn-excel" onclick="exportExcel()">📗 导出为 Excel</button>
+            <button class="btn-primary" onclick="exportExcludeHidden()">👁️ 导出可见数据(排除隐藏行)</button>
         </div>
     </div>
 
     <script type="module">
         import init, { export_table, ExportFormat } from '../pkg/belobog_stellar_grid.js';
-        
+
         // 初始化 WebAssembly
         await init();
-        
+
         // 导出为 CSV（默认文件名）
         window.exportDefault = () => {
             export_table('employees-table');
             console.log('✅ 导出为 CSV 完成（默认文件名）');
         };
-        
+
         // 导出为 CSV（自定义文件名）
         window.exportWithFilename = () => {
             export_table('employees-table', '员工信息表.csv');
             console.log('✅ 导出为 CSV 完成（自定义文件名）');
         };
-        
+
         // 导出为 Excel
         window.exportExcel = () => {
             export_table('employees-table', '员工信息表', ExportFormat.Xlsx);
             console.log('✅ 导出为 Excel 完成');
         };
-        
+
+        // 导出为 Excel (排除隐藏行)
+        window.exportExcludeHidden = () => {
+            // 模拟隐藏一行
+            const table = document.getElementById('employees-table');
+            const rows = table.rows;
+            if (rows.length > 2) {
+                rows[2].style.display = 'none'; // 隐藏第三行(李四)
+                console.log('已隐藏第3行数据');
+            }
+
+            export_table('employees-table', '员工信息表(可见).xlsx', ExportFormat.Xlsx, true);
+            console.log('✅ 导出可见数据完成');
+
+            // 恢复显示
+            if (rows.length > 2) {
+                setTimeout(() => {
+                    rows[2].style.display = '';
+                    console.log('已恢复第3行数据显示');
+                }, 1000);
+            }
+        };
+
         console.log('🚀 WebAssembly 已初始化，可以使用导出功能');
     </script>
 </body>

@@ -19,7 +19,7 @@ default = ["console_error_panic_hook", "wee_alloc"]
 [dependencies]
 wasm-bindgen = "0.2.106"
 wasm-bindgen-futures = "0.4"
-web-sys = { version = "0.3.83", features = ["HtmlTableElement", "HtmlTableRowElement", "HtmlTableCellElement", "HtmlTableSectionElement", "Document", "Element", "HtmlElement", "Node", "Window", "Url", "Blob", "HtmlCollection", "HtmlAnchorElement", "BlobPropertyBag", "console"] }
+web-sys = { version = "0.3.83", features = ["HtmlTableElement", "HtmlTableRowElement", "HtmlTableCellElement", "HtmlTableSectionElement", "Document", "Element", "HtmlElement", "Node", "Window", "Url", "Blob", "HtmlCollection", "HtmlAnchorElement", "BlobPropertyBag", "console", "CssStyleDeclaration"] }
 js-sys = "0.3.83"
 csv = "1.4.0"
 rust_xlsxwriter = { version = "0.69.0", features = ["wasm"] }

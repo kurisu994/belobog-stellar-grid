@@ -411,7 +411,8 @@
 
                 let successCount = 0;
                 for (const table of tables) {
-                    export_table(table.id, table.filename);
+                    // 使用新的 API 签名: table_id, filename, format, exclude_hidden, progress_callback
+                    export_table(table.id, table.filename, undefined, false, undefined);
                     successCount++;
                     // 添加小延迟，避免浏览器下载限制
                     await new Promise(resolve => setTimeout(resolve, 100));

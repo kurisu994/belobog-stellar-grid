@@ -4,6 +4,7 @@
 /// 采用两阶段策略：分批读取 DOM 数据 + 同步生成 XLSX
 use crate::resource::UrlGuard;
 use crate::validation::{ensure_extension, validate_filename};
+use crate::utils::is_element_hidden;
 use rust_xlsxwriter::Workbook;
 use std::collections::HashMap;
 use wasm_bindgen::JsCast;
@@ -47,6 +48,7 @@ fn get_cell_span(cell: &HtmlTableCellElement) -> CellSpan {
 /// * `tbody_id` - 可选的数据表格体 ID（用于分离表头和数据）
 /// * `filename` - 可选的导出文件名（默认为 "table_export.xlsx"）
 /// * `batch_size` - 每批处理的行数（默认 1000）
+/// * `exclude_hidden` - 可选，是否排除隐藏的行和列（默认为 false）
 /// * `progress_callback` - 进度回调函数，接收进度百分比 (0-100)
 ///
 /// # 返回值
@@ -61,6 +63,7 @@ fn get_cell_span(cell: &HtmlTableCellElement) -> CellSpan {
 ///     'my-tbody',  // 可选的 tbody ID
 ///     'data.xlsx',
 ///     1000,  // 每批 1000 行
+///     false, // 不排除隐藏行
 ///     (progress) => {
 ///         console.log(`进度: ${progress}%`);
 ///     }
@@ -72,6 +75,7 @@ pub async fn export_table_to_xlsx_batch(
     tbody_id: Option<String>,
     filename: Option<String>,
     batch_size: Option<u32>,
+    exclude_hidden: Option<bool>,
     progress_callback: Option<js_sys::Function>,
 ) -> Result<JsValue, JsValue> {
     // 输入验证
@@ -80,6 +84,7 @@ pub async fn export_table_to_xlsx_batch(
     }
 
     let batch_size = batch_size.unwrap_or(1000) as usize;
+    let exclude_hidden = exclude_hidden.unwrap_or(false);
     if batch_size == 0 {
         return Err(JsValue::from_str("批次大小必须大于 0"));
     }
@@ -94,6 +99,7 @@ pub async fn export_table_to_xlsx_batch(
         &table_id,
         tbody_id.as_deref(),
         batch_size,
+        exclude_hidden,
         &progress_callback,
     )
     .await?;
@@ -111,6 +117,7 @@ async fn extract_table_data_batch(
     table_id: &str,
     tbody_id: Option<&str>,
     batch_size: usize,
+    exclude_hidden: bool,
     progress_callback: &Option<js_sys::Function>,
 ) -> Result<Vec<Vec<String>>, JsValue> {
     // 安全地获取全局的 window 和 document 对象
@@ -184,6 +191,11 @@ async fn extract_table_data_batch(
                 .dyn_into::<HtmlTableRowElement>()
                 .map_err(|_| JsValue::from_str(&format!("第 {} 行不是有效的表格行", i + 1)))?;
 
+            // 如果需要排除隐藏行
+            if exclude_hidden && is_element_hidden(&row) {
+                continue;
+            }
+
             let mut row_data = Vec::new();
             let cells = row.cells();
             let cell_count = cells.length();
@@ -212,6 +224,11 @@ async fn extract_table_data_batch(
                         cell_idx + 1
                     ))
                 })?;
+
+                // 如果需要排除隐藏列
+                if exclude_hidden && is_element_hidden(&cell) {
+                    continue;
+                }
 
                 let span = get_cell_span(&cell);
 
