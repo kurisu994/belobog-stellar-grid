@@ -7,7 +7,7 @@ mod table_extractor;
 
 use export_csv::export_as_csv;
 use export_xlsx::export_as_xlsx;
-use table_extractor::extract_table_data;
+use table_extractor::{extract_table_data, extract_table_data_with_merge};
 use wasm_bindgen::prelude::*;
 
 /// 导出格式枚举
@@ -71,12 +71,17 @@ pub fn export_table(
         return Err(JsValue::from_str("表格 ID 不能为空"));
     }
 
-    // 提取表格数据
-    let table_data = extract_table_data(table_id, exclude_hidden)?;
-
     // 根据格式导出
     match format {
-        ExportFormat::Csv => export_as_csv(table_data, filename, progress_callback),
-        ExportFormat::Xlsx => export_as_xlsx(table_data, filename, progress_callback),
+        ExportFormat::Csv => {
+            // CSV 不支持合并单元格，使用简化提取
+            let table_data = extract_table_data(table_id, exclude_hidden)?;
+            export_as_csv(table_data, filename, progress_callback)
+        }
+        ExportFormat::Xlsx => {
+            // XLSX 支持合并单元格，提取完整数据
+            let table_data = extract_table_data_with_merge(table_id, exclude_hidden)?;
+            export_as_xlsx(table_data, filename, progress_callback)
+        }
     }
 }

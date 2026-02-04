@@ -5,7 +5,7 @@
 use crate::resource::UrlGuard;
 use crate::utils::is_element_hidden;
 use crate::validation::{ensure_extension, validate_filename};
-use rust_xlsxwriter::Workbook;
+use rust_xlsxwriter::{Format, Workbook};
 use std::collections::HashMap;
 use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::*;
@@ -14,6 +14,57 @@ use web_sys::{
     Blob, HtmlAnchorElement, HtmlTableCellElement, HtmlTableElement, HtmlTableRowElement,
     HtmlTableSectionElement, Url,
 };
+
+/// 合并单元格区域信息
+#[derive(Debug, Clone)]
+struct MergeRange {
+    /// 起始行索引（0-based）
+    first_row: u32,
+    /// 起始列索引（0-based）
+    first_col: u16,
+    /// 结束行索引（0-based，inclusive）
+    last_row: u32,
+    /// 结束列索引（0-based，inclusive）
+    last_col: u16,
+}
+
+impl MergeRange {
+    /// 创建新的合并区域
+    fn new(first_row: u32, first_col: u16, last_row: u32, last_col: u16) -> Self {
+        Self {
+            first_row,
+            first_col,
+            last_row,
+            last_col,
+        }
+    }
+}
+
+/// 分批导出用的表格数据结构
+#[derive(Debug)]
+struct BatchTableData {
+    /// 二维字符串数组，表示表格数据
+    rows: Vec<Vec<String>>,
+    /// 合并单元格区域列表
+    merge_ranges: Vec<MergeRange>,
+}
+
+impl BatchTableData {
+    #[allow(dead_code)]
+    fn new() -> Self {
+        Self {
+            rows: Vec::new(),
+            merge_ranges: Vec::new(),
+        }
+    }
+
+    fn with_capacity(capacity: usize) -> Self {
+        Self {
+            rows: Vec::with_capacity(capacity),
+            merge_ranges: Vec::new(),
+        }
+    }
+}
 
 /// 单元格跨度信息
 struct CellSpan {
@@ -119,7 +170,7 @@ async fn extract_table_data_batch(
     batch_size: usize,
     exclude_hidden: bool,
     progress_callback: &Option<js_sys::Function>,
-) -> Result<Vec<Vec<String>>, JsValue> {
+) -> Result<BatchTableData, JsValue> {
     // 安全地获取全局的 window 和 document 对象
     let window = web_sys::window().ok_or_else(|| JsValue::from_str("无法获取 window 对象"))?;
     let document = window
@@ -164,10 +215,13 @@ async fn extract_table_data_batch(
         return Err(JsValue::from_str("表格为空，没有数据可导出"));
     }
 
-    let mut table_data = Vec::with_capacity(total_rows);
+    let mut table_data = BatchTableData::with_capacity(total_rows);
 
     // 用于追踪被 rowspan 占用的位置
     let mut rowspan_tracker: HashMap<(usize, usize), String> = HashMap::new();
+
+    // 跟踪实际输出的行索引（因为隐藏行可能被跳过）
+    let mut output_row_idx: u32 = 0;
 
     // 分批处理数据
     let mut current_row = 0;
@@ -232,6 +286,16 @@ async fn extract_table_data_batch(
 
                 let span = get_cell_span(&cell);
 
+                // 记录合并区域（仅当 colspan > 1 或 rowspan > 1 时）
+                if span.colspan > 1 || span.rowspan > 1 {
+                    table_data.merge_ranges.push(MergeRange::new(
+                        output_row_idx,
+                        col_idx as u16,
+                        output_row_idx + span.rowspan - 1,
+                        (col_idx + span.colspan as usize - 1) as u16,
+                    ));
+                }
+
                 // 处理 rowspan
                 if span.rowspan > 1 {
                     for r in 1..span.rowspan as usize {
@@ -261,7 +325,8 @@ async fn extract_table_data_batch(
                 col_idx += 1;
             }
 
-            table_data.push(row_data);
+            table_data.rows.push(row_data);
+            output_row_idx += 1;
         }
 
         current_row = batch_end;
@@ -285,18 +350,18 @@ async fn extract_table_data_batch(
 ///
 /// 内存中的数据写入 XLSX 非常快，通常 < 500ms
 fn generate_and_download_xlsx(
-    table_data: Vec<Vec<String>>,
+    table_data: BatchTableData,
     filename: Option<String>,
     progress_callback: &Option<js_sys::Function>,
 ) -> Result<(), JsValue> {
-    let total_rows = table_data.len();
+    let total_rows = table_data.rows.len();
 
     // 创建工作簿与工作表
     let mut workbook = Workbook::new();
     let worksheet = workbook.add_worksheet();
 
     // 写入所有数据
-    for (i, row_data) in table_data.iter().enumerate() {
+    for (i, row_data) in table_data.rows.iter().enumerate() {
         for (j, cell_text) in row_data.iter().enumerate() {
             // 检测公式：以 = 开头且长度大于 1 的内容视为公式
             if cell_text.starts_with('=') && cell_text.len() > 1 {
@@ -310,13 +375,33 @@ fn generate_and_download_xlsx(
             }
         }
 
-        // 定期报告进度（XLSX 生成阶段占 80% - 100%）
+        // 定期报告进度（XLSX 生成阶段占 80% - 95%）
         if let Some(callback) = progress_callback
             && (i % 100 == 0 || i == total_rows - 1)
         {
-            let progress = 80.0 + ((i + 1) as f64 / total_rows as f64) * 20.0;
+            let progress = 80.0 + ((i + 1) as f64 / total_rows as f64) * 15.0;
             let _ = callback.call1(&JsValue::NULL, &JsValue::from_f64(progress));
         }
+    }
+
+    // 应用合并单元格
+    let merge_format = Format::new();
+    for merge in &table_data.merge_ranges {
+        worksheet
+            .merge_range(
+                merge.first_row,
+                merge.first_col,
+                merge.last_row,
+                merge.last_col,
+                "", // 使用空字符串，因为内容已经写入了
+                &merge_format,
+            )
+            .map_err(|e| JsValue::from_str(&format!("合并单元格失败: {}", e)))?;
+    }
+
+    // 报告合并单元格完成进度
+    if let Some(callback) = progress_callback {
+        let _ = callback.call1(&JsValue::NULL, &JsValue::from_f64(98.0));
     }
 
     // 将工作簿写入内存缓冲区

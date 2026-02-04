@@ -7,6 +7,61 @@ use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::*;
 use web_sys::{HtmlTableCellElement, HtmlTableElement, HtmlTableRowElement};
 
+/// 合并单元格区域信息
+#[derive(Debug, Clone)]
+pub struct MergeRange {
+    /// 起始行索引（0-based）
+    pub first_row: u32,
+    /// 起始列索引（0-based）
+    pub first_col: u16,
+    /// 结束行索引（0-based，inclusive）
+    pub last_row: u32,
+    /// 结束列索引（0-based，inclusive）
+    pub last_col: u16,
+}
+
+impl MergeRange {
+    /// 创建新的合并区域
+    pub fn new(first_row: u32, first_col: u16, last_row: u32, last_col: u16) -> Self {
+        Self {
+            first_row,
+            first_col,
+            last_row,
+            last_col,
+        }
+    }
+}
+
+/// 表格数据结构，包含单元格数据和合并信息
+#[derive(Debug, Clone)]
+pub struct TableData {
+    /// 二维字符串数组，表示表格数据
+    pub rows: Vec<Vec<String>>,
+    /// 合并单元格区域列表
+    pub merge_ranges: Vec<MergeRange>,
+}
+
+impl TableData {
+    /// 创建新的表格数据
+    pub fn new() -> Self {
+        Self {
+            rows: Vec::new(),
+            merge_ranges: Vec::new(),
+        }
+    }
+
+    /// 获取纯文本数据（用于 CSV 导出等场景）
+    pub fn into_rows(self) -> Vec<Vec<String>> {
+        self.rows
+    }
+}
+
+impl Default for TableData {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// 单元格跨度信息
 struct CellSpan {
     /// 单元格文本内容
@@ -37,7 +92,7 @@ fn get_cell_span(cell: &HtmlTableCellElement) -> CellSpan {
     }
 }
 
-/// 从 HTML 表格中提取数据（支持合并单元格）
+/// 从 HTML 表格中提取数据（简化版，仅返回文本数据）
 ///
 /// 使用占位矩阵算法处理 colspan 和 rowspan：
 /// - colspan > 1: 填充空字符串到后续列
@@ -54,6 +109,25 @@ pub fn extract_table_data(
     table_id: &str,
     exclude_hidden: bool,
 ) -> Result<Vec<Vec<String>>, JsValue> {
+    let table_data = extract_table_data_with_merge(table_id, exclude_hidden)?;
+    Ok(table_data.into_rows())
+}
+
+/// 从 HTML 表格中提取数据（完整版，包含合并单元格信息）
+///
+/// 使用占位矩阵算法处理 colspan 和 rowspan，同时记录合并区域用于 Excel 导出
+///
+/// # 参数
+/// * `table_id` - HTML 表格元素的 ID
+/// * `exclude_hidden` - 是否排除隐藏的行和列
+///
+/// # 返回值
+/// * `Ok(TableData)` - 包含表格数据和合并区域信息
+/// * `Err(JsValue)` - 提取失败，包含错误信息
+pub fn extract_table_data_with_merge(
+    table_id: &str,
+    exclude_hidden: bool,
+) -> Result<TableData, JsValue> {
     // 安全地获取全局的 window 和 document 对象
     let window = web_sys::window().ok_or_else(|| JsValue::from_str("无法获取 window 对象"))?;
     let document = window
@@ -77,11 +151,14 @@ pub fn extract_table_data(
         return Err(JsValue::from_str("表格为空，没有数据可导出"));
     }
 
-    let mut table_data = Vec::new();
+    let mut result = TableData::new();
 
     // 用于追踪被 rowspan 占用的位置: (row, col) -> cell_text
     // 当某个单元格有 rowspan > 1 时，预先将其内容填入后续行的对应列位置
     let mut rowspan_tracker: HashMap<(u32, usize), String> = HashMap::new();
+
+    // 跟踪实际输出的行索引（因为隐藏行可能被跳过）
+    let mut output_row_idx: u32 = 0;
 
     for row_idx in 0..row_count {
         let row = rows
@@ -134,6 +211,16 @@ pub fn extract_table_data(
 
             let span = get_cell_span(&cell);
 
+            // 记录合并区域（仅当 colspan > 1 或 rowspan > 1 时）
+            if span.colspan > 1 || span.rowspan > 1 {
+                result.merge_ranges.push(MergeRange::new(
+                    output_row_idx,
+                    col_idx as u16,
+                    output_row_idx + span.rowspan - 1,
+                    (col_idx + span.colspan as usize - 1) as u16,
+                ));
+            }
+
             // 处理 rowspan: 将当前单元格内容预填到后续行的对应位置
             if span.rowspan > 1 {
                 for r in 1..span.rowspan {
@@ -164,8 +251,9 @@ pub fn extract_table_data(
             col_idx += 1;
         }
 
-        table_data.push(row_data);
+        result.rows.push(row_data);
+        output_row_idx += 1;
     }
 
-    Ok(table_data)
+    Ok(result)
 }

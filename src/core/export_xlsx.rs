@@ -1,16 +1,17 @@
 /// Excel XLSX 导出模块
 ///
 /// 提供 Excel XLSX 格式的表格导出功能
+use super::table_extractor::TableData;
 use crate::resource::UrlGuard;
 use crate::validation::{ensure_extension, validate_filename};
-use rust_xlsxwriter::Workbook;
+use rust_xlsxwriter::{Format, Workbook};
 use wasm_bindgen::prelude::*;
 use web_sys::{Blob, HtmlAnchorElement, Url};
 
 /// 导出为 Excel XLSX 格式
 ///
 /// # 参数
-/// * `table_data` - 表格数据（二维字符串数组）
+/// * `table_data` - 表格数据（包含单元格数据和合并区域信息）
 /// * `filename` - 可选的导出文件名
 /// * `progress_callback` - 可选的进度回调函数
 ///
@@ -18,11 +19,11 @@ use web_sys::{Blob, HtmlAnchorElement, Url};
 /// * `Ok(())` - 导出成功
 /// * `Err(JsValue)` - 导出失败，包含错误信息
 pub fn export_as_xlsx(
-    table_data: Vec<Vec<String>>,
+    table_data: TableData,
     filename: Option<String>,
     progress_callback: Option<js_sys::Function>,
 ) -> Result<(), JsValue> {
-    let total_rows = table_data.len();
+    let total_rows = table_data.rows.len();
 
     // 报告初始进度
     if let Some(ref callback) = progress_callback {
@@ -34,7 +35,7 @@ pub fn export_as_xlsx(
     let worksheet = workbook.add_worksheet();
 
     // 写入所有数据，并报告进度
-    for (i, row_data) in table_data.iter().enumerate() {
+    for (i, row_data) in table_data.rows.iter().enumerate() {
         for (j, cell_text) in row_data.iter().enumerate() {
             // 检测公式：以 = 开头且长度大于 1 的内容视为公式
             if cell_text.starts_with('=') && cell_text.len() > 1 {
@@ -48,13 +49,33 @@ pub fn export_as_xlsx(
             }
         }
 
-        // 定期报告进度（每10行或最后一行）
+        // 定期报告进度（每10行或最后一行）（数据写入阶段占 0% - 80%）
         if let Some(ref callback) = progress_callback
             && (i % 10 == 0 || i == total_rows - 1)
         {
-            let progress = ((i + 1) as f64 / total_rows as f64) * 100.0;
+            let progress = ((i + 1) as f64 / total_rows as f64) * 80.0;
             let _ = callback.call1(&JsValue::NULL, &JsValue::from_f64(progress));
         }
+    }
+
+    // 应用合并单元格
+    let merge_format = Format::new();
+    for merge in &table_data.merge_ranges {
+        worksheet
+            .merge_range(
+                merge.first_row,
+                merge.first_col,
+                merge.last_row,
+                merge.last_col,
+                "", // 使用空字符串，因为内容已经写入了
+                &merge_format,
+            )
+            .map_err(|e| JsValue::from_str(&format!("合并单元格失败: {}", e)))?;
+    }
+
+    // 报告合并单元格完成进度
+    if let Some(ref callback) = progress_callback {
+        let _ = callback.call1(&JsValue::NULL, &JsValue::from_f64(90.0));
     }
 
     // 将工作簿写入内存缓冲区
