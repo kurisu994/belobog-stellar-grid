@@ -1,6 +1,6 @@
+use crate::utils::is_element_hidden;
 use std::collections::HashMap;
 use wasm_bindgen::JsCast;
-use crate::utils::is_element_hidden;
 /// 表格数据提取模块
 ///
 /// 提供从 DOM 中提取表格数据的功能，支持合并单元格（colspan/rowspan）
@@ -50,7 +50,10 @@ fn get_cell_span(cell: &HtmlTableCellElement) -> CellSpan {
 /// # 返回值
 /// * `Ok(Vec<Vec<String>>)` - 二维字符串数组，表示表格数据
 /// * `Err(JsValue)` - 提取失败，包含错误信息
-pub fn extract_table_data(table_id: &str, exclude_hidden: bool) -> Result<Vec<Vec<String>>, JsValue> {
+pub fn extract_table_data(
+    table_id: &str,
+    exclude_hidden: bool,
+) -> Result<Vec<Vec<String>>, JsValue> {
     // 安全地获取全局的 window 和 document 对象
     let window = web_sys::window().ok_or_else(|| JsValue::from_str("无法获取 window 对象"))?;
     let document = window

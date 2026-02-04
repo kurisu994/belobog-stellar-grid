@@ -17,10 +17,10 @@ pub fn is_element_hidden(element: &web_sys::Element) -> bool {
         None => return false,
     };
 
-    if let Ok(Some(style)) = window.get_computed_style(element) {
-        if let Ok(display) = style.get_property_value("display") {
-            return display == "none";
-        }
+    if let Ok(Some(style)) = window.get_computed_style(element)
+        && let Ok(display) = style.get_property_value("display")
+    {
+        return display == "none";
     }
     false
 }
