@@ -7,7 +7,7 @@
   <p>一个安全、高效、易用的 Rust WebAssembly 库，用于将 HTML 表格导出为 CSV 和 XLSX 文件</p>
 
   <p>
-    <img src="https://img.shields.io/badge/version-1.0.0-blue.svg" alt="Version" />
+    <img src="https://img.shields.io/badge/version-1.0.1-blue.svg" alt="Version" />
     <img src="https://img.shields.io/badge/rust-edition%202024-orange.svg" alt="Rust Edition" />
     <img src="https://img.shields.io/badge/test_coverage-100%25-brightgreen.svg" alt="Test Coverage" />
     <img src="https://img.shields.io/badge/license-MIT%2FApache--2.0-green.svg" alt="License" />
@@ -148,8 +148,14 @@ export_table("table-id", "销售报表_2024", ExportFormat.Xlsx); // 自动添�
 ```javascript
 import { export_table, ExportFormat } from "belobog-stellar-grid";
 
-// CSV 格式带进度
-export_table("large-table", "大数据.csv", ExportFormat.Csv, (progress) => {
+// CSV 格式带进度（不排除隐藏行）
+export_table("large-table", "大数据.csv", ExportFormat.Csv, false, (progress) => {
+  console.log(`进度: ${Math.round(progress)}%`);
+  progressBar.style.width = `${progress}%`;
+});
+
+// Excel 格式带进度（排除隐藏行）
+export_table("large-table", "报表.xlsx", ExportFormat.Xlsx, true, (progress) => {
   console.log(`进度: ${Math.round(progress)}%`);
   progressBar.style.width = `${progress}%`;
 });
@@ -199,6 +205,7 @@ try {
 | basic-export.html      | ![简单](https://img.shields.io/badge/难度-简单-green)  | 基础导出示例 |
 | progress-export.html   | ![中等](https://img.shields.io/badge/难度-中等-yellow) | 进度显示示例 |
 | advanced-features.html | ![进阶](https://img.shields.io/badge/难度-进阶-orange) | 高级特性示例 |
+| virtual-scroll-export.html | ![高级](https://img.shields.io/badge/难度-高级-red) | 虚拟滚动导出（百万级数据）示例 |
 
 **运行示例**：
 
@@ -219,7 +226,7 @@ basic-http-server .
 
 ### 核心函数
 
-#### `export_table(table_id, filename?, format?, progress_callback?)` ✅ 推荐
+#### `export_table(table_id, filename?, format?, exclude_hidden?, progress_callback?)` ✅ 推荐
 
 统一的表格导出函数，支持 CSV 和 XLSX 格式。
 
@@ -228,6 +235,7 @@ basic-http-server .
 - `table_id`: 表格元素的 ID
 - `filename`: 导出文件名（可选）
 - `format`: 导出格式（可选，默认 CSV）
+- `exclude_hidden`: 是否排除隐藏的行和列（可选，默认 false）
 - `progress_callback`: 进度回调函数（可选）
 
 **示例**：
@@ -262,6 +270,26 @@ export_table("large-table", "大数据", ExportFormat.Csv, (progress) => {
 - `filename`: 导出文件名（可选）
 - `batch_size`: 每批处理的行数（可选，默认 1000）
 - `callback`: 进度回调函数（可选）
+
+---
+
+#### `export_table_to_xlsx_batch(table_id, tbody_id?, filename?, batch_size?, callback?)` 🆕
+
+XLSX 格式的分批异步导出函数，解决大数据量 Excel 导出卡死问题。
+
+**适用场景**：10,000+ 行数据的 Excel 导出
+
+**参数**：
+
+- `table_id`: 表格元素的 ID
+- `tbody_id`: 可选的数据表格体 ID
+- `filename`: 导出文件名（可选）
+- `batch_size`: 每批处理的行数（可选，默认 1000）
+- `callback`: 进度回调函数（可选）
+
+**特性**：
+- 采用两阶段策略：分批读取 DOM (80%) + 同步生成 XLSX (20%)
+- 每批处理后让出控制权给浏览器，保持页面响应性
 
 ---
 
@@ -434,7 +462,7 @@ belobog-stellar-grid/
 
 - [ ] 支持数据类型自动检测（数字、日期、布尔值等）
 - [ ] 导出时将数字类型写入 Excel 数值单元格而非文本
-- [x] 支持 Excel 公式导出
+- [x] 支持 Excel 公式导出（以 = 开头的内容会被识别为公式）
 
 ### 样式与格式化
 
@@ -445,7 +473,7 @@ belobog-stellar-grid/
 
 ### 表格结构
 
-- [x] 导出时保留合并单元格状态
+- [x] 导出时保留合并单元格状态（支持 colspan 和 rowspan）
 - [ ] 支持多工作表导出（多表格导出到同一 Excel 文件的不同 sheet）
 - [x] 支持检测并排除隐藏行/列（`display: none`）
 
