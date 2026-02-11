@@ -293,6 +293,45 @@ XLSX 格式的分批异步导出函数，解决大数据量 Excel 导出卡死�
 
 ---
 
+#### `export_tables_xlsx(sheets, filename?, progress_callback?)` 🆕 多工作表
+
+将多个 HTML 表格导出到同一个 Excel 文件的不同工作表中。
+
+**参数**：
+
+- `sheets`: 配置数组 `Array<{ tableId: string, sheetName?: string, excludeHidden?: boolean }>`
+- `filename`: 导出文件名（可选）
+- `progress_callback`: 进度回调函数（可选）
+
+**示例**：
+
+```javascript
+import { export_tables_xlsx } from "belobog-stellar-grid";
+
+export_tables_xlsx(
+  [
+    { tableId: "summary-table", sheetName: "汇总", excludeHidden: true },
+    { tableId: "details-table", sheetName: "详情" }
+  ],
+  "年度报表.xlsx"
+);
+```
+
+---
+
+#### `export_tables_to_xlsx_batch(sheets, filename?, batch_size?, callback?)` 🆕 多工作表(异步)
+
+多工作表导出的异步分批版本，适用于包含大数据量的多个表格。
+
+**参数**：
+
+- `sheets`: 配置数组 `Array<{ tableId: string, tbodyId?: string, sheetName?: string, excludeHidden?: boolean }>`
+- `filename`: 导出文件名（可选）
+- `batch_size`: 每批处理的行数（可选，默认 1000）
+- `callback`: 进度回调函数（可选）
+
+---
+
 ### 文件名安全验证
 
 所有导出函数都会自动验证文件名安全性：
@@ -458,23 +497,10 @@ belobog-stellar-grid/
 
 以下是待改进的功能点：
 
-### 数据类型处理
-
-- [ ] 支持数据类型自动检测（数字、日期、布尔值等）
-- [ ] 导出时将数字类型写入 Excel 数值单元格而非文本
-- [x] 支持 Excel 公式导出（以 = 开头的内容会被识别为公式）
-
-### 样式与格式化
-
-- [ ] 支持基础样式设置（字体、颜色、边框、背景色）
-- [ ] 支持列宽自动调整
-- [ ] 支持表头行特殊样式（加粗、背景色）
-- [ ] 支持条件格式（数据条、图标集等）
-
 ### 表格结构
 
 - [x] 导出时保留合并单元格状态（支持 colspan 和 rowspan）
-- [ ] 支持多工作表导出（多表格导出到同一 Excel 文件的不同 sheet）
+- [x] 支持多工作表导出（多表格导出到同一 Excel 文件的不同 sheet）
 - [x] 支持检测并排除隐藏行/列（`display: none`）
 
 ### 数据选择与过滤

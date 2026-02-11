@@ -11,6 +11,12 @@
 
 ### ✨ 新增
 
+- 🆕 **多工作表导出 (Multi-sheet Export)**
+  - 支持将多个 HTML 表格导出到同一个 Excel 文件的不同工作表中
+  - 新增同步 API `export_tables_xlsx()`
+  - 新增异步分批 API `export_tables_to_xlsx_batch()`（支持大数据量）
+  - 支持自定义工作表名称和排除隐藏行列配置
+
 - 🆕 **支持排除隐藏元素**：自动检测并忽略 `display: none` 的行和列
 
 ## [1.0.1] - 2026-02-02

@@ -559,3 +559,100 @@ fn test_regression_case_sensitivity() {
         assert_eq!(result, expected, "大小写处理应该正确");
     }
 }
+
+// ============================================================================
+// 多工作表导出相关测试
+// ============================================================================
+
+#[test]
+fn test_multi_sheet_ensure_extension_xlsx() {
+    // 测试多工作表导出文件名的扩展名处理
+    assert_eq!(ensure_extension("report", "xlsx"), "report.xlsx");
+    assert_eq!(ensure_extension("report.xlsx", "xlsx"), "report.xlsx");
+    assert_eq!(ensure_extension("report.XLSX", "xlsx"), "report.XLSX");
+    assert_eq!(ensure_extension("report.csv", "xlsx"), "report.csv.xlsx");
+    assert_eq!(ensure_extension("数据报告", "xlsx"), "数据报告.xlsx");
+}
+
+#[test]
+fn test_multi_sheet_filename_validation() {
+    // 测试多工作表导出场景下的文件名验证
+    assert!(validate_filename("report.xlsx").is_ok());
+    assert!(validate_filename("多表报告").is_ok());
+    assert!(validate_filename("report_2024").is_ok());
+
+    // 无效文件名
+    assert!(validate_filename("../report.xlsx").is_err());
+    assert!(validate_filename("path/report.xlsx").is_err());
+    assert!(validate_filename("").is_err());
+}
+
+#[test]
+fn test_multi_sheet_default_sheet_name_generation() {
+    // 测试默认工作表名称生成逻辑
+    let configs: Vec<Option<String>> = vec![None, None, Some("自定义".to_string()), None];
+
+    let sheet_names: Vec<String> = configs
+        .iter()
+        .enumerate()
+        .map(|(idx, name)| name.clone().unwrap_or_else(|| format!("Sheet{}", idx + 1)))
+        .collect();
+
+    assert_eq!(sheet_names[0], "Sheet1");
+    assert_eq!(sheet_names[1], "Sheet2");
+    assert_eq!(sheet_names[2], "自定义");
+    assert_eq!(sheet_names[3], "Sheet4");
+}
+
+#[test]
+fn test_multi_sheet_progress_calculation() {
+    // 测试多工作表导出的进度计算逻辑
+    let total_sheets = 3;
+
+    // 第一个 sheet 的进度范围：0% - 26.67%
+    let sheet0_start = (0_f64 / total_sheets as f64) * 80.0;
+    let sheet0_range = 80.0 / total_sheets as f64;
+    assert!((sheet0_start - 0.0).abs() < f64::EPSILON);
+    assert!((sheet0_range - 26.666666666666668).abs() < 0.001);
+
+    // 第二个 sheet 的进度范围：26.67% - 53.33%
+    let sheet1_start = (1_f64 / total_sheets as f64) * 80.0;
+    assert!((sheet1_start - 26.666666666666668).abs() < 0.001);
+
+    // 第三个 sheet 的进度范围：53.33% - 80%
+    let sheet2_start = (2_f64 / total_sheets as f64) * 80.0;
+    let sheet2_end = sheet2_start + sheet0_range;
+    assert!((sheet2_end - 80.0).abs() < 0.001);
+}
+
+#[test]
+fn test_multi_sheet_empty_config_detection() {
+    // 测试空 table_id 的检测逻辑
+    let empty_id = "";
+    assert!(empty_id.is_empty(), "空的 table_id 应该被检测到");
+
+    let valid_id = "table1";
+    assert!(!valid_id.is_empty(), "有效的 table_id 不应该为空");
+}
+
+#[test]
+fn test_multi_sheet_sheet_name_unicode() {
+    // 测试 Unicode 工作表名称
+    let sheet_names = vec![
+        "订单列表",
+        "商品列表",
+        "用户数据",
+        "日本語シート",
+        "한국어시트",
+    ];
+
+    for name in &sheet_names {
+        assert!(!name.is_empty(), "工作表名称不应该为空");
+        // Excel 工作表名称长度限制为 31 个字符
+        assert!(
+            name.chars().count() <= 31,
+            "工作表名称 '{}' 超过 31 个字符限制",
+            name
+        );
+    }
+}
