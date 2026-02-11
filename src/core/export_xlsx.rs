@@ -58,16 +58,23 @@ pub fn export_as_xlsx(
         }
     }
 
-    // 应用合并单元格
+    // 应用合并单元格（merge_range 会覆盖首单元格内容，需传入实际文本）
     let merge_format = Format::new();
     for merge in &table_data.merge_ranges {
+        let text = table_data
+            .rows
+            .get(merge.first_row as usize)
+            .and_then(|row| row.get(merge.first_col as usize))
+            .map(|s| s.as_str())
+            .unwrap_or("");
+
         worksheet
             .merge_range(
                 merge.first_row,
                 merge.first_col,
                 merge.last_row,
                 merge.last_col,
-                "", // 使用空字符串，因为内容已经写入了
+                text,
                 &merge_format,
             )
             .map_err(|e| JsValue::from_str(&format!("合并单元格失败: {}", e)))?;
@@ -157,16 +164,23 @@ pub fn export_as_xlsx_multi(
             }
         }
 
-        // 应用合并单元格
+        // 应用合并单元格（merge_range 会覆盖首单元格内容，需传入实际文本）
         let merge_format = Format::new();
         for merge in &table_data.merge_ranges {
+            let text = table_data
+                .rows
+                .get(merge.first_row as usize)
+                .and_then(|row| row.get(merge.first_col as usize))
+                .map(|s| s.as_str())
+                .unwrap_or("");
+
             worksheet
                 .merge_range(
                     merge.first_row,
                     merge.first_col,
                     merge.last_row,
                     merge.last_col,
-                    "",
+                    text,
                     &merge_format,
                 )
                 .map_err(|e| JsValue::from_str(&format!("合并单元格失败: {}", e)))?;
