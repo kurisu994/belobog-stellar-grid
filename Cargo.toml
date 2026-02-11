@@ -1,6 +1,6 @@
 [package]
 name = "belobog-stellar-grid"
-version = "1.0.1"
+version = "1.0.2"
 authors = ["Kurisu <makise_kurisuu@outlook.jp>"]
 edition = "2024"
 description = "一个安全高效的 WebAssembly 库，用于将 HTML 表格数据导出为 CSV 和 XLSX 文件"
