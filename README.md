@@ -54,6 +54,15 @@
 - **LTO 优化**：链接时优化减少最终 WASM 大小
 - **实时进度反馈**：支持大型表格的进度回调
 
+#### 🛠️ 高级功能
+
+- **合并单元格支持**：完美支持 `rowspan` 和 `colspan`，保持表格结构
+- **多工作表导出**：支持将多个表格导出到同一个 Excel 文件的不同 Sheet
+- **数据导出模式**：不依赖 DOM，直接支持 JS 数组/对象导出
+- **树形数据支持**：自动处理树形结构数据，实现层级缩进
+- **智能过滤**：自动检测并排除隐藏的行/列 (`display: none`)
+- **容器查找**：自动在容器元素中查找表格
+
 ## 🚀 快速开始
 
 ### 30 秒上手
@@ -209,6 +218,7 @@ try {
 | container-export.html  | ![中等](https://img.shields.io/badge/难度-中等-yellow) | 容器元素导出示例 |
 | array-export.html      | ![进阶](https://img.shields.io/badge/难度-进阶-orange) | 数组导出（嵌套表头 + 数据合并）示例 |
 | tree-export.html       | ![进阶](https://img.shields.io/badge/难度-进阶-orange) | 树形数据导出（递归拍平 + 层级缩进）示例 |
+| multi-sheet-export.html | ![进阶](https://img.shields.io/badge/难度-进阶-orange) | 多工作表导出示例 |
 | virtual-scroll-export.html | ![高级](https://img.shields.io/badge/难度-高级-red) | 虚拟滚动导出（百万级数据）示例 |
 
 **运行示例**：
@@ -228,212 +238,23 @@ basic-http-server .
 
 ## 📚 API 参考
 
-### 核心函数
+> **提示**：该项目包含详细的 API 文档 [API.md](./API.md)。AI 辅助开发请参考 [llms.txt](./llms.txt)。
 
-#### `export_table(table_id, filename?, format?, exclude_hidden?, progress_callback?)` ✅ 推荐
+### 核心函数速览
 
-统一的表格导出函数，支持 CSV 和 XLSX 格式。
+- **`export_table`**：统一导出函数（推荐）。
+- **`export_data`**：JS 数据直接导出，支持树形和复杂表头。
+- **`export_tables_xlsx`**：导出多 Sheet Excel。
+- **`export_table_to_csv_batch`**：CSV 异步分批导出。
+- **`export_table_to_xlsx_batch`**：XLSX 异步分批导出。
 
-**参数**：
-
-- `table_id`: 表格元素的 ID
-- `filename`: 导出文件名（可选）
-- `format`: 导出格式（可选，默认 CSV）
-- `exclude_hidden`: 是否排除隐藏的行和列（可选，默认 false）
-- `progress_callback`: 进度回调函数（可选）
-
-**示例**：
-
-```javascript
-import { export_table, ExportFormat } from "belobog-stellar-grid";
-
-// 最简单的用法
-export_table("my-table");
-
-// 指定文件名和格式
-export_table("my-table", "报表.xlsx", ExportFormat.Xlsx);
-
-// 带进度回调
-export_table("large-table", "大数据", ExportFormat.Csv, (progress) => {
-  console.log(`进度: ${progress.toFixed(1)}%`);
-});
-```
+更多细节请查阅 [API.md](./API.md)。
 
 ---
 
-#### `export_table_to_csv_batch(table_id, tbody_id?, filename?, batch_size?, callback?)` 🔧 向后兼容
+## 🤖 AI 辅助支持
 
-分批异步导出函数，专为大数据量设计。
-
-**适用场景**：10,000+ 行数据
-
-**参数**：
-
-- `table_id`: 表格元素的 ID
-- `tbody_id`: 可选的数据表格体 ID
-- `filename`: 导出文件名（可选）
-- `batch_size`: 每批处理的行数（可选，默认 1000）
-- `callback`: 进度回调函数（可选）
-
----
-
-#### `export_table_to_xlsx_batch(table_id, tbody_id?, filename?, batch_size?, callback?)` 🆕
-
-XLSX 格式的分批异步导出函数，解决大数据量 Excel 导出卡死问题。
-
-**适用场景**：10,000+ 行数据的 Excel 导出
-
-**参数**：
-
-- `table_id`: 表格元素的 ID
-- `tbody_id`: 可选的数据表格体 ID
-- `filename`: 导出文件名（可选）
-- `batch_size`: 每批处理的行数（可选，默认 1000）
-- `callback`: 进度回调函数（可选）
-
-**特性**：
-- 采用两阶段策略：分批读取 DOM (80%) + 同步生成 XLSX (20%)
-- 每批处理后让出控制权给浏览器，保持页面响应性
-
----
-
-#### `export_tables_xlsx(sheets, filename?, progress_callback?)` 🆕 多工作表
-
-将多个 HTML 表格导出到同一个 Excel 文件的不同工作表中。
-
-**参数**：
-
-- `sheets`: 配置数组 `Array<{ tableId: string, sheetName?: string, excludeHidden?: boolean }>`
-- `filename`: 导出文件名（可选）
-- `progress_callback`: 进度回调函数（可选）
-
-**示例**：
-
-```javascript
-import { export_tables_xlsx } from "belobog-stellar-grid";
-
-export_tables_xlsx(
-  [
-    { tableId: "summary-table", sheetName: "汇总", excludeHidden: true },
-    { tableId: "details-table", sheetName: "详情" }
-  ],
-  "年度报表.xlsx"
-);
-```
-
----
-
-#### `export_tables_to_xlsx_batch(sheets, filename?, batch_size?, callback?)` 🆕 多工作表(异步)
-
-多工作表导出的异步分批版本，适用于包含大数据量的多个表格。
-
-**参数**：
-
-- `sheets`: 配置数组 `Array<{ tableId: string, tbodyId?: string, sheetName?: string, excludeHidden?: boolean }>`
-- `filename`: 导出文件名（可选）
-- `batch_size`: 每批处理的行数（可选，默认 1000）
-- `callback`: 进度回调函数（可选）
-
----
-
-#### `export_data(data, options?)` 🆕 直接数据导出
-
-不依赖 DOM，直接将 JavaScript 二维数组或对象数组导出为 CSV 或 XLSX 文件。支持嵌套表头、数据合并和树形数据导出。
-
-**参数**：
-
-- `data`: JS 数组（二维数组 `Array<Array<any>>` 或对象数组 `Array<Object>`）
-- `options`: 可选配置对象，包含以下字段：
-  - `columns`: 表头配置数组（导出对象数组时必填），支持嵌套 `children` 实现多级表头
-  - `filename`: 导出文件名
-  - `format`: 导出格式（默认 CSV）
-  - `progressCallback`: 进度回调函数
-  - `indentColumn`: 树形模式下，需要缩进的列的 key（如 `"name"`）
-  - `childrenKey`: 传入此参数启用树形数据模式，指定子节点字段名（如 `"children"`）
-
-**示例**：
-
-```javascript
-import { export_data, ExportFormat } from "belobog-stellar-grid";
-
-// 1. 二维数组导出
-const data = [
-  ["姓名", "年龄", "城市"],
-  ["张三", 28, "北京"],
-  ["李四", 35, "上海"]
-];
-export_data(data, { filename: "用户列表.csv" });
-
-// 2. 对象数组 + 表头配置
-const columns = [
-  { title: "姓名", key: "name" },
-  { title: "年龄", key: "age" }
-];
-const objData = [
-  { name: "张三", age: 28 },
-  { name: "李四", age: 35 }
-];
-export_data(objData, { columns, filename: "用户.xlsx", format: ExportFormat.Xlsx });
-
-// 3. 嵌套表头（多行表头 + 合并单元格）
-const nestedColumns = [
-  { title: "姓名", key: "name" },
-  { title: "其他", children: [
-    { title: "年龄", key: "age" },
-    { title: "住址", key: "address" }
-  ]}
-];
-export_data(objData, { columns: nestedColumns, filename: "报表.xlsx", format: ExportFormat.Xlsx });
-
-// 4. 数据合并单元格（colSpan / rowSpan）
-const mergeData = [
-  { name: { value: "张三", rowSpan: 2 }, subject: "数学", score: 90 },
-  { name: { value: "", rowSpan: 0 }, subject: "英语", score: 85 },
-  { name: "李四", subject: "数学", score: 95 },
-];
-export_data(mergeData, { columns, filename: "合并.xlsx", format: ExportFormat.Xlsx });
-
-// 5. 树形数据导出（传入 childrenKey 启用树形模式）
-const treeData = [
-  {
-    name: 'CEO', title: 'CEO',
-    children: [
-      { name: 'CTO', title: 'CTO' },
-      { name: 'CFO', title: 'CFO',
-        children: [{ name: '会计', title: '会计' }]
-      }
-    ]
-  }
-];
-// 带层级缩进（name 列根据层级自动添加空格）
-export_data(treeData, { columns, filename: '组织架构.xlsx', format: ExportFormat.Xlsx, indentColumn: 'name', childrenKey: 'children' });
-
-// 自定义 children 字段名
-export_data(data, { columns, filename: 'file.xlsx', format: ExportFormat.Xlsx, indentColumn: 'name', childrenKey: 'subCategories' });
-```
-
-**数据合并单元格说明**：
-
-当数据对象中的值为 `{ value, colSpan?, rowSpan? }` 格式时，自动处理合并：
-
-| 属性 | 说明 |
-|------|------|
-| `value` | 单元格显示的值 |
-| `colSpan` | 横向合并列数（默认 1，设为 0 表示被左侧合并覆盖） |
-| `rowSpan` | 纵向合并行数（默认 1，设为 0 表示被上方合并覆盖） |
-
----
-
-### 文件名安全验证
-
-所有导出函数都会自动验证文件名安全性：
-
-| ✅ 允许              | ❌ 禁止          |
-| -------------------- | ---------------- |
-| `report_2024-12.csv` | `../etc/passwd`  |
-| `数据导出.csv`       | `file<name>.csv` |
-| `sales.data.csv`     | `CON.csv`        |
-| `测试-文件.xlsx`     | `.hidden`        |
+本项目提供 `llms.txt` 文件，专为 LLM（大语言模型）设计。您可以将其内容作为上下文提供给 AI 助手，以便快速了解库的使用方法和 API。
 
 ---
 
@@ -554,15 +375,19 @@ belobog-stellar-grid/
 │   │   ├── data_export.rs # 数据导出（columns + dataSource，支持嵌套表头、数据合并、树形数据）
 │   │   ├── export_csv.rs  # CSV 导出
 │   │   └── export_xlsx.rs # XLSX 导出
-│   ├── batch_export.rs    # 异步分批导出
+│   ├── batch_export.rs    # 异步分批导出（CSV）
+│   ├── batch_export_xlsx.rs # 异步分批导出（XLSX）
 │   └── utils.rs           # 调试工具
-├── tests/                 # 测试目录（97 个测试）
+├── tests/                 # 测试目录（100 个测试）
 │   ├── lib_tests.rs       # 基础功能测试（41 个）
 │   ├── test_resource.rs   # RAII 资源测试（8 个）
 │   ├── test_unified_api.rs # 统一 API 测试（4 个）
-│   └── test_data_export.rs # 数据导出测试（33 个）
+│   ├── test_data_export.rs # 数据导出测试（33 个）
+│   └── test_security.rs   # 安全/CSV注入测试（3 个）
 ├── examples/              # 示例目录
 ├── pkg/                   # WASM 包输出
+├── API.md                 # API 详细文档
+├── llms.txt               # LLM 上下文文档
 └── README.md             # 项目文档
 ```
 
@@ -591,26 +416,31 @@ belobog-stellar-grid/
 
 以下是待改进的功能点：
 
-### 表格结构
+### 🛡️ 安全与稳定性 (优先)
 
-- [x] 导出时保留合并单元格状态（支持 colspan 和 rowspan）
-- [x] 支持多工作表导出（多表格导出到同一 Excel 文件的不同 sheet）
-- [x] 支持检测并排除隐藏行/列（`display: none`）
-- [x] 支持容器元素查找（自动在 `div` 等容器中查找 `table`）
+- [x] **修复 XLSX 公式注入漏洞**: 默认禁用公式自动执行，统一使用 `write_string` 写入。
+- [x] **递归深度限制**: 树形数据和嵌套表头添加 `MAX_DEPTH=64` 限制，防止栈溢出。
+- [x] **移除 Panic**: 将 `yield_to_browser()` 中的 `expect()` 替换为优雅的错误处理。
+- [x] **控制字符检测**: 文件名验证新增 ASCII 控制字符（0x00-0x1F）检测。
+- [x] **数组类型验证**: `parse_sheet_configs` 新增 `Array::is_array()` 验证。
 
-### 数据选择与过滤
+### ✨ 新特性
 
-- [ ] 支持选择性导出特定行或列
-- [ ] 支持导出前数据预处理/转换
-- [ ] 支持自定义列名映射
+- [ ] **Excel 样式定制**: 支持设置字体、颜色、边框、背景色等。
+- [ ] **图片导出**: 支持将图片插入到 Excel 单元格中。
+- [ ] **CSV BOM 支持**: 为 CSV 添加 UTF-8 BOM 头，解决 Windows Excel 乱码问题。
+- [ ] **数据选择与过滤**: 支持选择性导出特定行或列，以及数据预处理。
 
-### 其他
+### 💻 开发体验 (DX)
 
-- [x] 支持从 JavaScript 数组直接生成文件（不依赖 DOM）
-- [x] 支持数据区域合并单元格（colSpan / rowSpan）
-- [x] 支持树形数据导出（递归拍平 children + 层级缩进）
-- [ ] CSV 导出添加 BOM 头选项（兼容旧版 Excel）
-- [ ] 探索 Node.js/服务端支持可能性
+- [ ] **框架集成库**: 提供 `@belobog/react`、`@belobog/vue` 等官方封装组件。
+- [ ] **类型定义优化**: 提供更严格的 TypeScript 类型定义。
+
+### 🛠️ 工程化与重构
+
+- [ ] **DOM 提取逻辑重构**: 消除 DOM 遍历代码的重复逻辑。
+- [ ] **Node.js / 服务端支持**: 探索在非浏览器环境下的运行能力。
+- [ ] **E2E 测试**: 引入 Playwright 进行端到端测试。
 
 ---
 

@@ -35,18 +35,12 @@ pub fn export_as_xlsx(
     let worksheet = workbook.add_worksheet();
 
     // 写入所有数据，并报告进度
+    // 安全策略：所有单元格统一使用 write_string，禁用公式自动执行，防止公式注入攻击
     for (i, row_data) in table_data.rows.iter().enumerate() {
         for (j, cell_text) in row_data.iter().enumerate() {
-            // 检测公式：以 = 开头且长度大于 1 的内容视为公式
-            if cell_text.starts_with('=') && cell_text.len() > 1 {
-                worksheet
-                    .write_formula(i as u32, j as u16, cell_text.as_str())
-                    .map_err(|e| JsValue::from_str(&format!("写入 Excel 公式失败: {}", e)))?;
-            } else {
-                worksheet
-                    .write_string(i as u32, j as u16, cell_text)
-                    .map_err(|e| JsValue::from_str(&format!("写入 Excel 单元格失败: {}", e)))?;
-            }
+            worksheet
+                .write_string(i as u32, j as u16, cell_text)
+                .map_err(|e| JsValue::from_str(&format!("写入 Excel 单元格失败: {}", e)))?;
         }
 
         // 定期报告进度（每10行或最后一行）（数据写入阶段占 0% - 80%）
@@ -126,6 +120,7 @@ pub fn export_as_xlsx_multi(
     let mut workbook = Workbook::new();
 
     // 逐个工作表写入数据
+    let merge_format = Format::new();
     for (sheet_idx, (sheet_name, table_data)) in sheets_data.iter().enumerate() {
         let worksheet = workbook.add_worksheet();
 
@@ -158,7 +153,6 @@ pub fn export_as_xlsx_multi(
         }
 
         // 应用合并单元格（merge_range 会覆盖首单元格内容，需传入实际文本）
-        let merge_format = Format::new();
         for merge in &table_data.merge_ranges {
             let text = table_data
                 .rows

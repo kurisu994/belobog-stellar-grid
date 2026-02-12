@@ -22,9 +22,24 @@
 - 🔒 **公式注入防护 (Formula Injection Protection)**
   - CSV 导出：自动转义以 `=`, `+`, `-`, `@` 开头的单元格内容（添加 `'` 前缀），防止电子表格软件自动执行恶意代码
   - Excel 导出：强制使用文本格式写入单元格，禁用自动公式解析
+- 🔒 **修复 XLSX 公式注入安全漏洞**（CODE_REVIEW #2, #3）
+  - `export_as_xlsx()` 不再将 `=` 开头的内容作为公式执行，统一使用 `write_string`
+  - 所有 XLSX 导出路径（同步、异步、单表、多表）行为一致
+- 🔒 **文件名验证增强**（CODE_REVIEW #13）
+  - 新增 ASCII 控制字符（0x00-0x1F）检测，防止恶意文件名
+- 🔒 **树形/表头递归深度限制**（CODE_REVIEW #6）
+  - `flatten_tree_data()` 和 `parse_columns()` 添加 `MAX_DEPTH=64` 限制
+  - 超过限制时返回友好的中文错误提示
+- 🔒 **数组类型验证**（CODE_REVIEW #8）
+  - `parse_sheet_configs()` 和 `parse_batch_sheet_configs()` 新增 `Array::is_array()` 验证
+  - 防止非数组值被静默包装为单元素数组
 
 ### 🐛 修复
 
+- 修复 `yield_to_browser()` 中使用 `expect()` 违反 no-panic 约束的问题（CODE_REVIEW #1）
+  - 将 `window` 获取移到 `Promise::new()` 闭包外部，使用 `?` 操作符优雅处理错误
+- 修复 `js_value_to_string()` 冗余 fallback 导致 Symbol/BigInt 类型静默丢失的问题（CODE_REVIEW #9）
+  - 改为使用 `format!("{:?}", val)` 输出未知类型的 Debug 表示
 - 修复 `batch_export_xlsx` 分批导出时，隐藏行导致的合并单元格范围计算错误
   - 修正了 `MergeRange` 逻辑，现在能正确跳过隐藏行计算 `rowspan` 覆盖范围
 - 修复 `table_extractor` DOM 提取时的隐藏行合并单元格范围计算错误
@@ -34,11 +49,17 @@
 
 ### ⚡ 优化
 
+- **`Format::new()` 提升到循环外部**（CODE_REVIEW #12）：多工作表导出时不再每个 sheet 重复创建 `Format` 实例
 - **`dangerous_chars` 迭代优化**（#12）：将 `for` 循环改为函数式 `find()` 写法，代码更简洁
 - **`table_extractor` 性能优化**（#14）：CSV 路径下 `extract_table_data()` 独立实现，跳过 `merge_ranges` 计算和内存分配，减少不必要开销
 - 移除不再维护的 `wee_alloc` 分配器，改用 Rust 默认分配器（更安全、现代）
 - 清理冗余代码和未使用的导入
 - 消除 `test_data_export.rs` 中的编译警告
+
+### 📝 文档
+
+- 更新 `examples/README.md`：修复过时的 API 引用，补充 `multi-sheet-export.html` 示例文档
+- 更新 `README.md`：添加多工作表示例、更新测试计数、标记已完成的 TODO 项
 
 ## [1.0.3] - 2026-02-12
 

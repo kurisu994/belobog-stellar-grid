@@ -35,12 +35,12 @@ pub fn export_as_csv(
 
     // 写入所有数据，并报告进度
     for (index, row_data) in table_data.into_iter().enumerate() {
-        let safe_row: Vec<std::borrow::Cow<str>> = row_data
+        // 转义 CSV 注入字符后写入，Cow::Borrowed 时零拷贝
+        let safe_row: Vec<_> = row_data
             .iter()
             .map(|cell| crate::utils::escape_csv_injection(cell))
             .collect();
-
-        wtr.write_record(safe_row.iter().map(|s| s.as_bytes()))
+        wtr.write_record(safe_row.iter().map(|s| s.as_ref()))
             .map_err(|e| JsValue::from_str(&format!("写入 CSV 数据失败: {}", e)))?;
 
         // 定期报告进度（每10行或最后一行）

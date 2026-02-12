@@ -25,6 +25,11 @@ pub fn validate_filename(filename: &str) -> Result<(), String> {
         return Err("文件名不能包含路径分隔符".to_string());
     }
 
+    // 检查 ASCII 控制字符（0x00-0x1F）
+    if filename.chars().any(|c| c.is_ascii_control()) {
+        return Err("文件名不能包含控制字符".to_string());
+    }
+
     // 检查其他危险字符
     let dangerous_chars = ['<', '>', ':', '"', '|', '?', '*'];
     if let Some(&ch) = dangerous_chars.iter().find(|&&c| filename.contains(c)) {

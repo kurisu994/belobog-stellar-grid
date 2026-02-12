@@ -5,6 +5,9 @@
 use super::table_extractor::{MergeRange, TableData};
 use wasm_bindgen::prelude::*;
 
+/// 最大递归深度限制，防止恶意构造的深层嵌套数据导致栈溢出
+const MAX_DEPTH: usize = 64;
+
 /// 解析后的列节点
 struct ColumnNode {
     /// 表头标题
@@ -23,6 +26,18 @@ struct ColumnNode {
 /// # 返回值
 /// 解析后的 ColumnNode 列表
 fn parse_columns(columns: &JsValue) -> Result<Vec<ColumnNode>, JsValue> {
+    parse_columns_with_depth(columns, 0)
+}
+
+/// 带深度限制的递归解析列配置
+fn parse_columns_with_depth(columns: &JsValue, depth: usize) -> Result<Vec<ColumnNode>, JsValue> {
+    if depth > MAX_DEPTH {
+        return Err(JsValue::from_str(&format!(
+            "表头嵌套层级超过最大限制（{}层），请检查是否存在循环引用",
+            MAX_DEPTH
+        )));
+    }
+
     let array = js_sys::Array::from(columns);
     let length = array.length();
 
@@ -34,7 +49,7 @@ fn parse_columns(columns: &JsValue) -> Result<Vec<ColumnNode>, JsValue> {
 
     for i in 0..length {
         let item = array.get(i);
-        let node = parse_column_node(&item, i)?;
+        let node = parse_column_node_with_depth(&item, i, depth)?;
         nodes.push(node);
     }
 
@@ -42,7 +57,11 @@ fn parse_columns(columns: &JsValue) -> Result<Vec<ColumnNode>, JsValue> {
 }
 
 /// 解析单个列节点
-fn parse_column_node(item: &JsValue, index: u32) -> Result<ColumnNode, JsValue> {
+fn parse_column_node_with_depth(
+    item: &JsValue,
+    index: u32,
+    depth: usize,
+) -> Result<ColumnNode, JsValue> {
     let title = js_sys::Reflect::get(item, &JsValue::from_str("title"))
         .ok()
         .and_then(|v| v.as_string())
@@ -61,7 +80,7 @@ fn parse_column_node(item: &JsValue, index: u32) -> Result<ColumnNode, JsValue> 
     let children = if let Some(cv) = children_val {
         let arr = js_sys::Array::from(&cv);
         if arr.length() > 0 {
-            parse_columns(&cv)?
+            parse_columns_with_depth(&cv, depth + 1)?
         } else {
             Vec::new()
         }
@@ -362,7 +381,8 @@ pub(crate) fn js_value_to_string(val: &JsValue) -> String {
     } else if let Some(b) = val.as_bool() {
         b.to_string()
     } else {
-        val.as_string().unwrap_or_default()
+        // Symbol、BigInt 等其他类型，使用 Debug 格式输出
+        format!("{:?}", val)
     }
 }
 
@@ -383,6 +403,13 @@ fn flatten_tree_data(
     depth: usize,
     rows: &mut Vec<Vec<String>>,
 ) -> Result<(), JsValue> {
+    if depth > MAX_DEPTH {
+        return Err(JsValue::from_str(&format!(
+            "树形数据嵌套层级超过最大限制（{}层），请检查是否存在循环引用",
+            MAX_DEPTH
+        )));
+    }
+
     let array = js_sys::Array::from(data);
     let length = array.length();
 

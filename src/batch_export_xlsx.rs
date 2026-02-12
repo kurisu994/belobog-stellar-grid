@@ -380,6 +380,11 @@ struct BatchSheetConfig {
 
 /// 从 JsValue 数组解析分批导出的工作表配置列表
 fn parse_batch_sheet_configs(sheets: &JsValue) -> Result<Vec<BatchSheetConfig>, JsValue> {
+    // 验证输入是否为数组
+    if !js_sys::Array::is_array(sheets) {
+        return Err(JsValue::from_str("工作表配置必须是数组"));
+    }
+
     let array = js_sys::Array::from(sheets);
     let length = array.length();
 
@@ -726,6 +731,7 @@ fn generate_and_download_xlsx_multi(
     let total_sheets = all_sheets_data.len();
 
     let mut workbook = Workbook::new();
+    let merge_format = Format::new();
 
     for (sheet_idx, (sheet_name, table_data)) in all_sheets_data.iter().enumerate() {
         let worksheet = workbook.add_worksheet();
@@ -758,7 +764,6 @@ fn generate_and_download_xlsx_multi(
         }
 
         // 应用合并单元格（需要传入首单元格文本，因为 merge_range 会覆盖内容）
-        let merge_format = Format::new();
         for merge in &table_data.merge_ranges {
             let text = table_data
                 .rows

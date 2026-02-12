@@ -41,8 +41,11 @@ pub fn is_element_hidden(element: &web_sys::Element) -> bool {
 /// 使用 setTimeout(0) 创建一个宏任务，允许浏览器处理其他事件，
 /// 防止长时间同步操作阻塞 UI 线程。
 pub(crate) async fn yield_to_browser() -> Result<(), wasm_bindgen::JsValue> {
+    // 先获取 window 对象，避免在 Promise 闭包内 panic
+    let window =
+        web_sys::window().ok_or_else(|| wasm_bindgen::JsValue::from_str("无法获取 window 对象"))?;
+
     let promise = js_sys::Promise::new(&mut |resolve, _reject| {
-        let window = web_sys::window().expect("无法获取 window 对象");
         let _ = window.set_timeout_with_callback_and_timeout_and_arguments_0(&resolve, 0);
     });
 

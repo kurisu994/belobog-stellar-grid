@@ -105,6 +105,11 @@ struct SheetConfig {
 
 /// 从 JsValue 数组解析工作表配置列表
 fn parse_sheet_configs(sheets: &JsValue) -> Result<Vec<SheetConfig>, JsValue> {
+    // 验证输入是否为数组
+    if !js_sys::Array::is_array(sheets) {
+        return Err(JsValue::from_str("工作表配置必须是数组"));
+    }
+
     let array = js_sys::Array::from(sheets);
     let length = array.length();
 

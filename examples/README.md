@@ -54,10 +54,10 @@ npx http-server .
 **关键代码**：
 
 ```javascript
-import init, { export_table_to_csv } from "../pkg/belobog_stellar_grid.js";
+import init, { export_table } from "../pkg/belobog_stellar_grid.js";
 
 await init();
-export_table_to_csv("table-id", "文件名.csv");
+export_table("table-id", "文件名.csv");
 ```
 
 ---
@@ -92,13 +92,14 @@ await export_table_to_csv_batch(
   "tbody-id", // 可选的 tbody ID
   "文件名.csv",
   1000, // 每批 1000 行
+  false, // 不排除隐藏行
   (progress) => {
     console.log(`进度: ${progress}%`);
   },
 );
 
 // 导出 Excel
-await export_table_to_xlsx_batch("table-id", "tbody-id", "文件名.xlsx", 1000, (progress) => {
+await export_table_to_xlsx_batch("table-id", "tbody-id", "文件名.xlsx", 1000, false, (progress) => {
   console.log(`进度: ${progress}%`);
 });
 ```
@@ -126,7 +127,7 @@ await export_table_to_xlsx_batch("table-id", "tbody-id", "文件名.xlsx", 1000,
 // 批量导出
 const tables = ["table-1", "table-2", "table-3"];
 for (const tableId of tables) {
-  export_table_to_csv(tableId, `${tableId}.csv`);
+  export_table(tableId, `${tableId}.csv`);
   await new Promise((resolve) => setTimeout(resolve, 100));
 }
 ```
@@ -305,6 +306,52 @@ export_data(treeData, { columns, filename: '组织架构.xlsx', format: ExportFo
 export_data(data, { columns, filename: 'file.xlsx', format: ExportFormat.Xlsx, indentColumn: 'name', childrenKey: 'subCategories' });
 ```
 
+---
+
+### 8. multi-sheet-export.html - 多工作表导出示例 📑
+
+**功能**：
+
+- ✅ 将多个表格导出到同一个 Excel 文件的不同 Sheet
+- ✅ 自定义工作表名称
+- ✅ 支持排除隐藏行列
+- ✅ 同步和异步分批两种导出方式
+
+**适用场景**：
+
+- 需要将多个关联表格导出到同一文件
+- 报表系统的多维度数据汇总
+- 批量数据管理
+
+**关键代码**：
+
+```javascript
+import init, { export_tables_xlsx, export_tables_to_xlsx_batch } from "../pkg/belobog_stellar_grid.js";
+
+await init();
+
+// 同步导出
+export_tables_xlsx(
+  [
+    { tableId: 'table1', sheetName: '订单列表', excludeHidden: true },
+    { tableId: 'table2', sheetName: '商品列表' },
+  ],
+  'report.xlsx',
+  (progress) => console.log(`进度: ${progress}%`)
+);
+
+// 异步分批导出（大数据量）
+await export_tables_to_xlsx_batch(
+  [
+    { tableId: 'table1', sheetName: '订单列表' },
+    { tableId: 'table2', tbodyId: 'tbody2', sheetName: '商品列表' },
+  ],
+  'report.xlsx',
+  1000,
+  (progress) => console.log(`进度: ${progress}%`)
+);
+```
+
 ## 🎯 使用指南
 
 ### 基本使用流程
@@ -319,15 +366,15 @@ await init();
 2. **导出表格**
 
 ```javascript
-import { export_table_to_csv } from "../pkg/belobog_stellar_grid.js";
-export_table_to_csv("your-table-id", "文件名");
+import { export_table } from "../pkg/belobog_stellar_grid.js";
+export_table("your-table-id", "文件名.csv");
 ```
 
 3. **错误处理**
 
 ```javascript
 try {
-  export_table_to_csv("table-id", "文件名");
+  export_table("table-id", "文件名.csv");
 } catch (error) {
   console.error("导出失败:", error);
 }
@@ -338,9 +385,9 @@ try {
 #### 带进度回调
 
 ```javascript
-import { export_table_to_csv_with_progress } from "../pkg/belobog_stellar_grid.js";
+import { export_table, ExportFormat } from "../pkg/belobog_stellar_grid.js";
 
-export_table_to_csv_with_progress("large-table", "data.csv", (progress) => {
+export_table("large-table", "data.csv", ExportFormat.Csv, false, (progress) => {
   // 更新 UI
   document.getElementById("progress").textContent = `${Math.round(progress)}%`;
 });
@@ -351,7 +398,7 @@ export_table_to_csv_with_progress("large-table", "data.csv", (progress) => {
 ```javascript
 const today = new Date().toISOString().split("T")[0];
 const filename = `数据_${today}.csv`;
-export_table_to_csv("table-id", filename);
+export_table("table-id", filename);
 ```
 
 #### 批量导出
@@ -365,7 +412,7 @@ async function exportAll() {
   ];
 
   for (const table of tables) {
-    export_table_to_csv(table.id, table.name);
+    export_table(table.id, table.name);
     await new Promise((r) => setTimeout(r, 200)); // 避免浏览器限制
   }
 }
@@ -430,34 +477,23 @@ async function exportAll() {
 
 ## 📖 API 参考
 
-### export_table_to_csv(table_id, filename?)
+### export_table(table_id, filename?, format?, exclude_hidden?, progress_callback?)
 
-导出 HTML 表格为 CSV 文件。
+统一导出 HTML 表格为 CSV 或 Excel 文件。
 
 **参数**：
 
-- `table_id` (string): 表格元素的 ID
-- `filename` (string, 可选): 导出文件名，默认 "table_export.csv"
+- `table_id` (string): 表格元素的 ID（支持容器 ID，自动查找内部 table）
+- `filename` (string, 可选): 导出文件名，默认 "table_export.csv" 或 "table_export.xlsx"
+- `format` (ExportFormat, 可选): 导出格式（Csv / Xlsx），默认 Csv
+- `exclude_hidden` (boolean, 可选): 是否排除隐藏行列，默认 false
+- `progress_callback` (function, 可选): 进度回调函数，接收 0-100 的进度值
 
 **返回**：无（成功）或抛出异常（失败）
 
 ---
 
-### export_table_to_csv_with_progress(table_id, filename?, callback?)
-
-带进度回调的表格导出。
-
-**参数**：
-
-- `table_id` (string): 表格元素的 ID
-- `filename` (string, 可选): 导出文件名
-- `callback` (function, 可选): 进度回调函数，接收 0-100 的进度值
-
-**返回**：无（成功）或抛出异常（失败）
-
----
-
-### export_table_to_csv_batch(table_id, tbody_id?, filename?, batch_size?, callback?)
+### export_table_to_csv_batch(table_id, tbody_id?, filename?, batch_size?, exclude_hidden?, callback?)
 
 分批异步导出表格为 CSV，适用于大数据量导出。
 
@@ -467,13 +503,14 @@ async function exportAll() {
 - `tbody_id` (string, 可选): 数据 tbody 的 ID，用于分离表头和数据
 - `filename` (string, 可选): 导出文件名
 - `batch_size` (number, 可选): 每批处理的行数，默认 1000
+- `exclude_hidden` (boolean, 可选): 是否排除隐藏行列，默认 false
 - `callback` (function, 可选): 进度回调函数
 
 **返回**：Promise<void>
 
 ---
 
-### export_table_to_xlsx_batch(table_id, tbody_id?, filename?, batch_size?, callback?) 🆕
+### export_table_to_xlsx_batch(table_id, tbody_id?, filename?, batch_size?, exclude_hidden?, callback?) 🆕
 
 分批异步导出表格为 Excel，解决大数据量 Excel 导出卡死问题。
 
@@ -483,6 +520,7 @@ async function exportAll() {
 - `tbody_id` (string, 可选): 数据 tbody 的 ID
 - `filename` (string, 可选): 导出文件名，默认 "table_export.xlsx"
 - `batch_size` (number, 可选): 每批处理的行数，默认 1000
+- `exclude_hidden` (boolean, 可选): 是否排除隐藏行列，默认 false
 - `callback` (function, 可选): 进度回调函数，接收 0-100 的进度值
 
 **特性**：
@@ -511,6 +549,35 @@ async function exportAll() {
 
 **返回**：无（成功）或抛出异常（失败）
 
+---
+
+### export_tables_xlsx(sheets, filename?, progress_callback?)
+
+多工作表同步导出为 Excel 文件。
+
+**参数**：
+
+- `sheets` (Array): 工作表配置数组，每个元素为 `{ tableId, sheetName?, excludeHidden? }`
+- `filename` (string, 可选): 导出文件名
+- `progress_callback` (function, 可选): 进度回调函数
+
+**返回**：无（成功）或抛出异常（失败）
+
+---
+
+### export_tables_to_xlsx_batch(sheets, filename?, batch_size?, progress_callback?)
+
+多工作表异步分批导出为 Excel 文件，适用于大数据量。
+
+**参数**：
+
+- `sheets` (Array): 工作表配置数组，每个元素为 `{ tableId, tbodyId?, sheetName?, excludeHidden? }`
+- `filename` (string, 可选): 导出文件名
+- `batch_size` (number, 可选): 每批处理的行数，默认 1000
+- `progress_callback` (function, 可选): 进度回调函数
+
+**返回**：Promise<void>
+
 ## 🌐 浏览器兼容性
 
 | 浏览器  | 最低版本 | 说明        |
@@ -526,7 +593,7 @@ async function exportAll() {
 
 ```javascript
 try {
-  export_table_to_csv("table-id", "filename");
+  export_table("table-id", "filename.csv");
 } catch (error) {
   // 向用户显示友好的错误信息
   alert("导出失败，请重试");
@@ -536,11 +603,13 @@ try {
 2. **大表格使用进度回调**
 
 ```javascript
-// 对于 > 100 行的表格，使用进度版本
+import { export_table, ExportFormat } from "../pkg/belobog_stellar_grid.js";
+
+// 对于 > 100 行的表格，使用进度回调
 if (rowCount > 100) {
-  export_table_to_csv_with_progress(id, name, updateProgress);
+  export_table(id, name, ExportFormat.Csv, false, updateProgress);
 } else {
-  export_table_to_csv(id, name);
+  export_table(id, name);
 }
 ```
 
@@ -549,7 +618,7 @@ if (rowCount > 100) {
 ```javascript
 // 避免浏览器下载限制
 for (const table of tables) {
-  export_table_to_csv(table.id, table.name);
+  export_table(table.id, table.name);
   await new Promise((r) => setTimeout(r, 200));
 }
 ```
@@ -575,4 +644,4 @@ const filename = `${reportType}_${date}.csv`;
 
 - 查看主项目 [README](../README.md)
 - 提交 [Issue](https://github.com/kurisu994/belobog-stellar-grid/issues)
-- 阅读 [API 文档](../EXAMPLES.md)
+- 阅读 [API 文档](../API.md)
