@@ -21,6 +21,10 @@
   - 完美兼容 Ant Design、Element Plus 等 UI 组件库的表格结构
   - 涉及所有导出 API：`export_table`, `export_table_to_csv_batch`, `export_table_to_xlsx_batch`
 
+### 🛡️ 优化
+
+- **错误提示优化**：针对 `export_data` 误用场景（传入对象数组但未提供 `columns`）增加了友好的错误提示，明确区分二维数组模式和对象数组模式。
+
 ## [1.0.2] - 2026-02-11
 
 ### ✨ 新增

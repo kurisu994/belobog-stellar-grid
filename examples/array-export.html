@@ -165,57 +165,103 @@
 
         <!-- 场景2: API 数据导出 -->
         <div class="section">
-            <h2>场景2: 模拟 API 数据导出</h2>
-            <p>模拟从 API 获取 JSON 数据后直接导出（无需渲染到页面）：</p>
+            <h2>场景2: 对象数组 + 表头配置（推荐）</h2>
+            <p>传入 <span class="code">columns</span> 表头配置和 <span class="code">data</span> 对象数组，类似 Ant Design Table 用法：</p>
 
-            <pre><span class="comment">// 模拟从 API 获取的 JSON 数据</span>
-<span class="keyword">const</span> apiData = [
-    { id: <span class="number">1001</span>, product: <span class="string">'MacBook Pro'</span>, price: <span class="number">18999</span>, stock: <span class="number">56</span>, active: <span class="keyword">true</span> },
-    { id: <span class="number">1002</span>, product: <span class="string">'iPhone 15'</span>, price: <span class="number">8999</span>, stock: <span class="number">128</span>, active: <span class="keyword">true</span> },
-    { id: <span class="number">1003</span>, product: <span class="string">'AirPods Max'</span>, price: <span class="number">4399</span>, stock: <span class="number">0</span>, active: <span class="keyword">false</span> },
+            <pre><span class="keyword">const</span> columns = [
+    { title: <span class="string">'姓名'</span>, key: <span class="string">'name'</span> },
+    { title: <span class="string">'年龄'</span>, key: <span class="string">'age'</span> },
+    { title: <span class="string">'住址'</span>, key: <span class="string">'address'</span> },
 ];
 
-<span class="comment">// 转换为二维数组（表头 + 数据行）</span>
-<span class="keyword">const</span> headers = [<span class="string">'ID'</span>, <span class="string">'产品名称'</span>, <span class="string">'价格'</span>, <span class="string">'库存'</span>, <span class="string">'是否在售'</span>];
-<span class="keyword">const</span> rows = apiData.<span class="func">map</span>(item =>
-    [item.id, item.product, item.price, item.stock, item.active]
-);
-
-<span class="func">export_data</span>([headers, ...rows], <span class="string">'产品清单.xlsx'</span>, ExportFormat.Xlsx);</pre>
-
-            <div class="button-group">
-                <button class="btn-primary" onclick="exportApiCsv()">📄 导出为 CSV</button>
-                <button class="btn-excel" onclick="exportApiXlsx()">📗 导出为 Excel</button>
-            </div>
-        </div>
-
-        <!-- 场景3: 对象数组导出（带列映射） -->
-        <div class="section">
-            <h2>场景3: 对象数组导出（带列映射）</h2>
-            <p>传入对象数组和列配置 `columns`，类似于 Ant Design Table：</p>
-
-            <pre><span class="keyword">const</span> objectData = [
+<span class="keyword">const</span> data = [
     { name: <span class="string">'张三'</span>, age: <span class="number">28</span>, address: <span class="string">'北京市朝阳区'</span> },
     { name: <span class="string">'李四'</span>, age: <span class="number">35</span>, address: <span class="string">'上海市浦东新区'</span> },
 ];
 
-<span class="keyword">const</span> columns = [
-    { title: <span class="string">'姓名'</span>, dataIndex: <span class="string">'name'</span> },
-    { title: <span class="string">'年龄'</span>, dataIndex: <span class="string">'age'</span> },
-    { title: <span class="string">'住址'</span>, dataIndex: <span class="string">'address'</span> },
-];
-
-<span class="comment">// export_data(data, columns, filename, format)</span>
-<span class="func">export_data</span>(objectData, columns, <span class="string">'用户详情.xlsx'</span>, ExportFormat.Xlsx);</pre>
+<span class="func">export_data</span>(data, columns, <span class="string">'用户详情.xlsx'</span>, ExportFormat.Xlsx);</pre>
 
             <div class="button-group">
-                <button class="btn-excel" onclick="exportObjectXlsx()">📗 导出对象数组 Excel</button>
+                <button class="btn-primary" onclick="exportSimpleColumnsCsv()">📄 导出为 CSV</button>
+                <button class="btn-excel" onclick="exportSimpleColumnsXlsx()">📗 导出为 Excel</button>
             </div>
         </div>
 
-        <!-- 场景4: 带进度回调的大数据导出 -->
+        <!-- 场景3: 嵌套表头 -->
         <div class="section">
-            <h2>场景4: 大数据量导出（带进度回调）</h2>
+            <h2>场景3: 嵌套表头（多行表头 + 合并单元格）</h2>
+            <p>使用 <span class="code">children</span> 属性定义多级表头，导出 XLSX 时自动生成合并单元格：</p>
+
+            <pre><span class="keyword">const</span> nestedColumns = [
+    { title: <span class="string">'姓名'</span>, key: <span class="string">'name'</span> },
+    { title: <span class="string">'其他信息'</span>, children: [
+        { title: <span class="string">'年龄'</span>, key: <span class="string">'age'</span> },
+        { title: <span class="string">'住址'</span>, key: <span class="string">'address'</span> },
+    ]},
+];
+
+<span class="comment">// 导出效果（Excel 中）:</span>
+<span class="comment">// | 姓名     |    其他信息    |</span>
+<span class="comment">// | (rowspan) | 年龄 |  住址  |</span>
+<span class="comment">// | 张三      |  28  |  北京  |</span>
+
+<span class="func">export_data</span>(data, nestedColumns, <span class="string">'嵌套表头.xlsx'</span>, ExportFormat.Xlsx);</pre>
+
+            <table>
+                <thead>
+                    <tr><th rowspan="2">姓名</th><th colspan="2">其他信息</th></tr>
+                    <tr><th>年龄</th><th>住址</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>张三</td><td>28</td><td>北京市朝阳区</td></tr>
+                    <tr><td>李四</td><td>35</td><td>上海市浦东新区</td></tr>
+                    <tr><td>王五</td><td>42</td><td>广州市天河区</td></tr>
+                </tbody>
+            </table>
+
+            <div class="button-group">
+                <button class="btn-primary" onclick="exportNestedCsv()">📄 导出为 CSV</button>
+                <button class="btn-excel" onclick="exportNestedXlsx()">📗 导出为 Excel（含合并单元格）</button>
+            </div>
+        </div>
+
+        <!-- 场景4: 三级嵌套表头 -->
+        <div class="section">
+            <h2>场景4: 三级嵌套表头</h2>
+            <p>支持任意深度的嵌套，自动计算 rowspan 和 colspan：</p>
+
+            <pre><span class="keyword">const</span> deepColumns = [
+    { title: <span class="string">'ID'</span>, key: <span class="string">'id'</span> },
+    { title: <span class="string">'基本信息'</span>, children: [
+        { title: <span class="string">'姓名'</span>, key: <span class="string">'name'</span> },
+        { title: <span class="string">'联系方式'</span>, children: [
+            { title: <span class="string">'电话'</span>, key: <span class="string">'phone'</span> },
+            { title: <span class="string">'邮箱'</span>, key: <span class="string">'email'</span> },
+        ]},
+    ]},
+    { title: <span class="string">'部门'</span>, key: <span class="string">'dept'</span> },
+];</pre>
+
+            <table>
+                <thead>
+                    <tr><th rowspan="3">ID</th><th colspan="3">基本信息</th><th rowspan="3">部门</th></tr>
+                    <tr><th rowspan="2">姓名</th><th colspan="2">联系方式</th></tr>
+                    <tr><th>电话</th><th>邮箱</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>1001</td><td>张三</td><td>13800001111</td><td>zhangsan@example.com</td><td>技术部</td></tr>
+                    <tr><td>1002</td><td>李四</td><td>13800002222</td><td>lisi@example.com</td><td>产品部</td></tr>
+                </tbody>
+            </table>
+
+            <div class="button-group">
+                <button class="btn-excel" onclick="exportDeepNestedXlsx()">📗 导出三级表头 Excel</button>
+            </div>
+        </div>
+
+        <!-- 场景5: 带进度回调的大数据导出 -->
+        <div class="section">
+            <h2>场景5: 大数据量导出（带进度回调）</h2>
             <p>动态生成大量数据并导出，支持进度回调：</p>
 
             <div class="button-group">
@@ -225,28 +271,53 @@
             <div id="progress-info" style="color: #666; font-size: 14px; margin-top: 10px;"></div>
         </div>
 
+        <!-- 场景6: 错误处理演示 -->
+        <div class="section">
+            <h2>场景6: 错误处理演示</h2>
+            <p>演示当传入对象数组但忘记提供 <code>columns</code> 时的错误提示：</p>
+            <pre><span class="comment">// 错误用法：对象数组必须提供 columns</span>
+<span class="keyword">const</span> data = [{ name: <span class="string">'张三'</span>, age: <span class="number">28</span> }];
+<span class="func">export_data</span>(data, <span class="keyword">undefined</span>, <span class="string">'error.csv'</span>);</pre>
+
+            <div class="button-group">
+                <button class="btn-primary" style="background: #ff4d4f;" onclick="testErrorHandling()">🚫 测试错误用法</button>
+            </div>
+        </div>
+
         <!-- 代码示例 -->
         <div class="section">
             <h2>💡 API 概览</h2>
             <pre><span class="keyword">import</span> { export_data, ExportFormat } <span class="keyword">from</span> <span class="string">'./pkg/belobog_stellar_grid.js'</span>;
 
-<span class="comment">// export_data(data, filename?, format?, progressCallback?)</span>
+<span class="comment">// export_data(data, columns?, filename?, format?, progressCallback?)</span>
 
 <span class="comment">// 参数说明：</span>
-<span class="comment">// data: Array&lt;Array&lt;string | number | boolean | null&gt;&gt;  二维数组</span>
-<span class="comment">// filename?: string                                      文件名（可选）</span>
-<span class="comment">// format?: ExportFormat.Csv | ExportFormat.Xlsx           格式（默认 CSV）</span>
-<span class="comment">// progressCallback?: (progress: number) => void           进度回调（可选）</span>
+<span class="comment">// data     : Array&lt;Array&gt; 二维数组 或 Array&lt;Object&gt; 对象数组</span>
+<span class="comment">// columns? : 表头配置数组 { title, key?, children? }[]</span>
+<span class="comment">// filename?: 文件名（可选，自动添加扩展名）</span>
+<span class="comment">// format?  : ExportFormat.Csv | ExportFormat.Xlsx（默认 CSV）</span>
+<span class="comment">// callback?: (progress: number) => void  进度回调</span>
 
-<span class="comment">// 最简用法</span>
+<span class="comment">// 模式1: 二维数组（不传 columns）</span>
 <span class="func">export_data</span>([[<span class="string">'A'</span>, <span class="string">'B'</span>], [<span class="number">1</span>, <span class="number">2</span>]]);
 
-<span class="comment">// 完整用法</span>
+<span class="comment">// 模式2: 对象数组 + 表头配置</span>
 <span class="func">export_data</span>(
-    [[<span class="string">'姓名'</span>, <span class="string">'分数'</span>], [<span class="string">'张三'</span>, <span class="number">95</span>]],
+    [{ name: <span class="string">'张三'</span>, age: <span class="number">28</span> }],
+    [{ title: <span class="string">'姓名'</span>, key: <span class="string">'name'</span> }, { title: <span class="string">'年龄'</span>, key: <span class="string">'age'</span> }],
     <span class="string">'成绩单.xlsx'</span>,
-    ExportFormat.Xlsx,
-    (progress) => console.log(<span class="string">`进度: ${progress}%`</span>)
+    ExportFormat.Xlsx
+);
+
+<span class="comment">// 模式3: 嵌套表头（XLSX 自动合并单元格）</span>
+<span class="func">export_data</span>(
+    data,
+    [{ title: <span class="string">'姓名'</span>, key: <span class="string">'name'</span> },
+     { title: <span class="string">'详情'</span>, children: [
+       { title: <span class="string">'年龄'</span>, key: <span class="string">'age'</span> },
+       { title: <span class="string">'住址'</span>, key: <span class="string">'address'</span> }
+     ]}],
+    <span class="string">'报表.xlsx'</span>, ExportFormat.Xlsx
 );</pre>
         </div>
     </div>
@@ -256,7 +327,7 @@
 
         await init();
 
-        // 场景1: 基本数组导出
+        // 场景1: 基本二维数组导出
         const basicData = [
             ['姓名', '年龄', '城市', '邮箱'],
             ['张三', 28, '北京', 'zhangsan@example.com'],
@@ -266,101 +337,154 @@
 
         window.exportBasicCsv = () => {
             export_data(basicData, undefined, '用户数据.csv');
-            console.log('✅ 数组导出 CSV 完成');
+            console.log('✅ 二维数组导出 CSV 完成');
         };
 
         window.exportBasicXlsx = () => {
             export_data(basicData, undefined, '用户数据.xlsx', ExportFormat.Xlsx);
-            console.log('✅ 数组导出 Excel 完成');
+            console.log('✅ 二维数组导出 Excel 完成');
         };
 
-        // 场景2: API 数据导出
-        const apiData = [
-            { id: 1001, product: 'MacBook Pro 16"', price: 18999, stock: 56, active: true },
-            { id: 1002, product: 'iPhone 15 Pro', price: 8999, stock: 128, active: true },
-            { id: 1003, product: 'AirPods Max', price: 4399, stock: 0, active: false },
-            { id: 1004, product: 'iPad Air', price: 4799, stock: 89, active: true },
-            { id: 1005, product: 'Apple Watch Ultra', price: 6299, stock: 23, active: true },
+        // 通用数据源
+        const objectData = [
+            { name: '张三', age: 28, address: '北京市朝阳区' },
+            { name: '李四', age: 35, address: '上海市浦东新区' },
+            { name: '王五', age: 42, address: '广州市天河区' },
         ];
 
-        function apiToArray(data) {
-            const headers = ['ID', '产品名称', '价格 (¥)', '库存', '是否在售'];
-            const rows = data.map(item => [item.id, item.product, item.price, item.stock, item.active]);
-            return [headers, ...rows];
-        }
+        // 场景2: 简单表头配置
+        const simpleColumns = [
+            { title: '姓名', key: 'name' },
+            { title: '年龄', key: 'age' },
+            { title: '住址', key: 'address' },
+        ];
 
-        window.exportApiCsv = () => {
-            export_data(apiToArray(apiData), undefined, '产品清单.csv');
-            console.log('✅ API 数据导出 CSV 完成');
+        window.exportSimpleColumnsCsv = () => {
+            export_data(objectData, simpleColumns, '用户详情.csv');
+            console.log('✅ 对象数组导出 CSV 完成');
         };
 
-        window.exportApiXlsx = () => {
-            export_data(apiToArray(apiData), undefined, '产品清单.xlsx', ExportFormat.Xlsx);
-            console.log('✅ API 数据导出 Excel 完成');
-        };
-
-        // 场景3: 对象数组导出
-        window.exportObjectXlsx = () => {
-            const objectData = [
-                { name: '张三', age: 28, address: '北京市朝阳区' },
-                { name: '李四', age: 35, address: '上海市浦东新区' },
-                { name: '王五', age: 42, address: '广州市天河区' },
-            ];
-            const columns = [
-                { title: '姓名', dataIndex: 'name' },
-                { title: '年龄', dataIndex: 'age' },
-                { title: '住址', dataIndex: 'address' },
-            ];
-            export_data(objectData, columns, '用户详情.xlsx', ExportFormat.Xlsx);
+        window.exportSimpleColumnsXlsx = () => {
+            export_data(objectData, simpleColumns, '用户详情.xlsx', ExportFormat.Xlsx);
             console.log('✅ 对象数组导出 Excel 完成');
         };
 
-        // 场景4: 大数据量导出
-        function generateLargeData(count) {
-            const headers = ['序号', '用户名', '邮箱', '部门', '薪资', '入职日期'];
+        // 场景3: 嵌套表头
+        const nestedColumns = [
+            { title: '姓名', key: 'name' },
+            {
+                title: '其他信息',
+                children: [
+                    { title: '年龄', key: 'age' },
+                    { title: '住址', key: 'address' },
+                ],
+            },
+        ];
+
+        window.exportNestedCsv = () => {
+            export_data(objectData, nestedColumns, '嵌套表头.csv');
+            console.log('✅ 嵌套表头导出 CSV 完成');
+        };
+
+        window.exportNestedXlsx = () => {
+            export_data(objectData, nestedColumns, '嵌套表头.xlsx', ExportFormat.Xlsx);
+            console.log('✅ 嵌套表头导出 Excel 完成（含合并单元格）');
+        };
+
+        // 场景4: 三级嵌套表头
+        const deepData = [
+            { id: 1001, name: '张三', phone: '13800001111', email: 'zhangsan@example.com', dept: '技术部' },
+            { id: 1002, name: '李四', phone: '13800002222', email: 'lisi@example.com', dept: '产品部' },
+            { id: 1003, name: '王五', phone: '13800003333', email: 'wangwu@example.com', dept: '设计部' },
+        ];
+
+        const deepColumns = [
+            { title: 'ID', key: 'id' },
+            {
+                title: '基本信息',
+                children: [
+                    { title: '姓名', key: 'name' },
+                    {
+                        title: '联系方式',
+                        children: [
+                            { title: '电话', key: 'phone' },
+                            { title: '邮箱', key: 'email' },
+                        ],
+                    },
+                ],
+            },
+            { title: '部门', key: 'dept' },
+        ];
+
+        window.exportDeepNestedXlsx = () => {
+            export_data(deepData, deepColumns, '三级表头.xlsx', ExportFormat.Xlsx);
+            console.log('✅ 三级嵌套表头导出 Excel 完成');
+        };
+
+        // 场景5: 大数据量导出
+        function generateLargeObjectData(count) {
             const departments = ['技术部', '产品部', '设计部', '市场部', '人力资源部', '财务部'];
-            const rows = [headers];
+            const data = [];
             for (let i = 1; i <= count; i++) {
-                rows.push([
-                    i,
-                    `用户_${i}`,
-                    `user${i}@example.com`,
-                    departments[i % departments.length],
-                    Math.floor(Math.random() * 30000) + 10000,
-                    `2024-${String(Math.floor(Math.random() * 12) + 1).padStart(2, '0')}-${String(Math.floor(Math.random() * 28) + 1).padStart(2, '0')}`,
-                ]);
+                data.push({
+                    id: i,
+                    name: `用户_${i}`,
+                    email: `user${i}@example.com`,
+                    dept: departments[i % departments.length],
+                    salary: Math.floor(Math.random() * 30000) + 10000,
+                    joinDate: `2024-${String(Math.floor(Math.random() * 12) + 1).padStart(2, '0')}-${String(Math.floor(Math.random() * 28) + 1).padStart(2, '0')}`,
+                });
             }
-            return rows;
+            return data;
         }
+
+        const largeColumns = [
+            { title: '序号', key: 'id' },
+            { title: '用户名', key: 'name' },
+            { title: '邮箱', key: 'email' },
+            { title: '部门', key: 'dept' },
+            { title: '薪资', key: 'salary' },
+            { title: '入职日期', key: 'joinDate' },
+        ];
 
         const progressInfo = document.getElementById('progress-info');
 
         window.exportLargeCsv = () => {
             const start = performance.now();
-            const data = generateLargeData(10000);
+            const data = generateLargeObjectData(10000);
             progressInfo.textContent = '⏳ 正在导出...';
 
-            export_data(data, undefined, '大数据_10000行.csv', ExportFormat.Csv, (progress) => {
+            export_data(data, largeColumns, '大数据_10000行.csv', ExportFormat.Csv, (progress) => {
                 progressInfo.textContent = `⏳ 导出进度: ${progress.toFixed(1)}%`;
             });
 
             const elapsed = (performance.now() - start).toFixed(0);
             progressInfo.textContent = `✅ 10000 行 CSV 导出完成，耗时 ${elapsed}ms`;
-            console.log(`✅ 大数据 CSV 导出完成，耗时 ${elapsed}ms`);
         };
 
         window.exportLargeXlsx = () => {
             const start = performance.now();
-            const data = generateLargeData(10000);
+            const data = generateLargeObjectData(10000);
             progressInfo.textContent = '⏳ 正在导出...';
 
-            export_data(data, undefined, '大数据_10000行.xlsx', ExportFormat.Xlsx, (progress) => {
+            export_data(data, largeColumns, '大数据_10000行.xlsx', ExportFormat.Xlsx, (progress) => {
                 progressInfo.textContent = `⏳ 导出进度: ${progress.toFixed(1)}%`;
             });
 
             const elapsed = (performance.now() - start).toFixed(0);
             progressInfo.textContent = `✅ 10000 行 Excel 导出完成，耗时 ${elapsed}ms`;
-            console.log(`✅ 大数据 Excel 导出完成，耗时 ${elapsed}ms`);
+        };
+
+        // 场景6: 错误处理测试
+        window.testErrorHandling = () => {
+            const data = [{ name: '张三', age: 28 }];
+            try {
+                console.log('正在测试错误用法...');
+                export_data(data, undefined, 'error.csv');
+            } catch (e) {
+                console.error('捕获到预期错误:', e);
+                alert(`✅ 成功捕获预期错误：\n\n${e}`);
+            }
         };
 
         console.log('🚀 WebAssembly 已初始化，数组直接导出功能可用');

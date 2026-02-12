@@ -1,10 +1,12 @@
 /// 核心导出协调模块
 ///
 /// 提供统一的导出接口，协调各个导出模块
+mod data_export;
 mod export_csv;
 pub(crate) mod export_xlsx;
 mod table_extractor;
 
+use data_export::build_table_data_from_array;
 use export_csv::export_as_csv;
 use export_xlsx::{export_as_xlsx, export_as_xlsx_multi};
 use table_extractor::extract_table_data;
@@ -198,88 +200,6 @@ pub fn export_tables_xlsx(
     export_as_xlsx_multi(sheets_data, filename, progress_callback)
 }
 
-/// 辅助函数：将任意 JS 值转换为字符串
-fn js_value_to_string(value: &JsValue) -> String {
-    if value.is_null() || value.is_undefined() {
-        String::new()
-    } else if let Some(s) = value.as_string() {
-        s
-    } else if let Some(n) = value.as_f64() {
-        // 整数不带小数点
-        if n.fract() == 0.0 && n.abs() < i64::MAX as f64 {
-            format!("{}", n as i64)
-        } else {
-            format!("{}", n)
-        }
-    } else if let Some(b) = value.as_bool() {
-        b.to_string()
-    } else {
-        // 其他类型调用 JS 的 toString()
-        value.as_string().unwrap_or_default()
-    }
-}
-
-/// 列映射配置
-struct ColumnMapping {
-    /// 表头标题
-    title: String,
-    /// 数据字段名
-    data_index: String,
-}
-
-/// 解析列配置数组
-fn parse_columns(columns: &JsValue) -> Result<Vec<ColumnMapping>, JsValue> {
-    let array = js_sys::Array::from(columns);
-    let length = array.length();
-    let mut mappings = Vec::with_capacity(length as usize);
-
-    for i in 0..length {
-        let item = array.get(i);
-
-        let data_index = js_sys::Reflect::get(&item, &JsValue::from_str("dataIndex"))
-            .ok()
-            .and_then(|v| v.as_string())
-            .ok_or_else(|| JsValue::from_str(&format!("第 {} 列配置缺少 dataIndex", i + 1)))?;
-
-        let title = js_sys::Reflect::get(&item, &JsValue::from_str("title"))
-            .ok()
-            .and_then(|v| v.as_string())
-            .unwrap_or_else(|| data_index.clone());
-
-        mappings.push(ColumnMapping { title, data_index });
-    }
-    Ok(mappings)
-}
-
-/// 根据列配置处理对象数组数据
-fn process_data_with_columns(data: &JsValue, columns: &[ColumnMapping]) -> Result<Vec<Vec<String>>, JsValue> {
-    let array = js_sys::Array::from(data);
-    let length = array.length();
-
-    // 预分配结果数组（表头 + 数据行）
-    let mut result = Vec::with_capacity((length + 1) as usize);
-
-    // 1. 生成表头行
-    let headers: Vec<String> = columns.iter().map(|c| c.title.clone()).collect();
-    result.push(headers);
-
-    // 2. 提取数据行
-    for i in 0..length {
-        let item = array.get(i);
-        let mut row = Vec::with_capacity(columns.len());
-
-        for col in columns {
-            let val = js_sys::Reflect::get(&item, &JsValue::from_str(&col.data_index))
-                .unwrap_or(JsValue::NULL);
-            row.push(js_value_to_string(&val));
-        }
-
-        result.push(row);
-    }
-
-    Ok(result)
-}
-
 /// 从 JS 二维数组解析为 Rust 二维字符串数组
 ///
 /// # 参数
@@ -289,6 +209,11 @@ fn process_data_with_columns(data: &JsValue, columns: &[ColumnMapping]) -> Resul
 /// * `Ok(Vec<Vec<String>>)` - 解析成功
 /// * `Err(JsValue)` - 解析失败
 fn parse_js_array_data(data: &JsValue) -> Result<Vec<Vec<String>>, JsValue> {
+    // 验证 data 是否为数组
+    if !js_sys::Array::is_array(data) {
+        return Err(JsValue::from_str("data 必须是数组"));
+    }
+
     let outer_array = js_sys::Array::from(data);
     let row_count = outer_array.length();
 
@@ -296,17 +221,37 @@ fn parse_js_array_data(data: &JsValue) -> Result<Vec<Vec<String>>, JsValue> {
         return Err(JsValue::from_str("数据数组不能为空"));
     }
 
+    // 检查第一行数据类型，提供更友好的错误提示
+    let first_row = outer_array.get(0);
+    if !first_row.is_undefined() && !first_row.is_null() && !js_sys::Array::is_array(&first_row) {
+        // 如果第一行不是数组（例如是对象），但用户没有传 columns
+        if first_row.is_object() {
+            return Err(JsValue::from_str(
+                "检测到 data 为对象数组但未提供 columns。如需导出对象数组，请传入 columns 配置；如需导出二维数组，请确保 data 格式为 [[值1, 值2]]",
+            ));
+        }
+    }
+
     let mut result = Vec::with_capacity(row_count as usize);
 
     for i in 0..row_count {
         let row_val = outer_array.get(i);
+
+        // 确保每一行都是数组
+        if !js_sys::Array::is_array(&row_val) {
+             return Err(JsValue::from_str(&format!(
+                "第 {} 行数据格式错误：期望是数组，实际不是。未提供 columns 时 data 必须是二维数组",
+                i + 1
+            )));
+        }
+
         let inner_array = js_sys::Array::from(&row_val);
         let col_count = inner_array.length();
 
         let mut row_data = Vec::with_capacity(col_count as usize);
         for j in 0..col_count {
             let cell_val = inner_array.get(j);
-            row_data.push(js_value_to_string(&cell_val));
+            row_data.push(data_export::js_value_to_string(&cell_val));
         }
 
         result.push(row_data);
@@ -317,11 +262,12 @@ fn parse_js_array_data(data: &JsValue) -> Result<Vec<Vec<String>>, JsValue> {
 
 /// 从 JavaScript 数组直接导出为文件（不依赖 DOM）
 ///
-/// 接收二维数组数据或对象数组（配合列配置），直接生成 CSV 或 XLSX 文件并触发下载
+/// 接收二维数组数据或对象数组（配合列配置），直接生成 CSV 或 XLSX 文件并触发下载。
+/// 当提供 `columns` 时，支持嵌套表头（自动生成多行表头和合并单元格）。
 ///
 /// # 参数
-/// * `data` - JS 数组 (二维数组 `Array<Array<any>>` 或 对象数组 `Array<Object>`)
-/// * `columns` - 可选的列配置数组 `Array<{title: string, dataIndex: string}>`。如果提供，`data` 将被视为对象数组。
+/// * `data` - JS 数组 (二维数组 `Array<Array<any>>` 或对象数组 `Array<Object>`)
+/// * `columns` - 可选的表头配置数组，支持嵌套 children 实现多级表头
 /// * `filename` - 可选的导出文件名
 /// * `format` - 导出格式（Csv 或 Xlsx），默认为 Csv
 /// * `progress_callback` - 可选的进度回调函数，接收 0-100 的进度值
@@ -335,17 +281,27 @@ fn parse_js_array_data(data: &JsValue) -> Result<Vec<Vec<String>>, JsValue> {
 /// import init, { export_data, ExportFormat } from './pkg/belobog_stellar_grid.js';
 /// await init();
 ///
-/// // 1. 二维数组导出
+/// // 1. 二维数组导出（无需 columns）
 /// const arrayData = [['姓名', '年龄'], ['张三', 28]];
 /// export_data(arrayData, undefined, '用户.csv');
 ///
-/// // 2. 对象数组导出（使用列映射）
-/// const objectData = [{ name: '张三', age: 28 }, { name: '李四', age: 35 }];
+/// // 2. 对象数组 + 简单表头
+/// const data = [{ name: '张三', age: 28 }];
 /// const columns = [
-///   { title: '姓名', dataIndex: 'name' },
-///   { title: '年龄', dataIndex: 'age' }
+///   { title: '姓名', key: 'name' },
+///   { title: '年龄', key: 'age' }
 /// ];
-/// export_data(objectData, columns, '用户.xlsx', ExportFormat.Xlsx);
+/// export_data(data, columns, '用户.xlsx', ExportFormat.Xlsx);
+///
+/// // 3. 对象数组 + 嵌套表头（多行表头 + 合并单元格）
+/// const nestedColumns = [
+///   { title: '姓名', key: 'name' },
+///   { title: '其他信息', children: [
+///     { title: '年龄', key: 'age' },
+///     { title: '住址', key: 'address' }
+///   ]}
+/// ];
+/// export_data(data, nestedColumns, '用户.xlsx', ExportFormat.Xlsx);
 /// ```
 #[wasm_bindgen]
 pub fn export_data(
@@ -357,23 +313,43 @@ pub fn export_data(
 ) -> Result<(), JsValue> {
     let format = format.unwrap_or_default();
 
-    // 解析数据：根据是否提供 columns 决定处理方式
-    let rows = if let Some(cols) = columns {
+    // 根据是否提供 columns 决定处理方式
+    if let Some(cols) = columns {
         if cols.is_null() || cols.is_undefined() {
-             parse_js_array_data(&data)?
-        } else {
-            let mappings = parse_columns(&cols)?;
-            process_data_with_columns(&data, &mappings)?
+            // columns 为 null/undefined，按二维数组处理
+            let rows = parse_js_array_data(&data)?;
+            return match format {
+                ExportFormat::Csv => export_as_csv(rows, filename, progress_callback),
+                ExportFormat::Xlsx => {
+                    let table_data = table_extractor::TableData {
+                        rows,
+                        merge_ranges: Vec::new(),
+                    };
+                    export_as_xlsx(table_data, filename, progress_callback)
+                }
+            };
         }
-    } else {
-        parse_js_array_data(&data)?
-    };
 
-    // 根据格式导出
+        // 有 columns 配置：使用 data_export 模块解析嵌套表头
+        let table_data = build_table_data_from_array(&cols, &data)?;
+
+        return match format {
+            ExportFormat::Csv => {
+                // CSV 不支持合并单元格，直接用行数据
+                export_as_csv(table_data.rows, filename, progress_callback)
+            }
+            ExportFormat::Xlsx => {
+                // XLSX 支持合并单元格（多行表头）
+                export_as_xlsx(table_data, filename, progress_callback)
+            }
+        };
+    }
+
+    // 无 columns，按二维数组处理
+    let rows = parse_js_array_data(&data)?;
     match format {
         ExportFormat::Csv => export_as_csv(rows, filename, progress_callback),
         ExportFormat::Xlsx => {
-            // 构造 TableData 结构（无合并单元格）
             let table_data = table_extractor::TableData {
                 rows,
                 merge_ranges: Vec::new(),

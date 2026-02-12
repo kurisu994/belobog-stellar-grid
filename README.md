@@ -332,13 +332,14 @@ export_tables_xlsx(
 
 ---
 
-#### `export_data(data, filename?, format?, progress_callback?)` 🆕 直接数据导出
+#### `export_data(data, columns?, filename?, format?, progress_callback?)` 🆕 直接数据导出
 
-不依赖 DOM，直接将 JavaScript 二维数组导出为 CSV 或 XLSX 文件。
+不依赖 DOM，直接将 JavaScript 二维数组或对象数组导出为 CSV 或 XLSX 文件。
 
 **参数**：
 
-- `data`: JS 二维数组 `Array<Array<string | number | boolean>>`
+- `data`: JS 数组（二维数组 `Array<Array<any>>` 或对象数组 `Array<Object>`）
+- `columns`: 表头配置数组（可选，导出对象数组时必填）
 - `filename`: 导出文件名（可选）
 - `format`: 导出格式（可选，默认 CSV）
 - `progress_callback`: 进度回调函数（可选）

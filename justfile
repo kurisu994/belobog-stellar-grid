@@ -1,5 +1,8 @@
+# 启动开发模式 (构建并启动服务器)
+dev: build
+    @echo "🚀 启动本地服务器..."
+    basic-http-server .
 # 发布 npm 包
-
 # 升级版本 (patch/minor/major)
 bump level:
     @#!/bin/bash
