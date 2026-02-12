@@ -270,10 +270,13 @@ fn parse_js_array_data(data: &JsValue) -> Result<Vec<Vec<String>>, JsValue> {
 ///
 /// # 参数
 /// * `data` - JS 数组 (二维数组 `Array<Array<any>>` 或对象数组 `Array<Object>`)
-/// * `columns` - 可选的表头配置数组，支持嵌套 children 实现多级表头
-/// * `filename` - 可选的导出文件名
-/// * `format` - 导出格式（Csv 或 Xlsx），默认为 Csv
-/// * `progress_callback` - 可选的进度回调函数，接收 0-100 的进度值
+/// * `options` - 可选的配置对象，包含以下字段：
+///   - `columns`: 表头配置数组，支持嵌套 children 实现多级表头
+///   - `filename`: 导出文件名
+///   - `format`: 导出格式（ExportFormat.Csv 或 ExportFormat.Xlsx），默认 Csv
+///   - `progressCallback`: 进度回调函数，接收 0-100 的进度值
+///   - `indentColumn`: 树形模式下需要缩进的列的 key
+///   - `childrenKey`: 传入此参数启用树形数据模式，指定子节点字段名
 ///
 /// # 返回值
 /// * `Ok(())` - 导出成功
@@ -284,9 +287,10 @@ fn parse_js_array_data(data: &JsValue) -> Result<Vec<Vec<String>>, JsValue> {
 /// import init, { export_data, ExportFormat } from './pkg/belobog_stellar_grid.js';
 /// await init();
 ///
-/// // 1. 二维数组导出（无需 columns）
+/// // 1. 二维数组导出（无需 options）
 /// const arrayData = [['姓名', '年龄'], ['张三', 28]];
-/// export_data(arrayData, undefined, '用户.csv');
+/// export_data(arrayData);
+/// export_data(arrayData, { filename: '用户.csv' });
 ///
 /// // 2. 对象数组 + 简单表头
 /// const data = [{ name: '张三', age: 28 }];
@@ -294,7 +298,7 @@ fn parse_js_array_data(data: &JsValue) -> Result<Vec<Vec<String>>, JsValue> {
 ///   { title: '姓名', key: 'name' },
 ///   { title: '年龄', key: 'age' }
 /// ];
-/// export_data(data, columns, '用户.xlsx', ExportFormat.Xlsx);
+/// export_data(data, { columns, filename: '用户.xlsx', format: ExportFormat.Xlsx });
 ///
 /// // 3. 对象数组 + 嵌套表头（多行表头 + 合并单元格）
 /// const nestedColumns = [
@@ -304,7 +308,7 @@ fn parse_js_array_data(data: &JsValue) -> Result<Vec<Vec<String>>, JsValue> {
 ///     { title: '住址', key: 'address' }
 ///   ]}
 /// ];
-/// export_data(data, nestedColumns, '用户.xlsx', ExportFormat.Xlsx);
+/// export_data(data, { columns: nestedColumns, filename: '用户.xlsx', format: ExportFormat.Xlsx });
 ///
 /// // 4. 树形数据导出（递归拍平 children + 层级缩进）
 /// const treeData = [
@@ -313,20 +317,112 @@ fn parse_js_array_data(data: &JsValue) -> Result<Vec<Vec<String>>, JsValue> {
 ///     { name: 'CFO', children: [{ name: '会计' }] }
 ///   ]}
 /// ];
-/// export_data(treeData, columns, '组织架构.xlsx', ExportFormat.Xlsx, null, 'name', 'children');
+/// export_data(treeData, {
+///   columns, filename: '组织架构.xlsx', format: ExportFormat.Xlsx,
+///   indentColumn: 'name', childrenKey: 'children'
+/// });
 /// ```
 #[wasm_bindgen]
-pub fn export_data(
+pub fn export_data(data: JsValue, options: Option<JsValue>) -> Result<(), JsValue> {
+    // 从 options 对象中解析各个配置项
+    let opts = parse_export_data_options(options)?;
+
+    export_data_impl(
+        data,
+        opts.columns,
+        opts.filename,
+        opts.format,
+        opts.progress_callback,
+        opts.indent_column,
+        opts.children_key,
+    )
+}
+
+/// 导出数据配置项（从 options 对象解析后的结果）
+struct ExportDataOptions {
+    columns: Option<JsValue>,
+    filename: Option<String>,
+    format: ExportFormat,
+    progress_callback: Option<js_sys::Function>,
+    indent_column: Option<String>,
+    children_key: Option<String>,
+}
+
+/// 从 options JsValue 对象中解析 export_data 的配置项
+fn parse_export_data_options(options: Option<JsValue>) -> Result<ExportDataOptions, JsValue> {
+    let options = match options {
+        Some(ref opt) if !opt.is_null() && !opt.is_undefined() => opt,
+        _ => {
+            return Ok(ExportDataOptions {
+                columns: None,
+                filename: None,
+                format: ExportFormat::default(),
+                progress_callback: None,
+                indent_column: None,
+                children_key: None,
+            });
+        }
+    };
+
+    // 解析 columns
+    let columns = js_sys::Reflect::get(options, &JsValue::from_str("columns"))
+        .ok()
+        .filter(|v| !v.is_undefined() && !v.is_null());
+
+    // 解析 filename
+    let filename = js_sys::Reflect::get(options, &JsValue::from_str("filename"))
+        .ok()
+        .and_then(|v| v.as_string());
+
+    // 解析 format（ExportFormat 在 wasm_bindgen 中编码为数字：0 = Csv, 1 = Xlsx）
+    let format = js_sys::Reflect::get(options, &JsValue::from_str("format"))
+        .ok()
+        .and_then(|v| v.as_f64())
+        .map(|n| {
+            if n as u32 == 1 {
+                ExportFormat::Xlsx
+            } else {
+                ExportFormat::Csv
+            }
+        })
+        .unwrap_or_default();
+
+    // 解析 progressCallback
+    let progress_callback = js_sys::Reflect::get(options, &JsValue::from_str("progressCallback"))
+        .ok()
+        .filter(|v| v.is_function())
+        .map(js_sys::Function::from);
+
+    // 解析 indentColumn
+    let indent_column = js_sys::Reflect::get(options, &JsValue::from_str("indentColumn"))
+        .ok()
+        .and_then(|v| v.as_string());
+
+    // 解析 childrenKey
+    let children_key = js_sys::Reflect::get(options, &JsValue::from_str("childrenKey"))
+        .ok()
+        .and_then(|v| v.as_string());
+
+    Ok(ExportDataOptions {
+        columns,
+        filename,
+        format,
+        progress_callback,
+        indent_column,
+        children_key,
+    })
+}
+
+/// export_data 的内部实现
+fn export_data_impl(
     data: JsValue,
     columns: Option<JsValue>,
     filename: Option<String>,
-    format: Option<ExportFormat>,
+    format: ExportFormat,
     progress_callback: Option<js_sys::Function>,
     indent_column: Option<String>,
     children_key: Option<String>,
 ) -> Result<(), JsValue> {
-    let format = format.unwrap_or_default();
-
     // 根据是否提供 columns 决定处理方式
     if let Some(cols) = columns {
         if cols.is_null() || cols.is_undefined() {

@@ -233,7 +233,7 @@ const data = [
   ['张三', 28, '研发部'],
   ['李四', 32, '市场部']
 ];
-export_data(data, null, "员工名单.xlsx", ExportFormat.Xlsx);
+export_data(data, { filename: "员工名单.xlsx", format: ExportFormat.Xlsx });
 
 // 模式 2：columns + dataSource（Ant Design 风格）
 const columns = [
@@ -247,7 +247,7 @@ const dataSource = [
   { name: '张三', age: 28, address: '杭州' },
   { name: '李四', age: 32, address: '北京' }
 ];
-export_data(dataSource, columns, "员工信息.xlsx", ExportFormat.Xlsx);
+export_data(dataSource, { columns, filename: "员工信息.xlsx", format: ExportFormat.Xlsx });
 ```
 
 ---
@@ -295,14 +295,14 @@ const columns = [
   { title: '职位', key: 'title' }
 ];
 
-// 基本导出（传入 children_key 启用树形模式）
-export_data(treeData, columns, '组织架构.xlsx', ExportFormat.Xlsx, undefined, undefined, 'children');
+// 基本导出（传入 childrenKey 启用树形模式）
+export_data(treeData, { columns, filename: '组织架构.xlsx', format: ExportFormat.Xlsx, childrenKey: 'children' });
 
 // 带层级缩进导出（'name' 列会根据层级自动添加空格）
-export_data(treeData, columns, '组织架构.xlsx', ExportFormat.Xlsx, undefined, 'name', 'children');
+export_data(treeData, { columns, filename: '组织架构.xlsx', format: ExportFormat.Xlsx, indentColumn: 'name', childrenKey: 'children' });
 
 // 自定义 children 字段名
-export_data(data, columns, 'file.xlsx', ExportFormat.Xlsx, undefined, 'name', 'subCategories');
+export_data(data, { columns, filename: 'file.xlsx', format: ExportFormat.Xlsx, indentColumn: 'name', childrenKey: 'subCategories' });
 ```
 
 ## 🎯 使用指南
@@ -494,19 +494,20 @@ async function exportAll() {
 
 ---
 
-### export_data(data, columns?, filename?, format?, callback?, indent_column?, children_key?)
+### export_data(data, options?)
 
 从 JavaScript 数组直接生成文件，不依赖 DOM。支持二维数组、对象数组、嵌套表头、数据合并和树形数据导出。
 
 **参数**：
 
 - `data` (Array): 数据源。无 columns 时为二维数组；有 columns 时为对象数组
-- `columns` (Array, 可选): 表头配置数组，支持嵌套 children
-- `filename` (string, 可选): 导出文件名
-- `format` (ExportFormat, 可选): 导出格式（Csv / Xlsx）
-- `callback` (function, 可选): 进度回调函数
-- `indent_column` (string, 可选): 树形数据模式下，指定需要缩进的列的 key
-- `children_key` (string, 可选): 传入此参数启用树形数据模式，指定子节点字段名（如 `"children"`）
+- `options` (Object, 可选): 导出配置对象
+  - `columns` (Array, 可选): 表头配置数组，支持嵌套 children
+  - `filename` (string, 可选): 导出文件名
+  - `format` (ExportFormat, 可选): 导出格式（Csv / Xlsx）
+  - `progressCallback` (function, 可选): 进度回调函数
+  - `indentColumn` (string, 可选): 树形数据模式下，指定需要缩进的列的 key
+  - `childrenKey` (string, 可选): 传入此参数启用树形数据模式，指定子节点字段名（如 `"children"`）
 
 **返回**：无（成功）或抛出异常（失败）
 

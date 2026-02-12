@@ -100,6 +100,7 @@ impl TableData {
     }
 
     /// 获取纯文本数据（用于 CSV 导出等场景）
+    #[allow(dead_code)]
     pub fn into_rows(self) -> Vec<Vec<String>> {
         self.rows
     }
@@ -143,9 +144,8 @@ pub(crate) fn get_cell_span(cell: &HtmlTableCellElement) -> CellSpan {
 
 /// 从 HTML 表格中提取数据（简化版，仅返回文本数据）
 ///
-/// 使用占位矩阵算法处理 colspan 和 rowspan：
-/// - colspan > 1: 填充空字符串到后续列
-/// - rowspan > 1: 将当前值预填到下方行的对应位置
+/// CSV 等不需要合并单元格信息的场景使用此函数，
+/// 跳过 merge_ranges 的计算和内存分配，提升性能。
 ///
 /// # 参数
 /// * `table_id` - HTML 表格元素的 ID
@@ -158,8 +158,110 @@ pub fn extract_table_data(
     table_id: &str,
     exclude_hidden: bool,
 ) -> Result<Vec<Vec<String>>, JsValue> {
-    let table_data = extract_table_data_with_merge(table_id, exclude_hidden)?;
-    Ok(table_data.into_rows())
+    // 安全地获取全局的 window 和 document 对象
+    let window = web_sys::window().ok_or_else(|| JsValue::from_str("无法获取 window 对象"))?;
+    let document = window
+        .document()
+        .ok_or_else(|| JsValue::from_str("无法获取 document 对象"))?;
+
+    let element = document
+        .get_element_by_id(table_id)
+        .ok_or_else(|| JsValue::from_str(&format!("找不到 ID 为 '{}' 的元素", table_id)))?;
+
+    let table = find_table_element(element, table_id)?;
+
+    let rows = table.rows();
+    let row_count = rows.length();
+
+    if row_count == 0 {
+        return Err(JsValue::from_str("表格为空，没有数据可导出"));
+    }
+
+    let mut result: Vec<Vec<String>> = Vec::new();
+
+    // 用于追踪被 rowspan 占用的位置: (row, col) -> cell_text
+    let mut rowspan_tracker: HashMap<(u32, usize), String> = HashMap::new();
+
+    for row_idx in 0..row_count {
+        let row = rows
+            .get_with_index(row_idx)
+            .ok_or_else(|| JsValue::from_str(&format!("无法获取第 {} 行数据", row_idx + 1)))?;
+
+        let row = row
+            .dyn_into::<HtmlTableRowElement>()
+            .map_err(|_| JsValue::from_str(&format!("第 {} 行不是有效的表格行", row_idx + 1)))?;
+
+        if exclude_hidden && is_element_hidden(&row) {
+            continue;
+        }
+
+        let mut row_data = Vec::new();
+        let cells = row.cells();
+        let cell_count = cells.length();
+        let mut col_idx: usize = 0;
+
+        for cell_idx in 0..cell_count {
+            // 处理被上方 rowspan 占用的列
+            while let Some(text) = rowspan_tracker.remove(&(row_idx, col_idx)) {
+                row_data.push(text);
+                col_idx += 1;
+            }
+
+            let cell = cells.get_with_index(cell_idx).ok_or_else(|| {
+                JsValue::from_str(&format!(
+                    "无法获取第 {} 行第 {} 列单元格",
+                    row_idx + 1,
+                    cell_idx + 1
+                ))
+            })?;
+
+            let cell = cell.dyn_into::<HtmlTableCellElement>().map_err(|_| {
+                JsValue::from_str(&format!(
+                    "第 {} 行第 {} 列不是有效的表格单元格",
+                    row_idx + 1,
+                    cell_idx + 1
+                ))
+            })?;
+
+            if exclude_hidden && is_element_hidden(&cell) {
+                continue;
+            }
+
+            let span = get_cell_span(&cell);
+
+            // 处理 rowspan: 将当前单元格内容预填到后续行的对应位置
+            if span.rowspan > 1 {
+                for r in 1..span.rowspan {
+                    for c in 0..span.colspan as usize {
+                        let fill_text = if c == 0 {
+                            span.text.clone()
+                        } else {
+                            String::new()
+                        };
+                        rowspan_tracker.insert((row_idx + r, col_idx + c), fill_text);
+                    }
+                }
+            }
+
+            // 处理 colspan: 当前单元格内容 + 空白填充
+            row_data.push(span.text);
+            for _ in 1..span.colspan {
+                row_data.push(String::new());
+            }
+
+            col_idx += span.colspan as usize;
+        }
+
+        // 处理行尾残留的 rowspan 占位
+        while let Some(text) = rowspan_tracker.remove(&(row_idx, col_idx)) {
+            row_data.push(text);
+            col_idx += 1;
+        }
+
+        result.push(row_data);
+    }
+
+    Ok(result)
 }
 
 /// 从 HTML 表格中提取数据（完整版，包含合并单元格信息）

@@ -145,8 +145,8 @@
     [<span class="string">'王五'</span>, <span class="number">42</span>, <span class="string">'广州'</span>, <span class="string">'wangwu@example.com'</span>],
 ];
 
-<span class="func">export_data</span>(data, <span class="string">'用户数据.csv'</span>);
-<span class="func">export_data</span>(data, <span class="string">'用户数据.xlsx'</span>, ExportFormat.Xlsx);</pre>
+<span class="func">export_data</span>(data, { filename: <span class="string">'用户数据.csv'</span> });
+<span class="func">export_data</span>(data, { filename: <span class="string">'用户数据.xlsx'</span>, format: ExportFormat.Xlsx });</pre>
 
             <table id="preview-basic">
                 <thead><tr><th>姓名</th><th>年龄</th><th>城市</th><th>邮箱</th></tr></thead>
@@ -179,7 +179,7 @@
     { name: <span class="string">'李四'</span>, age: <span class="number">35</span>, address: <span class="string">'上海市浦东新区'</span> },
 ];
 
-<span class="func">export_data</span>(data, columns, <span class="string">'用户详情.xlsx'</span>, ExportFormat.Xlsx);</pre>
+<span class="func">export_data</span>(data, { columns: columns, filename: <span class="string">'用户详情.xlsx'</span>, format: ExportFormat.Xlsx });</pre>
 
             <div class="button-group">
                 <button class="btn-primary" onclick="exportSimpleColumnsCsv()">📄 导出为 CSV</button>
@@ -205,7 +205,7 @@
 <span class="comment">// | (rowspan) | 年龄 |  住址  |</span>
 <span class="comment">// | 张三      |  28  |  北京  |</span>
 
-<span class="func">export_data</span>(data, nestedColumns, <span class="string">'嵌套表头.xlsx'</span>, ExportFormat.Xlsx);</pre>
+<span class="func">export_data</span>(data, { columns: nestedColumns, filename: <span class="string">'嵌套表头.xlsx'</span>, format: ExportFormat.Xlsx });</pre>
 
             <table>
                 <thead>
@@ -320,7 +320,7 @@
             <p>演示当传入对象数组但忘记提供 <code>columns</code> 时的错误提示：</p>
             <pre><span class="comment">// 错误用法：对象数组必须提供 columns</span>
 <span class="keyword">const</span> data = [{ name: <span class="string">'张三'</span>, age: <span class="number">28</span> }];
-<span class="func">export_data</span>(data, <span class="keyword">undefined</span>, <span class="string">'error.csv'</span>);</pre>
+<span class="func">export_data</span>(data, { filename: <span class="string">'error.csv'</span> });</pre>
 
             <div class="button-group">
                 <button class="btn-primary" style="background: #ff4d4f;" onclick="testErrorHandling()">🚫 测试错误用法</button>
@@ -332,14 +332,18 @@
             <h2>💡 API 概览</h2>
             <pre><span class="keyword">import</span> { export_data, ExportFormat } <span class="keyword">from</span> <span class="string">'./pkg/belobog_stellar_grid.js'</span>;
 
-<span class="comment">// export_data(data, columns?, filename?, format?, progressCallback?, indent_column?, children_key?)</span>
+<span class="comment">// export_data(data, options?)</span>
+<span class="comment">// options: { columns, filename, format, progressCallback, indentColumn, childrenKey }</span>
 
 <span class="comment">// 参数说明：</span>
 <span class="comment">// data     : Array&lt;Array&gt; 二维数组 或 Array&lt;Object&gt; 对象数组</span>
-<span class="comment">// columns? : 表头配置数组 { title, key?, children? }[]</span>
-<span class="comment">// filename?: 文件名（可选，自动添加扩展名）</span>
-<span class="comment">// format?  : ExportFormat.Csv | ExportFormat.Xlsx（默认 CSV）</span>
-<span class="comment">// callback?: (progress: number) => void  进度回调</span>
+<span class="comment">// options? : 可选配置对象</span>
+<span class="comment">//   columns?          : 表头配置数组 { title, key?, children? }[]</span>
+<span class="comment">//   filename?         : 文件名（可选，自动添加扩展名）</span>
+<span class="comment">//   format?           : ExportFormat.Csv | ExportFormat.Xlsx（默认 CSV）</span>
+<span class="comment">//   progressCallback? : (progress: number) => void  进度回调</span>
+<span class="comment">//   indentColumn?     : 缩进列（树形数据）</span>
+<span class="comment">//   childrenKey?      : 子节点键名（树形数据）</span>
 
 <span class="comment">// 模式1: 二维数组（不传 columns）</span>
 <span class="func">export_data</span>([[<span class="string">'A'</span>, <span class="string">'B'</span>], [<span class="number">1</span>, <span class="number">2</span>]]);
@@ -347,20 +351,20 @@
 <span class="comment">// 模式2: 对象数组 + 表头配置</span>
 <span class="func">export_data</span>(
     [{ name: <span class="string">'张三'</span>, age: <span class="number">28</span> }],
-    [{ title: <span class="string">'姓名'</span>, key: <span class="string">'name'</span> }, { title: <span class="string">'年龄'</span>, key: <span class="string">'age'</span> }],
-    <span class="string">'成绩单.xlsx'</span>,
-    ExportFormat.Xlsx
+    { columns: [{ title: <span class="string">'姓名'</span>, key: <span class="string">'name'</span> }, { title: <span class="string">'年龄'</span>, key: <span class="string">'age'</span> }],
+      filename: <span class="string">'成绩单.xlsx'</span>,
+      format: ExportFormat.Xlsx }
 );
 
 <span class="comment">// 模式3: 嵌套表头（XLSX 自动合并单元格）</span>
 <span class="func">export_data</span>(
     data,
-    [{ title: <span class="string">'姓名'</span>, key: <span class="string">'name'</span> },
-     { title: <span class="string">'详情'</span>, children: [
-       { title: <span class="string">'年龄'</span>, key: <span class="string">'age'</span> },
-       { title: <span class="string">'住址'</span>, key: <span class="string">'address'</span> }
-     ]}],
-    <span class="string">'报表.xlsx'</span>, ExportFormat.Xlsx
+    { columns: [{ title: <span class="string">'姓名'</span>, key: <span class="string">'name'</span> },
+       { title: <span class="string">'详情'</span>, children: [
+         { title: <span class="string">'年龄'</span>, key: <span class="string">'age'</span> },
+         { title: <span class="string">'住址'</span>, key: <span class="string">'address'</span> }
+       ]}],
+      filename: <span class="string">'报表.xlsx'</span>, format: ExportFormat.Xlsx }
 );
 
 <span class="comment">// 模式4: 数据合并单元格（colSpan / rowSpan）</span>
@@ -368,9 +372,9 @@
 <span class="func">export_data</span>(
     [{ name: { value: <span class="string">'张三'</span>, rowSpan: <span class="number">2</span> }, score: <span class="number">90</span> },
      { name: { value: <span class="string">''</span>, rowSpan: <span class="number">0</span> }, score: <span class="number">85</span> }],
-    [{ title: <span class="string">'姓名'</span>, key: <span class="string">'name'</span> },
-     { title: <span class="string">'成绩'</span>, key: <span class="string">'score'</span> }],
-    <span class="string">'合并.xlsx'</span>, ExportFormat.Xlsx
+    { columns: [{ title: <span class="string">'姓名'</span>, key: <span class="string">'name'</span> },
+       { title: <span class="string">'成绩'</span>, key: <span class="string">'score'</span> }],
+      filename: <span class="string">'合并.xlsx'</span>, format: ExportFormat.Xlsx }
 );</pre>
         </div>
     </div>
@@ -389,12 +393,12 @@
         ];
 
         window.exportBasicCsv = () => {
-            export_data(basicData, undefined, '用户数据.csv');
+            export_data(basicData, { filename: '用户数据.csv' });
             console.log('✅ 二维数组导出 CSV 完成');
         };
 
         window.exportBasicXlsx = () => {
-            export_data(basicData, undefined, '用户数据.xlsx', ExportFormat.Xlsx);
+            export_data(basicData, { filename: '用户数据.xlsx', format: ExportFormat.Xlsx });
             console.log('✅ 二维数组导出 Excel 完成');
         };
 
@@ -413,12 +417,12 @@
         ];
 
         window.exportSimpleColumnsCsv = () => {
-            export_data(objectData, simpleColumns, '用户详情.csv');
+            export_data(objectData, { columns: simpleColumns, filename: '用户详情.csv' });
             console.log('✅ 对象数组导出 CSV 完成');
         };
 
         window.exportSimpleColumnsXlsx = () => {
-            export_data(objectData, simpleColumns, '用户详情.xlsx', ExportFormat.Xlsx);
+            export_data(objectData, { columns: simpleColumns, filename: '用户详情.xlsx', format: ExportFormat.Xlsx });
             console.log('✅ 对象数组导出 Excel 完成');
         };
 
@@ -435,12 +439,12 @@
         ];
 
         window.exportNestedCsv = () => {
-            export_data(objectData, nestedColumns, '嵌套表头.csv');
+            export_data(objectData, { columns: nestedColumns, filename: '嵌套表头.csv' });
             console.log('✅ 嵌套表头导出 CSV 完成');
         };
 
         window.exportNestedXlsx = () => {
-            export_data(objectData, nestedColumns, '嵌套表头.xlsx', ExportFormat.Xlsx);
+            export_data(objectData, { columns: nestedColumns, filename: '嵌套表头.xlsx', format: ExportFormat.Xlsx });
             console.log('✅ 嵌套表头导出 Excel 完成（含合并单元格）');
         };
 
@@ -470,7 +474,7 @@
         ];
 
         window.exportDeepNestedXlsx = () => {
-            export_data(deepData, deepColumns, '三级表头.xlsx', ExportFormat.Xlsx);
+            export_data(deepData, { columns: deepColumns, filename: '三级表头.xlsx', format: ExportFormat.Xlsx });
             console.log('✅ 三级嵌套表头导出 Excel 完成');
         };
 
@@ -493,12 +497,12 @@
         ];
 
         window.exportDataMergeCsv = () => {
-            export_data(mergeData, mergeColumns, '数据合并.csv');
+            export_data(mergeData, { columns: mergeColumns, filename: '数据合并.csv' });
             console.log('✅ 数据合并单元格导出 CSV 完成');
         };
 
         window.exportDataMergeXlsx = () => {
-            export_data(mergeData, mergeColumns, '数据合并.xlsx', ExportFormat.Xlsx);
+            export_data(mergeData, { columns: mergeColumns, filename: '数据合并.xlsx', format: ExportFormat.Xlsx });
             console.log('✅ 数据合并单元格导出 Excel 完成（含合并单元格）');
         };
 
@@ -535,9 +539,9 @@
             const data = generateLargeObjectData(10000);
             progressInfo.textContent = '⏳ 正在导出...';
 
-            export_data(data, largeColumns, '大数据_10000行.csv', ExportFormat.Csv, (progress) => {
+            export_data(data, { columns: largeColumns, filename: '大数据_10000行.csv', format: ExportFormat.Csv, progressCallback: (progress) => {
                 progressInfo.textContent = `⏳ 导出进度: ${progress.toFixed(1)}%`;
-            });
+            } });
 
             const elapsed = (performance.now() - start).toFixed(0);
             progressInfo.textContent = `✅ 10000 行 CSV 导出完成，耗时 ${elapsed}ms`;
@@ -548,9 +552,9 @@
             const data = generateLargeObjectData(10000);
             progressInfo.textContent = '⏳ 正在导出...';
 
-            export_data(data, largeColumns, '大数据_10000行.xlsx', ExportFormat.Xlsx, (progress) => {
+            export_data(data, { columns: largeColumns, filename: '大数据_10000行.xlsx', format: ExportFormat.Xlsx, progressCallback: (progress) => {
                 progressInfo.textContent = `⏳ 导出进度: ${progress.toFixed(1)}%`;
-            });
+            } });
 
             const elapsed = (performance.now() - start).toFixed(0);
             progressInfo.textContent = `✅ 10000 行 Excel 导出完成，耗时 ${elapsed}ms`;
@@ -561,7 +565,7 @@
             const data = [{ name: '张三', age: 28 }];
             try {
                 console.log('正在测试错误用法...');
-                export_data(data, undefined, 'error.csv');
+                export_data(data, { filename: 'error.csv' });
             } catch (e) {
                 console.error('捕获到预期错误:', e);
                 alert(`✅ 成功捕获预期错误：\n\n${e}`);

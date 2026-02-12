@@ -9,6 +9,14 @@
 
 ## [unreleased]
 
+### 💥 破坏性变更
+
+- **`export_data` API 参数重构**（#10）
+  - 旧签名：`export_data(data, columns?, filename?, format?, callback?, indent_column?, children_key?)`（7 个参数）
+  - 新签名：`export_data(data, options?)`（2 个参数）
+  - `options` 为 JS 对象，字段：`columns`、`filename`、`format`、`progressCallback`、`indentColumn`、`childrenKey`
+  - 所有 JS 调用端需要更新为 options 对象模式
+
 ### 🛡️ 安全性
 
 - 🔒 **公式注入防护 (Formula Injection Protection)**
@@ -26,6 +34,8 @@
 
 ### ⚡ 优化
 
+- **`dangerous_chars` 迭代优化**（#12）：将 `for` 循环改为函数式 `find()` 写法，代码更简洁
+- **`table_extractor` 性能优化**（#14）：CSV 路径下 `extract_table_data()` 独立实现，跳过 `merge_ranges` 计算和内存分配，减少不必要开销
 - 移除不再维护的 `wee_alloc` 分配器，改用 Rust 默认分配器（更安全、现代）
 - 清理冗余代码和未使用的导入
 - 消除 `test_data_export.rs` 中的编译警告

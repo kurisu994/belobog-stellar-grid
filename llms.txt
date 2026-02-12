@@ -1,0 +1,68 @@
+# Belobog Stellar Grid
+
+`belobog-stellar-grid` 是一个高性能的 WebAssembly 库，用于将 HTML 表格或 JavaScript 数据导出为 CSV 和 XLSX 文件。它专为处理大数据量设计，支持分批异步导出以避免阻塞浏览器主线程。
+
+## 核心特性
+
+- **高性能**: 基于 Rust 和 WebAssembly，速度极快。
+- **大数据支持**: 支持分批异步导出，处理百万级数据不卡顿。
+- **多格式**: 支持 CSV 和 Excel (Xlsx)。
+- **丰富功能**: 支持合并单元格、多 Sheet 导出、树形数据导出（自动缩进）。
+- **安全**: 内置文件名安全验证，防止路径遍历攻击。
+- **易用**: 提供统一的 API 和类型支持。
+
+## 快速上手
+
+```javascript
+import init, { export_table, ExportFormat } from "belobog-stellar-grid";
+
+await init();
+
+// 简单导出
+export_table("my-table-id", "data.csv");
+
+// 导出 Excel 并显示进度
+export_table("my-table-id", "report.xlsx", ExportFormat.Xlsx, false, (progress) => {
+  console.log(`进度: ${progress}%`);
+});
+```
+
+## API 参考
+
+### 核心函数
+
+#### `export_table(table_id, filename?, format?, exclude_hidden?, progress_callback?)`
+统一导出函数，支持 DOM 表格导出。
+- `table_id`: 表格 ID。
+- `format`: `ExportFormat.Csv` 或 `ExportFormat.Xlsx`。
+- `exclude_hidden`: 是否排除 `display: none` 的行列。
+
+#### `export_data(data, options?)`
+直接导出 JS 数据（二维数组或对象数组）。
+- `data`: `Array<Array<any>>` 或 `Array<Object>`。
+- `options`: `{ columns, filename, format, indentColumn, childrenKey ... }`。
+- 支持树形数据（通过 `childrenKey` 和 `indentColumn`）。
+- 支持复杂表头和合并单元格（通过 `columns` 配置）。
+
+#### `export_tables_xlsx(sheets, filename?, progress_callback?)`
+导出多 Sheet Excel。
+- `sheets`: `[{ tableId: "t1", sheetName: "Sheet1" }, ...]`。
+
+#### `export_table_to_csv_batch` / `export_table_to_xlsx_batch`
+异步分批导出，适用于大数据量（> 10k 行）。
+
+### 类型
+
+#### `ExportFormat`
+- `Csv`: 0
+- `Xlsx`: 1
+
+## 开发指南
+
+- 构建: `wasm-pack build --target web`
+- 测试: `cargo test`
+
+## 常见问题
+
+- **CSV 中文乱码**: 库会自动处理 BOM，通常 excel 打开正常。
+- **内存限制**: 受限于浏览器 WASM 内存限制（通常 2GB-4GB），超大数据建议分批或服务端处理，但本库已通过流式/分批处理极大优化了内存占用。

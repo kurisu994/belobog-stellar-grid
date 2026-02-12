@@ -220,14 +220,16 @@
 ];
 
 <span class="comment">// 普通导出</span>
-<span class="func">export_data</span>(orgData, columns, <span class="string">'组织架构.xlsx'</span>, ExportFormat.Xlsx);
+<span class="func">export_data</span>(orgData, { columns, filename: <span class="string">'组织架构.xlsx'</span>, format: ExportFormat.Xlsx });
 
-<span class="comment">// 带缩进导出（indent_column + children_key）</span>
-<span class="func">export_data</span>(orgData, columns, <span class="string">'组织架构_缩进.xlsx'</span>, ExportFormat.Xlsx,
-    <span class="keyword">undefined</span>,    <span class="comment">// progress_callback</span>
-    <span class="string">'name'</span>,       <span class="comment">// indent_column - 缩进"姓名"列</span>
-    <span class="string">'children'</span>,   <span class="comment">// children_key</span>
-);</pre>
+<span class="comment">// 带缩进导出（indentColumn + childrenKey）</span>
+<span class="func">export_data</span>(orgData, {
+    columns,
+    filename: <span class="string">'组织架构_缩进.xlsx'</span>,
+    format: ExportFormat.Xlsx,
+    indentColumn: <span class="string">'name'</span>,
+    childrenKey: <span class="string">'children'</span>,
+});</pre>
 
         <div class="button-group">
           <button class="btn-primary" onclick="exportScenario1('csv')">📄 导出 CSV</button>
@@ -264,12 +266,14 @@
     { title: <span class="string">'编码'</span>, key: <span class="string">'code'</span> },
 ];
 
-<span class="comment">// 自定义 children_key 为 'subCategories'</span>
-<span class="func">export_data</span>(categoryData, columns, <span class="string">'商品分类.xlsx'</span>, ExportFormat.Xlsx,
-    <span class="keyword">undefined</span>,          <span class="comment">// progress_callback</span>
-    <span class="string">'name'</span>,              <span class="comment">// indent_column</span>
-    <span class="string">'subCategories'</span>,    <span class="comment">// 自定义 children_key</span>
-);</pre>
+<span class="comment">// 自定义 childrenKey 为 'subCategories'</span>
+<span class="func">export_data</span>(categoryData, {
+    columns,
+    filename: <span class="string">'商品分类.xlsx'</span>,
+    format: ExportFormat.Xlsx,
+    indentColumn: <span class="string">'name'</span>,
+    childrenKey: <span class="string">'subCategories'</span>,
+});</pre>
 
         <div class="button-group">
           <button class="btn-excel" onclick="exportScenario2()">📗 导出 Excel（带缩进）</button>
@@ -309,11 +313,13 @@
 <span class="comment">// |   技术部  |  张三  |  100  |</span>
 <span class="comment">// |   ├ 前端组|  李四  |   30  |</span>
 
-<span class="func">export_data</span>(deptTreeData, nestedColumns, <span class="string">'部门架构.xlsx'</span>, ExportFormat.Xlsx,
-    <span class="keyword">undefined</span>,    <span class="comment">// progress_callback</span>
-    <span class="string">'dept'</span>,       <span class="comment">// indent_column</span>
-    <span class="string">'children'</span>,   <span class="comment">// children_key</span>
-);</pre>
+<span class="func">export_data</span>(deptTreeData, {
+    columns: nestedColumns,
+    filename: <span class="string">'部门架构.xlsx'</span>,
+    format: ExportFormat.Xlsx,
+    indentColumn: <span class="string">'dept'</span>,
+    childrenKey: <span class="string">'children'</span>,
+});</pre>
 
         <div class="button-group">
           <button class="btn-excel" onclick="exportScenario3()">📗 导出 Excel（嵌套表头 + 树形数据）</button>
@@ -336,11 +342,13 @@
     { title: <span class="string">'状态'</span>, key: <span class="string">'status'</span> },
 ];
 
-<span class="func">export_data</span>(data, columns, <span class="string">'大数据量树.xlsx'</span>, ExportFormat.Xlsx,
-    <span class="keyword">undefined</span>,    <span class="comment">// progress_callback</span>
-    <span class="string">'name'</span>,       <span class="comment">// indent_column</span>
-    <span class="string">'children'</span>,   <span class="comment">// children_key</span>
-);</pre>
+<span class="func">export_data</span>(data, {
+    columns,
+    filename: <span class="string">'大数据量树.xlsx'</span>,
+    format: ExportFormat.Xlsx,
+    indentColumn: <span class="string">'name'</span>,
+    childrenKey: <span class="string">'children'</span>,
+});</pre>
 
         <div class="button-group">
           <button class="btn-orange" onclick="exportScenario4()">📗 导出 Excel（500+ 节点）</button>
@@ -351,27 +359,24 @@
       <!-- API 概览 -->
       <div class="section">
         <h2>💡 树形导出 API</h2>
-        <pre><span class="comment">// 树形导出的关键参数</span>
-<span class="func">export_data</span>(
-    data,              <span class="comment">// 包含 children 的嵌套对象数组</span>
+        <pre><span class="comment">// 树形导出使用 options 对象传参</span>
+<span class="func">export_data</span>(data, {
     columns,           <span class="comment">// 表头配置</span>
     filename,          <span class="comment">// 文件名</span>
     format,            <span class="comment">// ExportFormat.Csv | ExportFormat.Xlsx</span>
     progressCallback,  <span class="comment">// 进度回调（可选）</span>
     indentColumn,      <span class="comment">// 需要缩进的列 key（如 'name'）</span>
-    childrenKey,       <span class="comment">// 子节点字段名（默认 'children'）</span>
-);
+    childrenKey,       <span class="comment">// 子节点字段名（如 'children'）</span>
+});
 
-<span class="comment">// 示例：自定义 children_key</span>
-<span class="func">export_data</span>(
-    categoryData,
+<span class="comment">// 示例：自定义 childrenKey</span>
+<span class="func">export_data</span>(categoryData, {
     columns,
-    <span class="string">'分类.xlsx'</span>,
-    ExportFormat.Xlsx,
-    <span class="keyword">undefined</span>,
-    <span class="string">'name'</span>,             <span class="comment">// 缩进"名称"列</span>
-    <span class="string">'subCategories'</span>,    <span class="comment">// 子节点字段名</span>
-);</pre>
+    filename: <span class="string">'分类.xlsx'</span>,
+    format: ExportFormat.Xlsx,
+    indentColumn: <span class="string">'name'</span>,
+    childrenKey: <span class="string">'subCategories'</span>,
+});</pre>
       </div>
     </div>
 
@@ -427,15 +432,16 @@
         try {
           const format = fmt === "xlsx" ? ExportFormat.Xlsx : ExportFormat.Csv;
           const filename = indent ? `组织架构_缩进.${fmt}` : `组织架构.${fmt}`;
-          export_data(
-            orgData,
-            orgColumns,
+          const options = {
+            columns: orgColumns,
             filename,
             format,
-            undefined, // progress_callback
-            indent ? "name" : undefined, // indent_column
-            indent ? "children" : undefined, // children_key
-          );
+          };
+          if (indent) {
+            options.indentColumn = "name";
+            options.childrenKey = "children";
+          }
+          export_data(orgData, options);
           showStatus("status1", true, `✅ 导出成功: ${filename}`);
         } catch (e) {
           showStatus("status1", false, `❌ 导出失败: ${e}`);
@@ -493,15 +499,13 @@
 
       window.exportScenario2 = function () {
         try {
-          export_data(
-            categoryData,
-            categoryColumns,
-            "商品分类.xlsx",
-            ExportFormat.Xlsx,
-            undefined, // progress_callback
-            "name", // indent_column
-            "subCategories", // 自定义 children_key
-          );
+          export_data(categoryData, {
+            columns: categoryColumns,
+            filename: "商品分类.xlsx",
+            format: ExportFormat.Xlsx,
+            indentColumn: "name",
+            childrenKey: "subCategories",
+          });
           showStatus("status2", true, "✅ 导出成功: 商品分类.xlsx");
         } catch (e) {
           showStatus("status2", false, `❌ 导出失败: ${e}`);
@@ -539,15 +543,13 @@
 
       window.exportScenario3 = function () {
         try {
-          export_data(
-            deptTreeData,
-            nestedColumns,
-            "部门架构.xlsx",
-            ExportFormat.Xlsx,
-            undefined, // progress_callback
-            "dept", // indent_column
-            "children", // children_key
-          );
+          export_data(deptTreeData, {
+            columns: nestedColumns,
+            filename: "部门架构.xlsx",
+            format: ExportFormat.Xlsx,
+            indentColumn: "dept",
+            childrenKey: "children",
+          });
           showStatus("status3", true, "✅ 导出成功: 部门架构.xlsx");
         } catch (e) {
           showStatus("status3", false, `❌ 导出失败: ${e}`);
@@ -584,15 +586,13 @@
         try {
           const start = performance.now();
           const data = generateLargeTree(4, 5); // 5^4 = 625 叶子节点
-          export_data(
-            data,
-            largeColumns,
-            "大数据量树.xlsx",
-            ExportFormat.Xlsx,
-            undefined, // progress_callback
-            "name", // indent_column
-            "children", // children_key
-          );
+          export_data(data, {
+            columns: largeColumns,
+            filename: "大数据量树.xlsx",
+            format: ExportFormat.Xlsx,
+            indentColumn: "name",
+            childrenKey: "children",
+          });
           const elapsed = (performance.now() - start).toFixed(0);
           showStatus("status4", true, `✅ 导出成功，耗时: ${elapsed}ms`);
         } catch (e) {

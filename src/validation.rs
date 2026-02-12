@@ -27,10 +27,8 @@ pub fn validate_filename(filename: &str) -> Result<(), String> {
 
     // 检查其他危险字符
     let dangerous_chars = ['<', '>', ':', '"', '|', '?', '*'];
-    for ch in dangerous_chars.iter() {
-        if filename.contains(*ch) {
-            return Err(format!("文件名不能包含非法字符: {}", ch));
-        }
+    if let Some(&ch) = dangerous_chars.iter().find(|&&c| filename.contains(c)) {
+        return Err(format!("文件名不能包含非法字符: {}", ch));
     }
 
     // 检查文件名长度（大多数文件系统限制为 255 个字符）

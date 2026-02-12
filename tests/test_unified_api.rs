@@ -1,6 +1,7 @@
-//! 统一API的测试
+//! 统一API的枚举测试
 //!
-//! 测试新的 export_table 函数
+//! 主要测试 `ExportFormat` 枚举的默认值和比较逻辑。
+//! 注意：`export_table` 函数依赖 WASM 环境，无法在标准 `cargo test` 中直接测试。
 
 use belobog_stellar_grid::ExportFormat;
 

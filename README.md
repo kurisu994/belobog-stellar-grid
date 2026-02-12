@@ -30,7 +30,7 @@
 - **🚀 极致性能**：Rust 原生速度 + WebAssembly 优化
 - **🔒 企业级安全**：内置文件名验证，防止路径遍历攻击
 - **📦 轻量级**：约 117KB 的 WASM 文件（gzip 后约 40KB）
-- **✅ 100% 测试覆盖**：88 个单元测试确保代码质量
+- **✅ 100% 测试覆盖**：100 个单元测试确保代码质量
 - **🏗️ 模块化架构**：清晰的模块设计，易于维护和扩展
 - **🌍 国际化支持**：完美支持中文、日文、韩文等 Unicode 字符
 - **💾 多格式导出**：支持 CSV 和 XLSX (Excel) 两种格式
@@ -50,7 +50,7 @@
 
 - **零拷贝操作**：直接操作 DOM，参数使用 `&str` 引用
 - **分批异步处理**：支持百万级数据导出，避免页面卡死
-- **wee_alloc 优化**：使用轻量级分配器减小文件体积
+- **内存安全**：使用 Rust 默认分配器，确保安全性和性能
 - **LTO 优化**：链接时优化减少最终 WASM 大小
 - **实时进度反馈**：支持大型表格的进度回调
 
@@ -336,19 +336,20 @@ export_tables_xlsx(
 
 ---
 
-#### `export_data(data, columns?, filename?, format?, callback?, indent_column?, children_key?)` 🆕 直接数据导出
+#### `export_data(data, options?)` 🆕 直接数据导出
 
 不依赖 DOM，直接将 JavaScript 二维数组或对象数组导出为 CSV 或 XLSX 文件。支持嵌套表头、数据合并和树形数据导出。
 
 **参数**：
 
 - `data`: JS 数组（二维数组 `Array<Array<any>>` 或对象数组 `Array<Object>`）
-- `columns`: 表头配置数组（可选，导出对象数组时必填），支持嵌套 `children` 实现多级表头
-- `filename`: 导出文件名（可选）
-- `format`: 导出格式（可选，默认 CSV）
-- `progress_callback`: 进度回调函数（可选）
-- `indent_column`: 树形模式下，需要缩进的列的 key（可选，如 `"name"`）
-- `children_key`: 传入此参数启用树形数据模式，指定子节点字段名（可选，如 `"children"`）
+- `options`: 可选配置对象，包含以下字段：
+  - `columns`: 表头配置数组（导出对象数组时必填），支持嵌套 `children` 实现多级表头
+  - `filename`: 导出文件名
+  - `format`: 导出格式（默认 CSV）
+  - `progressCallback`: 进度回调函数
+  - `indentColumn`: 树形模式下，需要缩进的列的 key（如 `"name"`）
+  - `childrenKey`: 传入此参数启用树形数据模式，指定子节点字段名（如 `"children"`）
 
 **示例**：
 
@@ -361,7 +362,7 @@ const data = [
   ["张三", 28, "北京"],
   ["李四", 35, "上海"]
 ];
-export_data(data, undefined, "用户列表.csv");
+export_data(data, { filename: "用户列表.csv" });
 
 // 2. 对象数组 + 表头配置
 const columns = [
@@ -372,7 +373,7 @@ const objData = [
   { name: "张三", age: 28 },
   { name: "李四", age: 35 }
 ];
-export_data(objData, columns, "用户.xlsx", ExportFormat.Xlsx);
+export_data(objData, { columns, filename: "用户.xlsx", format: ExportFormat.Xlsx });
 
 // 3. 嵌套表头（多行表头 + 合并单元格）
 const nestedColumns = [
@@ -382,7 +383,7 @@ const nestedColumns = [
     { title: "住址", key: "address" }
   ]}
 ];
-export_data(objData, nestedColumns, "报表.xlsx", ExportFormat.Xlsx);
+export_data(objData, { columns: nestedColumns, filename: "报表.xlsx", format: ExportFormat.Xlsx });
 
 // 4. 数据合并单元格（colSpan / rowSpan）
 const mergeData = [
@@ -390,9 +391,9 @@ const mergeData = [
   { name: { value: "", rowSpan: 0 }, subject: "英语", score: 85 },
   { name: "李四", subject: "数学", score: 95 },
 ];
-export_data(mergeData, columns, "合并.xlsx", ExportFormat.Xlsx);
+export_data(mergeData, { columns, filename: "合并.xlsx", format: ExportFormat.Xlsx });
 
-// 5. 树形数据导出（传入 children_key 启用树形模式）
+// 5. 树形数据导出（传入 childrenKey 启用树形模式）
 const treeData = [
   {
     name: 'CEO', title: 'CEO',
@@ -405,10 +406,10 @@ const treeData = [
   }
 ];
 // 带层级缩进（name 列根据层级自动添加空格）
-export_data(treeData, columns, '组织架构.xlsx', ExportFormat.Xlsx, undefined, 'name', 'children');
+export_data(treeData, { columns, filename: '组织架构.xlsx', format: ExportFormat.Xlsx, indentColumn: 'name', childrenKey: 'children' });
 
 // 自定义 children 字段名
-export_data(data, columns, 'file.xlsx', ExportFormat.Xlsx, undefined, 'name', 'subCategories');
+export_data(data, { columns, filename: 'file.xlsx', format: ExportFormat.Xlsx, indentColumn: 'name', childrenKey: 'subCategories' });
 ```
 
 **数据合并单元格说明**：
