@@ -38,7 +38,7 @@ pub enum ExportFormat {
 /// * `filename` - 可选的导出文件名（不包含扩展名时会自动添加）
 /// * `format` - 导出格式（Csv 或 Xlsx），默认为 Csv
 /// * `exclude_hidden` - 可选，是否排除隐藏的行和列（默认为 false）
-/// * `exclude_hidden` - 可选，是否排除隐藏的行和列（默认为 false）
+
 /// * `progress_callback` - 可选的进度回调函数，接收 0-100 的进度值
 /// * `with_bom` - 可选，是否添加 UTF-8 BOM（默认为 false，仅对 CSV 有效）
 ///

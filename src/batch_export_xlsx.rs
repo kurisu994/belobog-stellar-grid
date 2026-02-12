@@ -128,6 +128,9 @@ fn generate_and_download_xlsx(
     // 写入所有数据
     for (i, row_data) in table_data.rows.iter().enumerate() {
         for (j, cell_text) in row_data.iter().enumerate() {
+            if j > 16383 {
+                return Err(JsValue::from_str("列数超过 Excel 限制 (16384)"));
+            }
             worksheet
                 .write_string(i as u32, j as u16, cell_text)
                 .map_err(|e| JsValue::from_str(&format!("写入 Excel 单元格失败: {}", e)))?;
@@ -561,6 +564,9 @@ fn generate_and_download_xlsx_multi(
         // 写入数据
         for (i, row_data) in table_data.rows.iter().enumerate() {
             for (j, cell_text) in row_data.iter().enumerate() {
+                if j > 16383 {
+                    return Err(JsValue::from_str("列数超过 Excel 限制 (16384)"));
+                }
                 worksheet
                     .write_string(i as u32, j as u16, cell_text)
                     .map_err(|e| JsValue::from_str(&format!("写入 Excel 单元格失败: {}", e)))?;

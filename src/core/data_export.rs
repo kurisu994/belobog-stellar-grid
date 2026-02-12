@@ -156,53 +156,7 @@ fn build_header_rows(
     max_depth: usize,
 ) -> Result<(Vec<Vec<String>>, Vec<MergeRange>), JsValue> {
     let total_cols = columns.iter().map(calc_leaf_count).sum::<usize>();
-
-    if total_cols * max_depth > 1_000_000 {
-        // 防止过大的内存分配
-        // 注意：这里只是简单的估算，实际上 header_rows 初始是空的，
-        // 但为了防止恶意构造导致的 OOM，我们限制总单元格数
-        // 由于返回类型不包含 Result，这里 panic 或者截断。
-        // 但考虑到这是内部函数，且前面有 depth 限制，total_cols 限制...
-        // 实际上 build_header_rows 是同步调用的，panic 会被 wasm 捕获但体验不好。
-        // 鉴于这是一个纯计算函数且已在 `parse_columns` 中限制了深度，
-        // 我们可以只限制 total_cols。
-        // 既然无法返回 error，我们这里做硬限制，或者修改函数签名。
-        // 为了最小化改动，且这是内部逻辑，我们假设 total_cols 不会过大（由输入数据决定）。
-        // 但 review 建议检查。
-        // 我们修改一下逻辑，如果太大就截断？不，这会导致数据丢失。
-        // 正确的做法是修改函数签名返回 Result，或者在调用前检查。
-        // 调用者 `build_table_data_from_tree` 和 `build_table_data_from_array` 返回 Result。
-        // 我们把检查移到那里？或者在这里 panic?
-        // 让我们在 `build_table_data_*` 中检查 `total_cols`。
-        // 但是 `total_cols` 是在这里计算的。
-        // 让我们保持现状，但添加一个 debug 检查或尽力而为。
-        // 实际上 review 建议的是 "添加总单元格数上限检查...超出时返回错误"。
-        // 必须修改签名。
-    }
-
-    // 初始化表头行（全部填空字符串）
-    // 为了安全，我们限制 total_cols
-    // 假设 max_depth=64, total_cols=20000 => 1.2M 单元格，尚可。
-    // 如果 total_cols=1M => 64M strings... OOM.
-    // 我们在这里不做 check，而去修改调用它的地方？
-    // `build_header_rows` 被 `build_table_data_from_tree` 和 `build_table_data_from_array` 调用。
-    // 这两个函数里调用了 `calc_depth` 和 `parse_columns`.
-    // `total_cols` 可以从 `column_nodes` 计算出来。
-    // 让我们在 `build_header_rows` 开头检查，如果太大，panic (会被捕获为 JS 异常)
-    // 或者修改签名为 Result。
-    // 修改签名比较麻烦，涉及测试。
-    // 我们可以且应该在分配前做 check。
-    // 考虑到 wasmbindgen 边界，panic 是 safe 的 (抛出 JS Error)。
-    if total_cols > 16384 {
-        // 既然 Excel 限制 16384 列，我们由 export_xlsx 检查了，
-        // 这里作为通用数据结构，限制 20000 够不够？
-        // 让我们限制 100,000 列？
-        // 如果 total_cols * max_depth > 500_000 ?
-    }
-
-    // 初始化表头行（全部填空字符串）
     // 安全检查：防止分配过大的内存 (防止 OOM)
-    // 假设最大允许 100,000 个表头单元格 (例如 100 列 * 1000 层，或者 2000 列 * 50 层)
     const MAX_HEADER_CELLS: usize = 100_000;
     if total_cols * max_depth > MAX_HEADER_CELLS {
         return Err(JsValue::from_str(&format!(
@@ -342,13 +296,13 @@ fn parse_cell_value(val: &JsValue) -> CellInfo {
             let col_span = js_sys::Reflect::get(val, &JsValue::from_str("colSpan"))
                 .ok()
                 .and_then(|v| v.as_f64())
-                .map(|n| n.max(1.0) as u32)
+                .map(|n| n as u32)
                 .unwrap_or(1);
 
             let row_span = js_sys::Reflect::get(val, &JsValue::from_str("rowSpan"))
                 .ok()
                 .and_then(|v| v.as_f64())
-                .map(|n| n.max(1.0) as u32)
+                .map(|n| n as u32)
                 .unwrap_or(1);
 
             return CellInfo {
