@@ -1,350 +1,370 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>belobog-stellar-grid 示例导航</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
 
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
-                         'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-        }
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+          "Helvetica Neue", Helvetica, Arial, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+      }
 
-        .container {
-            max-width: 900px;
-            width: 100%;
-        }
+      .container {
+        max-width: 900px;
+        width: 100%;
+      }
 
-        header {
-            text-align: center;
-            color: white;
-            margin-bottom: 40px;
-        }
+      header {
+        text-align: center;
+        color: white;
+        margin-bottom: 40px;
+      }
 
+      h1 {
+        font-size: 2.5rem;
+        margin-bottom: 10px;
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+      }
+
+      .subtitle {
+        font-size: 1.1rem;
+        opacity: 0.9;
+      }
+
+      .examples-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 20px;
+        margin-bottom: 30px;
+      }
+
+      .example-card {
+        background: white;
+        border-radius: 12px;
+        padding: 30px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        transition: all 0.3s ease;
+        text-decoration: none;
+        color: inherit;
+        display: block;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .example-card::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+        background: linear-gradient(90deg, #667eea, #764ba2);
+        transform: scaleX(0);
+        transition: transform 0.3s ease;
+      }
+
+      .example-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
+      }
+
+      .example-card:hover::before {
+        transform: scaleX(1);
+      }
+
+      .example-icon {
+        font-size: 2.5rem;
+        margin-bottom: 15px;
+      }
+
+      .example-title {
+        font-size: 1.3rem;
+        font-weight: bold;
+        color: #333;
+        margin-bottom: 10px;
+      }
+
+      .example-desc {
+        color: #666;
+        line-height: 1.6;
+        margin-bottom: 15px;
+        font-size: 0.95rem;
+      }
+
+      .example-features {
+        list-style: none;
+        margin-bottom: 15px;
+      }
+
+      .example-features li {
+        color: #555;
+        padding: 4px 0;
+        font-size: 0.9rem;
+      }
+
+      .example-features li::before {
+        content: "✓ ";
+        color: #667eea;
+        font-weight: bold;
+        margin-right: 5px;
+      }
+
+      .example-tag {
+        display: inline-block;
+        background: #f0f0f0;
+        color: #666;
+        padding: 4px 12px;
+        border-radius: 15px;
+        font-size: 0.8rem;
+        margin-top: 10px;
+      }
+
+      .info-section {
+        background: white;
+        border-radius: 12px;
+        padding: 25px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        margin-bottom: 20px;
+      }
+
+      .info-section h2 {
+        color: #333;
+        font-size: 1.3rem;
+        margin-bottom: 15px;
+        border-left: 4px solid #667eea;
+        padding-left: 12px;
+      }
+
+      .info-section p,
+      .info-section ol {
+        color: #555;
+        line-height: 1.8;
+        margin-bottom: 10px;
+      }
+
+      .info-section ol {
+        padding-left: 20px;
+      }
+
+      .info-section li {
+        margin-bottom: 8px;
+      }
+
+      .info-section code {
+        background: #f5f5f5;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-family: "Courier New", monospace;
+        font-size: 0.9rem;
+        color: #d63384;
+      }
+
+      footer {
+        text-align: center;
+        color: white;
+        margin-top: 20px;
+      }
+
+      footer a {
+        color: white;
+        text-decoration: none;
+        border-bottom: 2px solid rgba(255, 255, 255, 0.5);
+        transition: border-color 0.3s ease;
+      }
+
+      footer a:hover {
+        border-bottom-color: white;
+      }
+
+      @media (max-width: 768px) {
         h1 {
-            font-size: 2.5rem;
-            margin-bottom: 10px;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
-        }
-
-        .subtitle {
-            font-size: 1.1rem;
-            opacity: 0.9;
+          font-size: 2rem;
         }
 
         .examples-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
+          grid-template-columns: 1fr;
         }
-
-        .example-card {
-            background: white;
-            border-radius: 12px;
-            padding: 30px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-            transition: all 0.3s ease;
-            text-decoration: none;
-            color: inherit;
-            display: block;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .example-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 4px;
-            background: linear-gradient(90deg, #667eea, #764ba2);
-            transform: scaleX(0);
-            transition: transform 0.3s ease;
-        }
-
-        .example-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
-        }
-
-        .example-card:hover::before {
-            transform: scaleX(1);
-        }
-
-        .example-icon {
-            font-size: 2.5rem;
-            margin-bottom: 15px;
-        }
-
-        .example-title {
-            font-size: 1.3rem;
-            font-weight: bold;
-            color: #333;
-            margin-bottom: 10px;
-        }
-
-        .example-desc {
-            color: #666;
-            line-height: 1.6;
-            margin-bottom: 15px;
-            font-size: 0.95rem;
-        }
-
-        .example-features {
-            list-style: none;
-            margin-bottom: 15px;
-        }
-
-        .example-features li {
-            color: #555;
-            padding: 4px 0;
-            font-size: 0.9rem;
-        }
-
-        .example-features li::before {
-            content: '✓ ';
-            color: #667eea;
-            font-weight: bold;
-            margin-right: 5px;
-        }
-
-        .example-tag {
-            display: inline-block;
-            background: #f0f0f0;
-            color: #666;
-            padding: 4px 12px;
-            border-radius: 15px;
-            font-size: 0.8rem;
-            margin-top: 10px;
-        }
-
-        .info-section {
-            background: white;
-            border-radius: 12px;
-            padding: 25px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-            margin-bottom: 20px;
-        }
-
-        .info-section h2 {
-            color: #333;
-            font-size: 1.3rem;
-            margin-bottom: 15px;
-            border-left: 4px solid #667eea;
-            padding-left: 12px;
-        }
-
-        .info-section p, .info-section ol {
-            color: #555;
-            line-height: 1.8;
-            margin-bottom: 10px;
-        }
-
-        .info-section ol {
-            padding-left: 20px;
-        }
-
-        .info-section li {
-            margin-bottom: 8px;
-        }
-
-        .info-section code {
-            background: #f5f5f5;
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-family: 'Courier New', monospace;
-            font-size: 0.9rem;
-            color: #d63384;
-        }
-
-        footer {
-            text-align: center;
-            color: white;
-            margin-top: 20px;
-        }
-
-        footer a {
-            color: white;
-            text-decoration: none;
-            border-bottom: 2px solid rgba(255, 255, 255, 0.5);
-            transition: border-color 0.3s ease;
-        }
-
-        footer a:hover {
-            border-bottom-color: white;
-        }
-
-        @media (max-width: 768px) {
-            h1 {
-                font-size: 2rem;
-            }
-
-            .examples-grid {
-                grid-template-columns: 1fr;
-            }
-        }
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <div class="container">
-        <header>
-            <h1>📊 belobog-stellar-grid</h1>
-            <p class="subtitle">WebAssembly 驱动的高性能表格导出库 - 示例演示</p>
-        </header>
+      <header>
+        <h1>📊 belobog-stellar-grid</h1>
+        <p class="subtitle">WebAssembly 驱动的高性能表格导出库 - 示例演示</p>
+      </header>
 
-        <div class="info-section">
-            <h2>🚀 开始前准备</h2>
-            <ol>
-                <li>确保已构建 WASM 包：<code>wasm-pack build --target web</code></li>
-                <li>使用本地服务器运行（不支持 <code>file://</code> 协议）</li>
-                <li>推荐使用：<code>basic-http-server .</code> 或 <code>python -m http.server 8000</code></li>
-            </ol>
-        </div>
+      <div class="info-section">
+        <h2>🚀 开始前准备</h2>
+        <ol>
+          <li>确保已构建 WASM 包：<code>wasm-pack build --target web</code></li>
+          <li>使用本地服务器运行（不支持 <code>file://</code> 协议）</li>
+          <li>推荐使用：<code>basic-http-server .</code> 或 <code>python -m http.server 8000</code></li>
+        </ol>
+      </div>
 
-        <div class="examples-grid">
-            <!-- 基本导出示例 -->
-            <a href="basic-export.html" class="example-card">
-                <div class="example-icon">🎯</div>
-                <div class="example-title">基本导出</div>
-                <div class="example-desc">快速上手，学习最基本的表格导出功能</div>
-                <ul class="example-features">
-                    <li>默认文件名导出</li>
-                    <li>自定义文件名</li>
-                    <li>带日期的文件名</li>
-                </ul>
-                <span class="example-tag">入门推荐</span>
-            </a>
+      <div class="examples-grid">
+        <!-- 基本导出示例 -->
+        <a href="basic-export.html" class="example-card">
+          <div class="example-icon">🎯</div>
+          <div class="example-title">基本导出</div>
+          <div class="example-desc">快速上手 export_table() 的基本用法</div>
+          <ul class="example-features">
+            <li>CSV / XLSX 双格式导出</li>
+            <li>自定义文件名</li>
+            <li>排除隐藏行导出</li>
+          </ul>
+          <span class="example-tag">入门推荐</span>
+        </a>
 
-            <!-- 进度条导出示例 -->
-            <a href="progress-export.html" class="example-card">
-                <div class="example-icon">📊</div>
-                <div class="example-title">进度条导出</div>
-                <div class="example-desc">处理大数据集时提供实时进度反馈</div>
-                <ul class="example-features">
-                    <li>大数据集处理</li>
-                    <li>实时进度显示</li>
-                    <li>性能统计</li>
-                    <li>操作日志</li>
-                </ul>
-                <span class="example-tag">生产环境</span>
-            </a>
+        <!-- 进度条导出示例 -->
+        <a href="progress-export.html" class="example-card">
+          <div class="example-icon">📊</div>
+          <div class="example-title">进度条导出</div>
+          <div class="example-desc">万级数据分批处理，实时进度反馈</div>
+          <ul class="example-features">
+            <li>分批异步 CSV / XLSX</li>
+            <li>实时进度回调</li>
+            <li>Web Worker 数据生成</li>
+            <li>导出耗时统计</li>
+          </ul>
+          <span class="example-tag" style="background: linear-gradient(135deg, #ff9966 0%, #ff5e62 100%); color: white"
+            >分批异步</span
+          >
+        </a>
 
-            <!-- 高级特性示例 -->
-            <a href="advanced-features.html" class="example-card">
-                <div class="example-icon">⚡</div>
-                <div class="example-title">高级特性</div>
-                <div class="example-desc">探索更多高级功能和最佳实践</div>
-                <ul class="example-features">
-                    <li>文件名安全验证</li>
-                    <li>批量导出</li>
-                    <li>错误处理</li>
-                    <li>复杂场景演示</li>
-                </ul>
-                <span class="example-tag">进阶学习</span>
-            </a>
+        <!-- 高级特性示例 -->
+        <a href="advanced-features.html" class="example-card">
+          <div class="example-icon">⚡</div>
+          <div class="example-title">高级特性</div>
+          <div class="example-desc">文件名验证、批量导出与错误处理</div>
+          <ul class="example-features">
+            <li>文件名安全校验规则</li>
+            <li>批量导出多个表格</li>
+            <li>错误场景演示</li>
+            <li>Unicode 文件名支持</li>
+          </ul>
+          <span class="example-tag" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white"
+            >DOM 导出</span
+          >
+        </a>
 
-            <!-- 虚拟滚动示例 -->
-            <a href="virtual-scroll-export.html" class="example-card">
-                <div class="example-icon">🚀</div>
-                <div class="example-title">虚拟滚动</div>
-                <div class="example-desc">支持百万级数据的极致性能渲染</div>
-                <ul class="example-features">
-                    <li>虚拟滚动技术</li>
-                    <li>支持百万级数据</li>
-                    <li>内存占用减少 95%</li>
-                    <li>渲染速度提升 600 倍</li>
-                </ul>
-                <span class="example-tag" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white;">高性能</span>
-            </a>
+        <!-- 虚拟滚动示例 -->
+        <a href="virtual-scroll-export.html" class="example-card">
+          <div class="example-icon">🚀</div>
+          <div class="example-title">虚拟滚动</div>
+          <div class="example-desc">支持百万级数据的极致性能渲染</div>
+          <ul class="example-features">
+            <li>虚拟滚动技术</li>
+            <li>支持百万级数据</li>
+            <li>内存占用减少 95%</li>
+            <li>渲染速度提升 600 倍</li>
+          </ul>
+          <span class="example-tag" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white"
+            >高性能</span
+          >
+        </a>
 
-            <!-- 多工作表导出示例 -->
-            <a href="multi-sheet-export.html" class="example-card">
-                <div class="example-icon">📑</div>
-                <div class="example-title">多工作表导出</div>
-                <div class="example-desc">将多个表格导出到同一个 Excel 文件的不同 Sheet</div>
-                <ul class="example-features">
-                    <li>多表格合并导出</li>
-                    <li>自定义 Sheet 名称</li>
-                    <li>排除隐藏元素</li>
-                    <li>支持大数据量分批</li>
-                </ul>
-                <span class="example-tag" style="background: linear-gradient(135deg, #FF9966 0%, #FF5E62 100%); color: white;">新功能</span>
-            </a>
+        <!-- 多工作表导出示例 -->
+        <a href="multi-sheet-export.html" class="example-card">
+          <div class="example-icon">📑</div>
+          <div class="example-title">多工作表导出</div>
+          <div class="example-desc">将多个表格导出到同一个 Excel 文件的不同 Sheet</div>
+          <ul class="example-features">
+            <li>多表格合并导出</li>
+            <li>自定义 Sheet 名称</li>
+            <li>排除隐藏元素</li>
+            <li>支持大数据量分批</li>
+          </ul>
+          <span class="example-tag" style="background: linear-gradient(135deg, #ff9966 0%, #ff5e62 100%); color: white"
+            >XLSX 多表</span
+          >
+        </a>
 
-            <!-- 容器内表格导出示例 -->
-            <a href="container-export.html" class="example-card">
-                <div class="example-icon">🏗️</div>
-                <div class="example-title">容器内表格导出</div>
-                <div class="example-desc">支持 Ant Design 等 UI 框架的嵌套表格结构</div>
-                <ul class="example-features">
-                    <li>ID 在容器元素上</li>
-                    <li>自动查找内部 table</li>
-                    <li>兼容主流 UI 框架</li>
-                    <li>无需修改页面结构</li>
-                </ul>
-                <span class="example-tag" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">新功能</span>
-            </a>
+        <!-- 容器内表格导出示例 -->
+        <a href="container-export.html" class="example-card">
+          <div class="example-icon">🏗️</div>
+          <div class="example-title">容器内表格导出</div>
+          <div class="example-desc">支持 Ant Design 等 UI 框架的嵌套表格结构</div>
+          <ul class="example-features">
+            <li>ID 在容器元素上</li>
+            <li>自动查找内部 table</li>
+            <li>兼容主流 UI 框架</li>
+            <li>无需修改页面结构</li>
+          </ul>
+          <span class="example-tag" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white"
+            >框架兼容</span
+          >
+        </a>
 
-            <!-- 数组直接导出示例 -->
-            <a href="array-export.html" class="example-card">
-                <div class="example-icon">📦</div>
-                <div class="example-title">数组直接导出</div>
-                <div class="example-desc">从 JavaScript 数组直接生成文件，无需 DOM 表格</div>
-                <ul class="example-features">
-                    <li>无需 HTML 表格</li>
-                    <li>支持 API 数据直接导出</li>
-                    <li>支持多种数据类型</li>
-                    <li>带进度回调</li>
-                </ul>
-                <span class="example-tag" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white;">新功能</span>
-            </a>
+        <!-- 数组直接导出示例 -->
+        <a href="array-export.html" class="example-card">
+          <div class="example-icon">📦</div>
+          <div class="example-title">数组直接导出</div>
+          <div class="example-desc">从 JavaScript 数组直接生成文件，无需 DOM 表格</div>
+          <ul class="example-features">
+            <li>无需 HTML 表格</li>
+            <li>支持 API 数据直接导出</li>
+            <li>支持多种数据类型</li>
+            <li>带进度回调</li>
+          </ul>
+          <span class="example-tag" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white"
+            >纯数据模式</span
+          >
+        </a>
 
-            <!-- 树形数据导出示例 -->
-            <a href="tree-export.html" class="example-card">
-                <div class="example-icon">🌳</div>
-                <div class="example-title">树形数据导出</div>
-                <div class="example-desc">递归拍平嵌套 children 结构，支持层级缩进</div>
-                <ul class="example-features">
-                    <li>递归拍平树形数据</li>
-                    <li>层级缩进支持</li>
-                    <li>自定义 children 字段名</li>
-                    <li>嵌套表头 + 树形数据</li>
-                </ul>
-                <span class="example-tag" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">新功能</span>
-            </a>
-        </div>
+        <!-- 树形数据导出示例 -->
+        <a href="tree-export.html" class="example-card">
+          <div class="example-icon">🌳</div>
+          <div class="example-title">树形数据导出</div>
+          <div class="example-desc">递归拍平嵌套 children 结构，支持层级缩进</div>
+          <ul class="example-features">
+            <li>递归拍平树形数据</li>
+            <li>层级缩进支持</li>
+            <li>自定义 children 字段名</li>
+            <li>嵌套表头 + 树形数据</li>
+          </ul>
+          <span class="example-tag" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white"
+            >树形数据</span
+          >
+        </a>
+      </div>
 
-        <div class="info-section">
-            <h2>📖 更多资源</h2>
-            <p>
-                查看 <a href="https://github.com/kurisu994/belobog-stellar-grid#readme" target="_blank" style="color: #667eea; text-decoration: underline;">README 文档</a>
-                了解详细的 API 文档、使用指南和故障排除技巧。
-            </p>
-        </div>
+      <div class="info-section">
+        <h2>📖 更多资源</h2>
+        <p>
+          查看
+          <a
+            href="https://github.com/kurisu994/belobog-stellar-grid#readme"
+            target="_blank"
+            style="color: #667eea; text-decoration: underline"
+            >README 文档</a
+          >
+          了解详细的 API 文档、使用指南和故障排除技巧。
+        </p>
+      </div>
 
-        <footer>
-            <p>
-                ⭐ <a href="https://github.com/kurisu994/belobog-stellar-grid" target="_blank">GitHub 仓库</a>
-                |
-                📄 许可证: MIT OR Apache-2.0
-            </p>
-        </footer>
+      <footer>
+        <p>
+          ⭐ <a href="https://github.com/kurisu994/belobog-stellar-grid" target="_blank">GitHub 仓库</a>
+          | 📄 许可证: MIT OR Apache-2.0
+        </p>
+      </footer>
     </div>
-</body>
+  </body>
 </html>
-
