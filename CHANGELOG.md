@@ -46,6 +46,8 @@
 - 修复 `UrlGuard` 资源释放失败时的错误日志被静默丢弃的问题（改用 `console.error`）
 - 修复文件名长度验证逻辑（从字节长度改为字符长度，更好支持中文文件名）
 - 修复浮点数转整数时的边界精度丢失风险
+- **删除 `export_data_impl` 中的死代码分支**（CODE_REVIEW #6 建议改进）
+  - `parse_export_data_options` 已过滤 null/undefined 的 columns，`cols.is_null() || cols.is_undefined()` 永远不会执行
 
 ### ⚡ 优化
 
@@ -60,6 +62,11 @@
 
 - 更新 `examples/README.md`：修复过时的 API 引用，补充 `multi-sheet-export.html` 示例文档
 - 更新 `README.md`：添加多工作表示例、更新测试计数、标记已完成的 TODO 项
+- 更新 `README.md`：Rust 版本要求从 1.82+ 更正为 1.85.0+（edition 2024 需要）
+- 更新 `Cargo.toml`：添加 `rust-version = "1.85.0"` 字段
+- 更新 `tests/BUILD_REPORT.md`：修正过时的 API 函数名和版本号
+- 修正 `core/mod.rs` 和 `batch_export.rs` 文档注释中过时的包名引用（`excel_exporter.js` → `belobog_stellar_grid.js`）
+- 更新 `CODE_REVIEW.md`：第三轮全面代码审查，新增 17 个发现（含 2 个严重问题）
 
 ## [1.0.3] - 2026-02-12
 

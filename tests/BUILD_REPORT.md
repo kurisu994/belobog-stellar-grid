@@ -1,9 +1,9 @@
-# WASM Excel Exporter 构建报告
+# belobog-stellar-grid 构建报告
 
 ## 基本信息
-- **构建时间**: 12/5/2025, 10:25:07 AM
-- **包版本**: 1.2.1
-- **WASM 文件大小**: 117 KB
+- **包版本**: 1.0.3
+- **Rust Edition**: 2024
+- **最低 Rust 版本**: 1.85.0
 
 ## 文件检查
 - ✅ belobog_stellar_grid.js
@@ -12,51 +12,52 @@
 - ✅ package.json
 
 ## API 检查
-- ✅ 主导出函数: 存在
-- ✅ 带进度回调函数: 存在
-- ✅ 分批导出函数: 存在
-- ✅ 向后兼容函数: 存在
+- ✅ `export_table` — 统一导出（CSV/XLSX）
+- ✅ `export_data` — 纯数据导出（二维数组/对象数组/树形/合并单元格）
+- ✅ `export_tables_xlsx` — 多工作表同步导出
+- ✅ `export_table_to_csv_batch` — CSV 分批异步导出
+- ✅ `export_table_to_xlsx_batch` — XLSX 分批异步导出
+- ✅ `export_tables_to_xlsx_batch` — 多工作表分批异步导出
 
 ## 测试页面
-- 🌐 测试页面已创建: `test-page.html`
-- 📱 可在浏览器中打开进行功能测试
-- 🔧 支持分批导出和进度回调测试
+- 🌐 手动功能验证页面: `fixtures/test-page.html`
+- 📱 可在浏览器中打开进行端到端功能测试
 
 ## 使用方法
 ```javascript
 import init, {
-    export_table_to_csv,
-    export_table_to_csv_with_progress,
-    export_table_to_csv_batch
+    export_table,
+    export_data,
+    export_tables_xlsx,
+    export_table_to_csv_batch,
+    export_table_to_xlsx_batch,
+    ExportFormat
 } from './pkg/belobog_stellar_grid.js';
 
 await init();
 
-// 基本导出
-export_table_to_csv('table-id', 'filename.csv');
+// 统一导出
+export_table('table-id', '文件名.csv');
+export_table('table-id', '文件名.xlsx', ExportFormat.Xlsx);
 
-// 带进度回调的导出
-export_table_to_csv_with_progress('table-id', 'filename.csv', (progress) => {
-    console.log(`导出进度: ${progress}%`);
-});
+// 纯数据导出
+export_data(arrayData, { filename: '数据.xlsx', format: ExportFormat.Xlsx });
 
 // 分批异步导出
-await export_table_to_csv_batch('table-id', null, 'filename.csv', 1000, (progress) => {
-    console.log(`批次进度: ${progress}%`);
+await export_table_to_csv_batch('table-id', null, 'filename.csv', 1000, false, (progress) => {
+    console.log(`进度: ${progress}%`);
 });
 ```
 
-## 命令行测试
+## 命令行
 ```bash
-# 重新构建
-wasm-pack build
+# 构建
+wasm-pack build --target web
 
-# 运行 Rust 测试
-cargo test --lib
+# 运行测试
+cargo test
 
-# 格式化代码
+# 格式化和代码检查
 cargo fmt
-
-# 代码检查
 cargo clippy -- -D warnings
 ```

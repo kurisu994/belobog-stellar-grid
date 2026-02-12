@@ -264,7 +264,7 @@ basic-http-server .
 
 | 工具      | 版本要求    |
 | --------- | ----------- |
-| Rust      | 1.82+       |
+| Rust      | 1.85.0+     |
 | wasm-pack | latest      |
 | Node.js   | 16+（可选） |
 

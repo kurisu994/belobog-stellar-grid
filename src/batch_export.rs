@@ -30,7 +30,7 @@ use web_sys::{HtmlTableCellElement, HtmlTableRowElement, HtmlTableSectionElement
 ///
 /// # 示例
 /// ```javascript
-/// import { export_table_to_csv_batch } from './pkg/excel_exporter.js';
+/// import { export_table_to_csv_batch } from './pkg/belobog_stellar_grid.js';
 ///
 /// await export_table_to_csv_batch(
 ///     'my-table',

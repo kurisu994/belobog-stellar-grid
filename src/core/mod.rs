@@ -45,7 +45,7 @@ pub enum ExportFormat {
 ///
 /// # 示例
 /// ```javascript
-/// import init, { export_table, ExportFormat } from './pkg/excel_exporter.js';
+/// import init, { export_table, ExportFormat } from './pkg/belobog_stellar_grid.js';
 /// await init();
 ///
 /// // 导出为 CSV（默认，无进度回调）
@@ -429,22 +429,9 @@ fn export_data_impl(
     children_key: Option<String>,
 ) -> Result<(), JsValue> {
     // 根据是否提供 columns 决定处理方式
+    // 注意：parse_export_data_options 已过滤 null/undefined 的 columns，
+    // 进入此分支时 cols 一定是有效的 JsValue
     if let Some(cols) = columns {
-        if cols.is_null() || cols.is_undefined() {
-            // columns 为 null/undefined，按二维数组处理
-            let rows = parse_js_array_data(&data)?;
-            return match format {
-                ExportFormat::Csv => export_as_csv(rows, filename, progress_callback),
-                ExportFormat::Xlsx => {
-                    let table_data = table_extractor::TableData {
-                        rows,
-                        merge_ranges: Vec::new(),
-                    };
-                    export_as_xlsx(table_data, filename, progress_callback)
-                }
-            };
-        }
-
         // 判断是否为树形数据模式（提供了 children_key）
         if let Some(ck) = children_key {
             let table_data =
