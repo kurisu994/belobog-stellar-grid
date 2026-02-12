@@ -198,6 +198,88 @@ pub fn export_tables_xlsx(
     export_as_xlsx_multi(sheets_data, filename, progress_callback)
 }
 
+/// 辅助函数：将任意 JS 值转换为字符串
+fn js_value_to_string(value: &JsValue) -> String {
+    if value.is_null() || value.is_undefined() {
+        String::new()
+    } else if let Some(s) = value.as_string() {
+        s
+    } else if let Some(n) = value.as_f64() {
+        // 整数不带小数点
+        if n.fract() == 0.0 && n.abs() < i64::MAX as f64 {
+            format!("{}", n as i64)
+        } else {
+            format!("{}", n)
+        }
+    } else if let Some(b) = value.as_bool() {
+        b.to_string()
+    } else {
+        // 其他类型调用 JS 的 toString()
+        value.as_string().unwrap_or_default()
+    }
+}
+
+/// 列映射配置
+struct ColumnMapping {
+    /// 表头标题
+    title: String,
+    /// 数据字段名
+    data_index: String,
+}
+
+/// 解析列配置数组
+fn parse_columns(columns: &JsValue) -> Result<Vec<ColumnMapping>, JsValue> {
+    let array = js_sys::Array::from(columns);
+    let length = array.length();
+    let mut mappings = Vec::with_capacity(length as usize);
+
+    for i in 0..length {
+        let item = array.get(i);
+
+        let data_index = js_sys::Reflect::get(&item, &JsValue::from_str("dataIndex"))
+            .ok()
+            .and_then(|v| v.as_string())
+            .ok_or_else(|| JsValue::from_str(&format!("第 {} 列配置缺少 dataIndex", i + 1)))?;
+
+        let title = js_sys::Reflect::get(&item, &JsValue::from_str("title"))
+            .ok()
+            .and_then(|v| v.as_string())
+            .unwrap_or_else(|| data_index.clone());
+
+        mappings.push(ColumnMapping { title, data_index });
+    }
+    Ok(mappings)
+}
+
+/// 根据列配置处理对象数组数据
+fn process_data_with_columns(data: &JsValue, columns: &[ColumnMapping]) -> Result<Vec<Vec<String>>, JsValue> {
+    let array = js_sys::Array::from(data);
+    let length = array.length();
+
+    // 预分配结果数组（表头 + 数据行）
+    let mut result = Vec::with_capacity((length + 1) as usize);
+
+    // 1. 生成表头行
+    let headers: Vec<String> = columns.iter().map(|c| c.title.clone()).collect();
+    result.push(headers);
+
+    // 2. 提取数据行
+    for i in 0..length {
+        let item = array.get(i);
+        let mut row = Vec::with_capacity(columns.len());
+
+        for col in columns {
+            let val = js_sys::Reflect::get(&item, &JsValue::from_str(&col.data_index))
+                .unwrap_or(JsValue::NULL);
+            row.push(js_value_to_string(&val));
+        }
+
+        result.push(row);
+    }
+
+    Ok(result)
+}
+
 /// 从 JS 二维数组解析为 Rust 二维字符串数组
 ///
 /// # 参数
@@ -224,25 +306,7 @@ fn parse_js_array_data(data: &JsValue) -> Result<Vec<Vec<String>>, JsValue> {
         let mut row_data = Vec::with_capacity(col_count as usize);
         for j in 0..col_count {
             let cell_val = inner_array.get(j);
-            // 将任意 JS 值转换为字符串
-            let cell_text = if cell_val.is_null() || cell_val.is_undefined() {
-                String::new()
-            } else if let Some(s) = cell_val.as_string() {
-                s
-            } else if let Some(n) = cell_val.as_f64() {
-                // 整数不带小数点
-                if n.fract() == 0.0 && n.abs() < i64::MAX as f64 {
-                    format!("{}", n as i64)
-                } else {
-                    format!("{}", n)
-                }
-            } else if let Some(b) = cell_val.as_bool() {
-                b.to_string()
-            } else {
-                // 其他类型调用 JS 的 toString()
-                cell_val.as_string().unwrap_or_default()
-            };
-            row_data.push(cell_text);
+            row_data.push(js_value_to_string(&cell_val));
         }
 
         result.push(row_data);
@@ -253,10 +317,11 @@ fn parse_js_array_data(data: &JsValue) -> Result<Vec<Vec<String>>, JsValue> {
 
 /// 从 JavaScript 数组直接导出为文件（不依赖 DOM）
 ///
-/// 接收二维数组数据，直接生成 CSV 或 XLSX 文件并触发下载
+/// 接收二维数组数据或对象数组（配合列配置），直接生成 CSV 或 XLSX 文件并触发下载
 ///
 /// # 参数
-/// * `data` - JS 二维数组 `Array<Array<string | number | boolean>>`
+/// * `data` - JS 数组 (二维数组 `Array<Array<any>>` 或 对象数组 `Array<Object>`)
+/// * `columns` - 可选的列配置数组 `Array<{title: string, dataIndex: string}>`。如果提供，`data` 将被视为对象数组。
 /// * `filename` - 可选的导出文件名
 /// * `format` - 导出格式（Csv 或 Xlsx），默认为 Csv
 /// * `progress_callback` - 可选的进度回调函数，接收 0-100 的进度值
@@ -270,29 +335,39 @@ fn parse_js_array_data(data: &JsValue) -> Result<Vec<Vec<String>>, JsValue> {
 /// import init, { export_data, ExportFormat } from './pkg/belobog_stellar_grid.js';
 /// await init();
 ///
-/// const data = [
-///     ['姓名', '年龄', '城市'],
-///     ['张三', 28, '北京'],
-///     ['李四', 35, '上海'],
+/// // 1. 二维数组导出
+/// const arrayData = [['姓名', '年龄'], ['张三', 28]];
+/// export_data(arrayData, undefined, '用户.csv');
+///
+/// // 2. 对象数组导出（使用列映射）
+/// const objectData = [{ name: '张三', age: 28 }, { name: '李四', age: 35 }];
+/// const columns = [
+///   { title: '姓名', dataIndex: 'name' },
+///   { title: '年龄', dataIndex: 'age' }
 /// ];
-///
-/// // 导出为 CSV
-/// export_data(data, '用户数据.csv');
-///
-/// // 导出为 Excel
-/// export_data(data, '用户数据.xlsx', ExportFormat.Xlsx);
+/// export_data(objectData, columns, '用户.xlsx', ExportFormat.Xlsx);
 /// ```
 #[wasm_bindgen]
 pub fn export_data(
     data: JsValue,
+    columns: Option<JsValue>,
     filename: Option<String>,
     format: Option<ExportFormat>,
     progress_callback: Option<js_sys::Function>,
 ) -> Result<(), JsValue> {
     let format = format.unwrap_or_default();
 
-    // 解析 JS 数组数据
-    let rows = parse_js_array_data(&data)?;
+    // 解析数据：根据是否提供 columns 决定处理方式
+    let rows = if let Some(cols) = columns {
+        if cols.is_null() || cols.is_undefined() {
+             parse_js_array_data(&data)?
+        } else {
+            let mappings = parse_columns(&cols)?;
+            process_data_with_columns(&data, &mappings)?
+        }
+    } else {
+        parse_js_array_data(&data)?
+    };
 
     // 根据格式导出
     match format {
