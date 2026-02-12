@@ -142,6 +142,7 @@
         <div class="button-group">
             <button class="btn-primary" onclick="exportDefault()">📄 导出为 CSV（默认）</button>
             <button class="btn-primary" onclick="exportWithFilename()">📄 导出为 CSV（自定义文件名）</button>
+            <button class="btn-primary" onclick="exportWithBom()">📄 导出为 CSV（带 BOM）</button>
             <button class="btn-excel" onclick="exportExcel()">📗 导出为 Excel</button>
             <button class="btn-primary" onclick="exportExcludeHidden()">👁️ 导出可见数据(排除隐藏行)</button>
         </div>
@@ -163,6 +164,13 @@
         window.exportWithFilename = () => {
             export_table('employees-table', '员工信息表.csv');
             console.log('✅ 导出为 CSV 完成（自定义文件名）');
+        };
+
+        // 导出为 CSV（带 BOM，解决 Excel 中文乱码）
+        window.exportWithBom = () => {
+            // 参数: tableId, filename, format, excludeHidden, progressCallback, withBom
+            export_table('employees-table', '员工信息表_BOM.csv', 'csv', false, undefined, true);
+            console.log('✅ 导出为 CSV 完成（带 BOM）');
         };
 
         // 导出为 Excel

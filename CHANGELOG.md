@@ -9,6 +9,12 @@
 
 ## [unreleased]
 
+### ✨ 新增
+
+- 🆕 **CSV BOM 支持**（CODE_REVIEW #10）
+  - `export_table` 和 `export_data` 新增 `with_bom` 选项
+  - 为 CSV 文件添加 UTF-8 BOM 头，彻底解决 Windows Excel 打开中文 CSV 乱码问题
+
 ### 💥 破坏性变更
 
 - **`export_data` API 参数重构**（#10）
@@ -33,6 +39,10 @@
 - 🔒 **数组类型验证**（CODE_REVIEW #8）
   - `parse_sheet_configs()` 和 `parse_batch_sheet_configs()` 新增 `Array::is_array()` 验证
   - 防止非数组值被静默包装为单元素数组
+- 🔒 **CSV 注入防护增强**（CODE_REVIEW #4）
+  - 在 `escape_csv_injection` 中新增了对制表符 `\t` 的转义支持，防止特殊格式的注入攻击
+- 🔒 **XLSX 列索引溢出防护**（CODE_REVIEW #5）
+  - 添加了最大列数检查（16383），防止超出 Excel 限制导致的各种问题
 
 ### 🐛 修复
 
@@ -57,6 +67,12 @@
 - 移除不再维护的 `wee_alloc` 分配器，改用 Rust 默认分配器（更安全、现代）
 - 清理冗余代码和未使用的导入
 - 消除 `test_data_export.rs` 中的编译警告
+- **错误日志记录**：在进度回调执行失败时，现在会通过 `console.warn` 记录错误，而不是静默失败（CODE_REVIEW #9）
+- **代码重构**（CODE_REVIEW #7, #13, #15, #16, #17）
+  - 重构了 `batch_export_xlsx.rs` 消除重复代码
+  - 优化了 DOM 提取逻辑
+  - 移除了多余的 `unwrap_or`
+  - 修复了 `validate_filename` 的可见性问题
 
 ### 📝 文档
 

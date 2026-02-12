@@ -142,6 +142,46 @@ pub(crate) fn get_cell_span(cell: &HtmlTableCellElement) -> CellSpan {
     }
 }
 
+/// 用于追踪被 rowspan 占用的单元格
+pub struct RowSpanTracker {
+    tracker: HashMap<(u32, usize), String>,
+}
+
+impl RowSpanTracker {
+    pub fn new() -> Self {
+        Self {
+            tracker: HashMap::new(),
+        }
+    }
+
+    /// 获取并移除指定位置的预填内容
+    pub fn pop(&mut self, row_idx: u32, col_idx: usize) -> Option<String> {
+        self.tracker.remove(&(row_idx, col_idx))
+    }
+
+    /// 记录跨行单元格的占位
+    pub fn add(&mut self, row_idx: u32, col_idx: usize, span: &CellSpan) {
+        if span.rowspan > 1 {
+            for r in 1..span.rowspan {
+                for c in 0..span.colspan as usize {
+                    let fill_text = if c == 0 {
+                        span.text.clone()
+                    } else {
+                        String::new()
+                    };
+                    self.tracker.insert((row_idx + r, col_idx + c), fill_text);
+                }
+            }
+        }
+    }
+}
+
+impl Default for RowSpanTracker {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// 从 HTML 表格中提取数据（简化版，仅返回文本数据）
 ///
 /// CSV 等不需要合并单元格信息的场景使用此函数，
@@ -180,9 +220,10 @@ pub fn extract_table_data(
     let mut result: Vec<Vec<String>> = Vec::new();
 
     // 用于追踪被 rowspan 占用的位置: (row, col) -> cell_text
-    let mut rowspan_tracker: HashMap<(u32, usize), String> = HashMap::new();
+    let mut tracker = RowSpanTracker::new();
 
     for row_idx in 0..row_count {
+        // ... (省略部分代码，需要保留 row 获取逻辑) ...
         let row = rows
             .get_with_index(row_idx)
             .ok_or_else(|| JsValue::from_str(&format!("无法获取第 {} 行数据", row_idx + 1)))?;
@@ -199,10 +240,11 @@ pub fn extract_table_data(
         let cells = row.cells();
         let cell_count = cells.length();
         let mut col_idx: usize = 0;
+        let u_row_idx = row_idx;
 
         for cell_idx in 0..cell_count {
             // 处理被上方 rowspan 占用的列
-            while let Some(text) = rowspan_tracker.remove(&(row_idx, col_idx)) {
+            while let Some(text) = tracker.pop(u_row_idx, col_idx) {
                 row_data.push(text);
                 col_idx += 1;
             }
@@ -230,18 +272,7 @@ pub fn extract_table_data(
             let span = get_cell_span(&cell);
 
             // 处理 rowspan: 将当前单元格内容预填到后续行的对应位置
-            if span.rowspan > 1 {
-                for r in 1..span.rowspan {
-                    for c in 0..span.colspan as usize {
-                        let fill_text = if c == 0 {
-                            span.text.clone()
-                        } else {
-                            String::new()
-                        };
-                        rowspan_tracker.insert((row_idx + r, col_idx + c), fill_text);
-                    }
-                }
-            }
+            tracker.add(u_row_idx, col_idx, &span);
 
             // 处理 colspan: 当前单元格内容 + 空白填充
             row_data.push(span.text);
@@ -253,7 +284,7 @@ pub fn extract_table_data(
         }
 
         // 处理行尾残留的 rowspan 占位
-        while let Some(text) = rowspan_tracker.remove(&(row_idx, col_idx)) {
+        while let Some(text) = tracker.pop(u_row_idx, col_idx) {
             row_data.push(text);
             col_idx += 1;
         }
@@ -304,7 +335,7 @@ pub fn extract_table_data_with_merge(
 
     // 用于追踪被 rowspan 占用的位置: (row, col) -> cell_text
     // 当某个单元格有 rowspan > 1 时，预先将其内容填入后续行的对应列位置
-    let mut rowspan_tracker: HashMap<(u32, usize), String> = HashMap::new();
+    let mut tracker = RowSpanTracker::new();
 
     // 跟踪实际输出的行索引（因为隐藏行可能被跳过）
     let mut output_row_idx: u32 = 0;
@@ -329,10 +360,11 @@ pub fn extract_table_data_with_merge(
 
         // col_idx: 实际输出列位置（考虑 colspan/rowspan 后的逻辑位置）
         let mut col_idx: usize = 0;
+        let u_row_idx = row_idx;
 
         for cell_idx in 0..cell_count {
             // 处理被上方 rowspan 占用的列：从 tracker 中取出预填的值
-            while let Some(text) = rowspan_tracker.remove(&(row_idx, col_idx)) {
+            while let Some(text) = tracker.pop(u_row_idx, col_idx) {
                 row_data.push(text);
                 col_idx += 1;
             }
@@ -393,19 +425,7 @@ pub fn extract_table_data_with_merge(
             }
 
             // 处理 rowspan: 将当前单元格内容预填到后续行的对应位置
-            if span.rowspan > 1 {
-                for r in 1..span.rowspan {
-                    // 对于 rowspan 覆盖的每一行，需要处理 colspan
-                    for c in 0..span.colspan as usize {
-                        let fill_text = if c == 0 {
-                            span.text.clone()
-                        } else {
-                            String::new()
-                        };
-                        rowspan_tracker.insert((row_idx + r, col_idx + c), fill_text);
-                    }
-                }
-            }
+            tracker.add(u_row_idx, col_idx, &span);
 
             // 处理 colspan: 当前单元格内容 + 空白填充
             row_data.push(span.text);
@@ -417,7 +437,7 @@ pub fn extract_table_data_with_merge(
         }
 
         // 处理行尾残留的 rowspan 占位（当最右边的列有 rowspan 时）
-        while let Some(text) = rowspan_tracker.remove(&(row_idx, col_idx)) {
+        while let Some(text) = tracker.pop(u_row_idx, col_idx) {
             row_data.push(text);
             col_idx += 1;
         }

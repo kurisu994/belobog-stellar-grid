@@ -22,12 +22,15 @@ pub fn export_as_csv(
     table_data: Vec<Vec<String>>,
     filename: Option<String>,
     progress_callback: Option<js_sys::Function>,
+    with_bom: bool,
 ) -> Result<(), JsValue> {
     let total_rows = table_data.len();
 
     // 报告初始进度
     if let Some(ref callback) = progress_callback {
-        let _ = callback.call1(&JsValue::NULL, &JsValue::from_f64(0.0));
+        if let Err(e) = callback.call1(&JsValue::NULL, &JsValue::from_f64(0.0)) {
+            web_sys::console::warn_1(&e);
+        }
     }
 
     // 创建一个 CSV 写入器
@@ -48,7 +51,9 @@ pub fn export_as_csv(
             && (index % 10 == 0 || index == total_rows - 1)
         {
             let progress = ((index + 1) as f64 / total_rows as f64) * 100.0;
-            let _ = callback.call1(&JsValue::NULL, &JsValue::from_f64(progress));
+            if let Err(e) = callback.call1(&JsValue::NULL, &JsValue::from_f64(progress)) {
+                web_sys::console::warn_1(&e);
+            }
         }
     }
 
@@ -66,7 +71,7 @@ pub fn export_as_csv(
     }
 
     // 创建并下载文件
-    create_and_download_csv(csv_data.get_ref(), filename)
+    create_and_download_csv(csv_data.get_ref(), filename, with_bom)
 }
 
 /// 创建 CSV Blob 并触发下载
@@ -74,9 +79,11 @@ pub fn export_as_csv(
 /// # 参数
 /// * `data` - CSV 数据字节
 /// * `filename` - 可选的导出文件名
+/// * `with_bom` - 是否添加 UTF-8 BOM
 pub(crate) fn create_and_download_csv(
     data: &[u8],
     filename: Option<String>,
+    with_bom: bool,
 ) -> Result<(), JsValue> {
     let window = web_sys::window().ok_or_else(|| JsValue::from_str("无法获取 window 对象"))?;
     let document = window
@@ -87,7 +94,15 @@ pub(crate) fn create_and_download_csv(
     let blob_property_bag = web_sys::BlobPropertyBag::new();
     blob_property_bag.set_type("text/csv;charset=utf-8");
 
-    let array = js_sys::Array::of1(&js_sys::Uint8Array::from(data));
+    let array = if with_bom {
+        // 添加 UTF-8 BOM: 0xEF, 0xBB, 0xBF
+        let bom = js_sys::Uint8Array::from(&[0xEF, 0xBB, 0xBF][..]);
+        let data_array = js_sys::Uint8Array::from(data);
+        js_sys::Array::of2(&bom, &data_array)
+    } else {
+        js_sys::Array::of1(&js_sys::Uint8Array::from(data))
+    };
+
     let blob = Blob::new_with_u8_array_sequence_and_options(&array, &blob_property_bag)
         .map_err(|e| JsValue::from_str(&format!("创建 Blob 对象失败: {:?}", e)))?;
 

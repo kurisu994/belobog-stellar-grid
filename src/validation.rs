@@ -13,7 +13,7 @@
 ///
 /// # 注意
 /// 这个函数主要供内部使用，但也导出以便测试
-#[doc(hidden)]
+// 移除 doc(hidden) 因为这是公开 API
 pub fn validate_filename(filename: &str) -> Result<(), String> {
     // 检查文件名是否为空
     if filename.is_empty() {
@@ -36,13 +36,13 @@ pub fn validate_filename(filename: &str) -> Result<(), String> {
         return Err(format!("文件名不能包含非法字符: {}", ch));
     }
 
-    // 检查文件名长度（大多数文件系统限制为 255 个字符）
-    if filename.chars().count() > 255 {
-        return Err("文件名过长（最大 255 个字符）".to_string());
+    // 检查文件名长度（大多数文件系统限制为 255 个字节）
+    if filename.len() > 255 {
+        return Err("文件名过长（最大 255 个字节）".to_string());
     }
 
     // 检查 Windows 保留文件名
-    let base_name = filename.split('.').next().unwrap_or("");
+    let base_name = filename.split('.').next().unwrap_or_default();
     let reserved_names = [
         "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8",
         "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
@@ -57,8 +57,12 @@ pub fn validate_filename(filename: &str) -> Result<(), String> {
         || filename.starts_with(' ')
         || filename.ends_with('.')
         || filename.ends_with(' ')
+        // 检查全角点号 (U+FF0E) 和其他可能被视为点号的字符
+        || filename.contains('。')
+        || filename.contains('．')
+        || filename.contains('․')
     {
-        return Err("文件名不能以点或空格开头或结尾".to_string());
+        return Err("文件名不能以点、空格开头或结尾，且不能包含全角点号".to_string());
     }
 
     Ok(())
@@ -80,5 +84,28 @@ pub fn ensure_extension(filename: &str, extension: &str) -> String {
         filename.to_string()
     } else {
         format!("{}.{}", filename, extension)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_validate_filename_byte_length() {
+        // 256 'a's = 256 bytes
+        let long_name = "a".repeat(256);
+        assert!(validate_filename(&long_name).is_err());
+
+        // 255 'a's = 255 bytes -> OK
+        let ok_name = "a".repeat(255);
+        assert!(validate_filename(&ok_name).is_ok());
+
+        // Unicodes: '中' takes 3 bytes.
+        // 86 '中's = 258 bytes -> should fail
+        let long_unicode = "中".repeat(86);
+        assert!(long_unicode.chars().count() == 86); // Only 86 chars
+        assert!(long_unicode.len() == 258); // 258 bytes
+        assert!(validate_filename(&long_unicode).is_err());
     }
 }

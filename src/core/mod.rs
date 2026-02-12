@@ -13,7 +13,8 @@ pub(crate) use export_xlsx::create_and_download_xlsx;
 use export_xlsx::{export_as_xlsx, export_as_xlsx_multi};
 use table_extractor::extract_table_data;
 pub(crate) use table_extractor::{
-    MergeRange, TableData, extract_table_data_with_merge, find_table_element, get_cell_span,
+    MergeRange, RowSpanTracker, TableData, extract_table_data_with_merge, find_table_element,
+    get_cell_span,
 };
 use wasm_bindgen::prelude::*;
 
@@ -37,7 +38,9 @@ pub enum ExportFormat {
 /// * `filename` - 可选的导出文件名（不包含扩展名时会自动添加）
 /// * `format` - 导出格式（Csv 或 Xlsx），默认为 Csv
 /// * `exclude_hidden` - 可选，是否排除隐藏的行和列（默认为 false）
+/// * `exclude_hidden` - 可选，是否排除隐藏的行和列（默认为 false）
 /// * `progress_callback` - 可选的进度回调函数，接收 0-100 的进度值
+/// * `with_bom` - 可选，是否添加 UTF-8 BOM（默认为 false，仅对 CSV 有效）
 ///
 /// # 返回值
 /// * `Ok(())` - 导出成功
@@ -69,9 +72,11 @@ pub fn export_table(
     format: Option<ExportFormat>,
     exclude_hidden: Option<bool>,
     progress_callback: Option<js_sys::Function>,
+    with_bom: Option<bool>,
 ) -> Result<(), JsValue> {
     let format = format.unwrap_or_default();
     let exclude_hidden = exclude_hidden.unwrap_or(false);
+    let with_bom = with_bom.unwrap_or(false);
 
     // 输入验证
     if table_id.is_empty() {
@@ -83,7 +88,7 @@ pub fn export_table(
         ExportFormat::Csv => {
             // CSV 不支持合并单元格，使用简化提取
             let table_data = extract_table_data(table_id, exclude_hidden)?;
-            export_as_csv(table_data, filename, progress_callback)
+            export_as_csv(table_data, filename, progress_callback, with_bom)
         }
         ExportFormat::Xlsx => {
             // XLSX 支持合并单元格，提取完整数据
@@ -282,6 +287,7 @@ fn parse_js_array_data(data: &JsValue) -> Result<Vec<Vec<String>>, JsValue> {
 ///   - `progressCallback`: 进度回调函数，接收 0-100 的进度值
 ///   - `indentColumn`: 树形模式下需要缩进的列的 key
 ///   - `childrenKey`: 传入此参数启用树形数据模式，指定子节点字段名
+///   - `withBom`: 是否添加 UTF-8 BOM（仅 CSV 有效）
 ///
 /// # 返回值
 /// * `Ok(())` - 导出成功
@@ -332,15 +338,7 @@ pub fn export_data(data: JsValue, options: Option<JsValue>) -> Result<(), JsValu
     // 从 options 对象中解析各个配置项
     let opts = parse_export_data_options(options)?;
 
-    export_data_impl(
-        data,
-        opts.columns,
-        opts.filename,
-        opts.format,
-        opts.progress_callback,
-        opts.indent_column,
-        opts.children_key,
-    )
+    export_data_impl(data, opts)
 }
 
 /// 导出数据配置项（从 options 对象解析后的结果）
@@ -351,6 +349,7 @@ struct ExportDataOptions {
     progress_callback: Option<js_sys::Function>,
     indent_column: Option<String>,
     children_key: Option<String>,
+    with_bom: bool,
 }
 
 /// 从 options JsValue 对象中解析 export_data 的配置项
@@ -365,6 +364,7 @@ fn parse_export_data_options(options: Option<JsValue>) -> Result<ExportDataOptio
                 progress_callback: None,
                 indent_column: None,
                 children_key: None,
+                with_bom: false,
             });
         }
     };
@@ -408,6 +408,12 @@ fn parse_export_data_options(options: Option<JsValue>) -> Result<ExportDataOptio
         .ok()
         .and_then(|v| v.as_string());
 
+    // 解析 withBom
+    let with_bom = js_sys::Reflect::get(options, &JsValue::from_str("withBom"))
+        .ok()
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+
     Ok(ExportDataOptions {
         columns,
         filename,
@@ -415,58 +421,65 @@ fn parse_export_data_options(options: Option<JsValue>) -> Result<ExportDataOptio
         progress_callback,
         indent_column,
         children_key,
+        with_bom,
     })
 }
 
 /// export_data 的内部实现
-fn export_data_impl(
-    data: JsValue,
-    columns: Option<JsValue>,
-    filename: Option<String>,
-    format: ExportFormat,
-    progress_callback: Option<js_sys::Function>,
-    indent_column: Option<String>,
-    children_key: Option<String>,
-) -> Result<(), JsValue> {
+fn export_data_impl(data: JsValue, opts: ExportDataOptions) -> Result<(), JsValue> {
     // 根据是否提供 columns 决定处理方式
     // 注意：parse_export_data_options 已过滤 null/undefined 的 columns，
     // 进入此分支时 cols 一定是有效的 JsValue
-    if let Some(cols) = columns {
+    if let Some(cols) = opts.columns {
         // 判断是否为树形数据模式（提供了 children_key）
-        if let Some(ck) = children_key {
+        if let Some(ck) = opts.children_key {
             let table_data =
-                build_table_data_from_tree(&cols, &data, indent_column.as_deref(), &ck)?;
-            return match format {
-                ExportFormat::Csv => export_as_csv(table_data.rows, filename, progress_callback),
-                ExportFormat::Xlsx => export_as_xlsx(table_data, filename, progress_callback),
+                build_table_data_from_tree(&cols, &data, opts.indent_column.as_deref(), &ck)?;
+            return match opts.format {
+                ExportFormat::Csv => export_as_csv(
+                    table_data.rows,
+                    opts.filename,
+                    opts.progress_callback,
+                    opts.with_bom,
+                ),
+                ExportFormat::Xlsx => {
+                    export_as_xlsx(table_data, opts.filename, opts.progress_callback)
+                }
             };
         }
 
         // 有 columns 配置：使用 data_export 模块解析嵌套表头
         let table_data = build_table_data_from_array(&cols, &data)?;
 
-        return match format {
+        return match opts.format {
             ExportFormat::Csv => {
                 // CSV 不支持合并单元格，直接用行数据
-                export_as_csv(table_data.rows, filename, progress_callback)
+                export_as_csv(
+                    table_data.rows,
+                    opts.filename,
+                    opts.progress_callback,
+                    opts.with_bom,
+                )
             }
             ExportFormat::Xlsx => {
                 // XLSX 支持合并单元格（多行表头）
-                export_as_xlsx(table_data, filename, progress_callback)
+                export_as_xlsx(table_data, opts.filename, opts.progress_callback)
             }
         };
     }
 
     // 无 columns，按二维数组处理
     let rows = parse_js_array_data(&data)?;
-    match format {
-        ExportFormat::Csv => export_as_csv(rows, filename, progress_callback),
+    match opts.format {
+        ExportFormat::Csv => {
+            export_as_csv(rows, opts.filename, opts.progress_callback, opts.with_bom)
+        }
         ExportFormat::Xlsx => {
             let table_data = table_extractor::TableData {
                 rows,
                 merge_ranges: Vec::new(),
             };
-            export_as_xlsx(table_data, filename, progress_callback)
+            export_as_xlsx(table_data, opts.filename, opts.progress_callback)
         }
     }
 }

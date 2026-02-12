@@ -159,6 +159,7 @@
 
             <div class="button-group">
                 <button class="btn-primary" onclick="exportBasicCsv()">📄 导出为 CSV</button>
+                <button class="btn-primary" onclick="exportBasicCsvWithBom()">📄 导出为 CSV (带 BOM)</button>
                 <button class="btn-excel" onclick="exportBasicXlsx()">📗 导出为 Excel</button>
             </div>
         </div>
@@ -395,6 +396,11 @@
         window.exportBasicCsv = () => {
             export_data(basicData, { filename: '用户数据.csv' });
             console.log('✅ 二维数组导出 CSV 完成');
+        };
+
+        window.exportBasicCsvWithBom = () => {
+            export_data(basicData, { filename: '用户数据_BOM.csv', withBom: true });
+            console.log('✅ 二维数组导出 CSV 完成 (带 BOM)');
         };
 
         window.exportBasicXlsx = () => {

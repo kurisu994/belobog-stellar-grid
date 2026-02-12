@@ -14,7 +14,7 @@ pub fn set_panic_hook() {
 ///
 /// 如果字段以 `=`, `+`, `-`, `@` 开头，则在前面添加单引号 `'`
 pub fn escape_csv_injection(text: &str) -> std::borrow::Cow<'_, str> {
-    if text.starts_with(['=', '+', '-', '@']) {
+    if text.starts_with(['=', '+', '-', '@', '\t']) {
         format!("'{}", text).into()
     } else {
         text.into()
@@ -51,4 +51,25 @@ pub(crate) async fn yield_to_browser() -> Result<(), wasm_bindgen::JsValue> {
 
     wasm_bindgen_futures::JsFuture::from(promise).await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_escape_csv_injection_tab() {
+        let tab_injection = "\tCOMMAND";
+        let escaped = escape_csv_injection(tab_injection);
+        assert_eq!(escaped, "'\tCOMMAND");
+    }
+
+    #[test]
+    fn test_escape_csv_injection_basic() {
+        assert_eq!(escape_csv_injection("=cmd"), "'=cmd");
+        assert_eq!(escape_csv_injection("+cmd"), "'+cmd");
+        assert_eq!(escape_csv_injection("-cmd"), "'-cmd");
+        assert_eq!(escape_csv_injection("@cmd"), "'@cmd");
+        assert_eq!(escape_csv_injection("safe"), "safe");
+    }
 }

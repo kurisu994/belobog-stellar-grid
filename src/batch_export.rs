@@ -2,10 +2,9 @@
 ///
 /// 提供大数据量表格的分批处理功能，避免阻塞主线程
 /// 支持合并单元格（colspan/rowspan）
-use crate::core::{create_and_download_csv, find_table_element, get_cell_span};
+use crate::core::{RowSpanTracker, create_and_download_csv, find_table_element, get_cell_span};
 use crate::utils::{is_element_hidden, yield_to_browser};
 use csv::Writer;
-use std::collections::HashMap;
 use std::io::Cursor;
 use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::*;
@@ -19,11 +18,12 @@ use web_sys::{HtmlTableCellElement, HtmlTableRowElement, HtmlTableSectionElement
 ///
 /// # 参数
 /// * `table_id` - 要导出的 HTML 表格元素的 ID
-/// * `tbody_id` - 可选的数据表格体 ID（用于分离表头和数据）
+/// * `tbody_id` - 可选的数据表格体 ID（用于分离表头和数据）。**注意**：此 ID 应指向**不在** `table_id` 所指表格内部的独立 `<tbody>` 元素。如果传入的 `tbody` 在 `table` 内部，会导致该部分数据被重复导出（一次作为 table 的一部分，一次作为独立 tbody）。
 /// * `filename` - 可选的导出文件名（可选，默认为 "table_export.csv"）
 /// * `batch_size` - 每批处理的行数（默认 1000）
 /// * `exclude_hidden` - 可选，是否排除隐藏的行和列（默认为 false）
 /// * `progress_callback` - 进度回调函数，接收进度百分比 (0-100)
+/// * `with_bom` - 可选，是否添加 UTF-8 BOM（默认为 false）
 ///
 /// # 返回值
 /// * `Promise<void>` - 异步操作的 Promise
@@ -40,7 +40,8 @@ use web_sys::{HtmlTableCellElement, HtmlTableRowElement, HtmlTableSectionElement
 ///     false, // 不排除隐藏行
 ///     (progress) => {
 ///         console.log(`进度: ${progress}%`);
-///     }
+///     },
+///     true // 添加 BOM
 /// );
 /// ```
 #[wasm_bindgen]
@@ -51,6 +52,7 @@ pub async fn export_table_to_csv_batch(
     batch_size: Option<u32>,
     exclude_hidden: Option<bool>,
     progress_callback: Option<js_sys::Function>,
+    with_bom: Option<bool>,
 ) -> Result<JsValue, JsValue> {
     // 输入验证
     if table_id.is_empty() {
@@ -59,6 +61,7 @@ pub async fn export_table_to_csv_batch(
 
     let batch_size = batch_size.unwrap_or(1000) as usize;
     let exclude_hidden = exclude_hidden.unwrap_or(false);
+    let with_bom = with_bom.unwrap_or(false);
     if batch_size == 0 {
         return Err(JsValue::from_str("批次大小必须大于 0"));
     }
@@ -111,11 +114,13 @@ pub async fn export_table_to_csv_batch(
 
     // 报告初始进度
     if let Some(ref callback) = progress_callback {
-        let _ = callback.call1(&JsValue::NULL, &JsValue::from_f64(0.0));
+        if let Err(e) = callback.call1(&JsValue::NULL, &JsValue::from_f64(0.0)) {
+            web_sys::console::warn_1(&e);
+        }
     }
 
     // 用于追踪被 rowspan 占用的位置: (row, col) -> cell_text
-    let mut rowspan_tracker: HashMap<(usize, usize), String> = HashMap::new();
+    let mut tracker = RowSpanTracker::new();
 
     // 分批处理数据
     let mut current_row = 0;
@@ -154,10 +159,11 @@ pub async fn export_table_to_csv_batch(
 
             // col_idx: 实际输出列位置（考虑 colspan/rowspan 后的逻辑位置）
             let mut col_idx: usize = 0;
+            let u_row_idx = i as u32;
 
             for cell_idx in 0..cell_count {
                 // 处理被上方 rowspan 占用的列
-                while let Some(text) = rowspan_tracker.remove(&(i, col_idx)) {
+                while let Some(text) = tracker.pop(u_row_idx, col_idx) {
                     let safe_text = crate::utils::escape_csv_injection(&text);
                     row_data.push(safe_text.into_owned());
                     col_idx += 1;
@@ -187,18 +193,7 @@ pub async fn export_table_to_csv_batch(
                 let span = get_cell_span(&cell);
 
                 // 处理 rowspan: 将当前单元格内容预填到后续行的对应位置
-                if span.rowspan > 1 {
-                    for r in 1..span.rowspan as usize {
-                        for c in 0..span.colspan as usize {
-                            let fill_text = if c == 0 {
-                                span.text.clone()
-                            } else {
-                                String::new()
-                            };
-                            rowspan_tracker.insert((i + r, col_idx + c), fill_text);
-                        }
-                    }
-                }
+                tracker.add(u_row_idx, col_idx, &span);
 
                 // 处理当前单元格内容
                 let safe_text = crate::utils::escape_csv_injection(&span.text);
@@ -215,7 +210,7 @@ pub async fn export_table_to_csv_batch(
             }
 
             // 处理行尾残留的 rowspan 占位
-            while let Some(text) = rowspan_tracker.remove(&(i, col_idx)) {
+            while let Some(text) = tracker.pop(u_row_idx, col_idx) {
                 let safe_text = crate::utils::escape_csv_injection(&text);
                 row_data.push(safe_text.into_owned());
                 col_idx += 1;
@@ -231,7 +226,9 @@ pub async fn export_table_to_csv_batch(
         // 报告进度
         if let Some(ref callback) = progress_callback {
             let progress = (current_row as f64 / total_rows as f64) * 100.0;
-            let _ = callback.call1(&JsValue::NULL, &JsValue::from_f64(progress));
+            if let Err(e) = callback.call1(&JsValue::NULL, &JsValue::from_f64(progress)) {
+                web_sys::console::warn_1(&e);
+            }
         }
 
         // 在批次之间让出控制权
@@ -254,7 +251,7 @@ pub async fn export_table_to_csv_batch(
     }
 
     // 创建并下载 CSV 文件
-    create_and_download_csv(csv_data.get_ref(), filename)?;
+    create_and_download_csv(csv_data.get_ref(), filename, with_bom)?;
 
     Ok(JsValue::UNDEFINED)
 }

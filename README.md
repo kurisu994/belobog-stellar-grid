@@ -428,7 +428,7 @@ belobog-stellar-grid/
 
 - [ ] **Excel 样式定制**: 支持设置字体、颜色、边框、背景色等。
 - [ ] **图片导出**: 支持将图片插入到 Excel 单元格中。
-- [ ] **CSV BOM 支持**: 为 CSV 添加 UTF-8 BOM 头，解决 Windows Excel 乱码问题。
+- [x] **CSV BOM 支持**: 为 CSV 添加 UTF-8 BOM 头，解决 Windows Excel 乱码问题。
 - [ ] **数据选择与过滤**: 支持选择性导出特定行或列，以及数据预处理。
 
 ### 💻 开发体验 (DX)

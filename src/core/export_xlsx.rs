@@ -27,7 +27,9 @@ pub fn export_as_xlsx(
 
     // 报告初始进度
     if let Some(ref callback) = progress_callback {
-        let _ = callback.call1(&JsValue::NULL, &JsValue::from_f64(0.0));
+        if let Err(e) = callback.call1(&JsValue::NULL, &JsValue::from_f64(0.0)) {
+            web_sys::console::warn_1(&e);
+        }
     }
 
     // 创建工作簿与工作表
@@ -38,6 +40,9 @@ pub fn export_as_xlsx(
     // 安全策略：所有单元格统一使用 write_string，禁用公式自动执行，防止公式注入攻击
     for (i, row_data) in table_data.rows.iter().enumerate() {
         for (j, cell_text) in row_data.iter().enumerate() {
+            if j > 16383 {
+                return Err(JsValue::from_str("列数超过 Excel 限制 (16384)"));
+            }
             worksheet
                 .write_string(i as u32, j as u16, cell_text)
                 .map_err(|e| JsValue::from_str(&format!("写入 Excel 单元格失败: {}", e)))?;
@@ -48,7 +53,9 @@ pub fn export_as_xlsx(
             && (i % 10 == 0 || i == total_rows - 1)
         {
             let progress = ((i + 1) as f64 / total_rows as f64) * 80.0;
-            let _ = callback.call1(&JsValue::NULL, &JsValue::from_f64(progress));
+            if let Err(e) = callback.call1(&JsValue::NULL, &JsValue::from_f64(progress)) {
+                web_sys::console::warn_1(&e);
+            }
         }
     }
 
@@ -76,7 +83,9 @@ pub fn export_as_xlsx(
 
     // 报告合并单元格完成进度
     if let Some(ref callback) = progress_callback {
-        let _ = callback.call1(&JsValue::NULL, &JsValue::from_f64(90.0));
+        if let Err(e) = callback.call1(&JsValue::NULL, &JsValue::from_f64(90.0)) {
+            web_sys::console::warn_1(&e);
+        }
     }
 
     // 将工作簿写入内存缓冲区
@@ -113,7 +122,9 @@ pub fn export_as_xlsx_multi(
 
     // 报告初始进度
     if let Some(ref callback) = progress_callback {
-        let _ = callback.call1(&JsValue::NULL, &JsValue::from_f64(0.0));
+        if let Err(e) = callback.call1(&JsValue::NULL, &JsValue::from_f64(0.0)) {
+            web_sys::console::warn_1(&e);
+        }
     }
 
     // 创建工作簿
@@ -148,7 +159,9 @@ pub fn export_as_xlsx_multi(
                 let sheet_progress_range = 80.0 / total_sheets as f64;
                 let row_progress = (i + 1) as f64 / total_rows as f64;
                 let progress = sheet_progress_start + row_progress * sheet_progress_range;
-                let _ = callback.call1(&JsValue::NULL, &JsValue::from_f64(progress));
+                if let Err(e) = callback.call1(&JsValue::NULL, &JsValue::from_f64(progress)) {
+                    web_sys::console::warn_1(&e);
+                }
             }
         }
 
@@ -176,7 +189,9 @@ pub fn export_as_xlsx_multi(
 
     // 报告合并单元格完成进度
     if let Some(ref callback) = progress_callback {
-        let _ = callback.call1(&JsValue::NULL, &JsValue::from_f64(90.0));
+        if let Err(e) = callback.call1(&JsValue::NULL, &JsValue::from_f64(90.0)) {
+            web_sys::console::warn_1(&e);
+        }
     }
 
     // 将工作簿写入内存缓冲区

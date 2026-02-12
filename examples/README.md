@@ -488,6 +488,7 @@ async function exportAll() {
 - `format` (ExportFormat, 可选): 导出格式（Csv / Xlsx），默认 Csv
 - `exclude_hidden` (boolean, 可选): 是否排除隐藏行列，默认 false
 - `progress_callback` (function, 可选): 进度回调函数，接收 0-100 的进度值
+- `with_bom` (boolean, 可选): 是否在文件开头添加 BOM (仅 CSV)，解决 Excel 中文乱码，默认 false
 
 **返回**：无（成功）或抛出异常（失败）
 
@@ -543,6 +544,7 @@ async function exportAll() {
   - `columns` (Array, 可选): 表头配置数组，支持嵌套 children
   - `filename` (string, 可选): 导出文件名
   - `format` (ExportFormat, 可选): 导出格式（Csv / Xlsx）
+  - `withBom` (boolean, 可选): 是否添加 BOM（仅 CSV），默认 false
   - `progressCallback` (function, 可选): 进度回调函数
   - `indentColumn` (string, 可选): 树形数据模式下，指定需要缩进的列的 key
   - `childrenKey` (string, 可选): 传入此参数启用树形数据模式，指定子节点字段名（如 `"children"`）

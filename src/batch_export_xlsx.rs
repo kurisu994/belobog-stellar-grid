@@ -3,11 +3,11 @@
 /// 提供大数据量表格的分批处理功能，避免阻塞主线程
 /// 采用两阶段策略：分批读取 DOM 数据 + 同步生成 XLSX
 use crate::core::{
-    MergeRange, TableData, create_and_download_xlsx, find_table_element, get_cell_span,
+    MergeRange, RowSpanTracker, TableData, create_and_download_xlsx, find_table_element,
+    get_cell_span,
 };
 use crate::utils::{is_element_hidden, yield_to_browser};
 use rust_xlsxwriter::{Format, Workbook};
-use std::collections::HashMap;
 use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::*;
 use web_sys::{HtmlTableCellElement, HtmlTableRowElement, HtmlTableSectionElement};
@@ -66,7 +66,9 @@ pub async fn export_table_to_xlsx_batch(
 
     // 报告初始进度
     if let Some(ref callback) = progress_callback {
-        let _ = callback.call1(&JsValue::NULL, &JsValue::from_f64(0.0));
+        if let Err(e) = callback.call1(&JsValue::NULL, &JsValue::from_f64(0.0)) {
+            web_sys::console::warn_1(&e);
+        }
     }
 
     // 阶段一：分批读取 DOM 数据（0% - 80% 进度）
@@ -95,205 +97,18 @@ async fn extract_table_data_batch(
     exclude_hidden: bool,
     progress_callback: &Option<js_sys::Function>,
 ) -> Result<TableData, JsValue> {
-    // 安全地获取全局的 window 和 document 对象
-    let window = web_sys::window().ok_or_else(|| JsValue::from_str("无法获取 window 对象"))?;
-    let document = window
-        .document()
-        .ok_or_else(|| JsValue::from_str("无法获取 document 对象"))?;
+    // 复用 extract_table_data_batch_with_offset
+    // 默认进度范围为 0.0 - 80.0 (DOM 读取阶段)
+    let progress_info = progress_callback.as_ref().map(|cb| (cb.clone(), 0.0, 80.0));
 
-    // 1. 获取主表格（支持直接的 table 或包含 table 的容器）
-    let table_element = document
-        .get_element_by_id(table_id)
-        .ok_or_else(|| JsValue::from_str(&format!("找不到 ID 为 '{}' 的元素", table_id)))?;
-    let table = find_table_element(table_element, table_id)?;
-    let table_rows = table.rows();
-    let table_row_count = table_rows.length() as usize;
-
-    // 2. 获取数据表格体（如果有）
-    let mut tbody_rows_collection = None;
-    let mut tbody_row_count = 0;
-
-    if let Some(tid) = tbody_id
-        && !tid.is_empty()
-    {
-        let tbody_element = document
-            .get_element_by_id(tid)
-            .ok_or_else(|| JsValue::from_str(&format!("找不到 ID 为 '{}' 的 tbody 元素", tid)))?;
-
-        let tbody = tbody_element
-            .dyn_into::<HtmlTableSectionElement>()
-            .map_err(|_| {
-                JsValue::from_str(&format!("元素 '{}' 不是有效的 HTML 表格部分(tbody)", tid))
-            })?;
-
-        let rows = tbody.rows();
-        tbody_row_count = rows.length() as usize;
-        tbody_rows_collection = Some(rows);
-    }
-
-    let total_rows = table_row_count + tbody_row_count;
-
-    if total_rows == 0 {
-        return Err(JsValue::from_str("表格为空，没有数据可导出"));
-    }
-
-    let mut table_data = TableData::with_capacity(total_rows);
-
-    // 用于追踪被 rowspan 占用的位置
-    let mut rowspan_tracker: HashMap<(usize, usize), String> = HashMap::new();
-
-    // 跟踪实际输出的行索引（因为隐藏行可能被跳过）
-    let mut output_row_idx: u32 = 0;
-
-    // 分批处理数据
-    let mut current_row = 0;
-    while current_row < total_rows {
-        let batch_end = std::cmp::min(current_row + batch_size, total_rows);
-
-        // 处理当前批次
-        for i in current_row..batch_end {
-            let row_element = if i < table_row_count {
-                table_rows.get_with_index(i as u32)
-            } else if let Some(ref rows) = tbody_rows_collection {
-                rows.get_with_index((i - table_row_count) as u32)
-            } else {
-                None
-            };
-
-            let row = row_element
-                .ok_or_else(|| JsValue::from_str(&format!("无法获取第 {} 行数据", i + 1)))?;
-
-            let row = row
-                .dyn_into::<HtmlTableRowElement>()
-                .map_err(|_| JsValue::from_str(&format!("第 {} 行不是有效的表格行", i + 1)))?;
-
-            // 如果需要排除隐藏行
-            if exclude_hidden && is_element_hidden(&row) {
-                continue;
-            }
-
-            let mut row_data = Vec::new();
-            let cells = row.cells();
-            let cell_count = cells.length();
-
-            let mut col_idx: usize = 0;
-
-            for cell_idx in 0..cell_count {
-                // 处理被上方 rowspan 占用的列
-                while let Some(text) = rowspan_tracker.remove(&(i, col_idx)) {
-                    row_data.push(text);
-                    col_idx += 1;
-                }
-
-                let cell = cells.get_with_index(cell_idx).ok_or_else(|| {
-                    JsValue::from_str(&format!(
-                        "无法获取第 {} 行第 {} 列单元格",
-                        i + 1,
-                        cell_idx + 1
-                    ))
-                })?;
-
-                let cell = cell.dyn_into::<HtmlTableCellElement>().map_err(|_| {
-                    JsValue::from_str(&format!(
-                        "第 {} 行第 {} 列不是有效的表格单元格",
-                        i + 1,
-                        cell_idx + 1
-                    ))
-                })?;
-
-                // 如果需要排除隐藏列
-                if exclude_hidden && is_element_hidden(&cell) {
-                    continue;
-                }
-
-                let span = get_cell_span(&cell);
-
-                // 计算实际覆盖的可见行数 (effective_rowspan)
-                let mut visible_rows_covered = 0;
-                if span.rowspan > 1 {
-                    for r in 1..span.rowspan as usize {
-                        let next_row_idx = i + r;
-                        let next_row = if next_row_idx < table_row_count {
-                            table_rows.get_with_index(next_row_idx as u32)
-                        } else if let Some(ref rows) = tbody_rows_collection {
-                            rows.get_with_index((next_row_idx - table_row_count) as u32)
-                        } else {
-                            None
-                        };
-
-                        if let Some(next_row) = next_row {
-                            #[allow(clippy::collapsible_if)]
-                            if let Ok(next_row_el) = next_row.dyn_into::<HtmlTableRowElement>() {
-                                if !exclude_hidden || !is_element_hidden(&next_row_el) {
-                                    visible_rows_covered += 1;
-                                }
-                            }
-                        }
-                    }
-                }
-
-                let last_row = output_row_idx + visible_rows_covered;
-                // 此时 col_idx 是当前单元格的起始列
-                let last_col = (col_idx + span.colspan as usize - 1) as u16;
-
-                // 记录合并区域（仅当范围覆盖多个单元格时）
-                if last_row > output_row_idx || last_col as usize > col_idx {
-                    table_data.merge_ranges.push(MergeRange::new(
-                        output_row_idx,
-                        col_idx as u16,
-                        last_row,
-                        last_col,
-                    ));
-                }
-
-                // 处理 rowspan
-                if span.rowspan > 1 {
-                    for r in 1..span.rowspan as usize {
-                        for c in 0..span.colspan as usize {
-                            let fill_text = if c == 0 {
-                                span.text.clone()
-                            } else {
-                                String::new()
-                            };
-                            rowspan_tracker.insert((i + r, col_idx + c), fill_text);
-                        }
-                    }
-                }
-
-                // 处理 colspan
-                row_data.push(span.text);
-                for _ in 1..span.colspan {
-                    row_data.push(String::new());
-                }
-
-                col_idx += span.colspan as usize;
-            }
-
-            // 处理行尾残留的 rowspan 占位
-            while let Some(text) = rowspan_tracker.remove(&(i, col_idx)) {
-                row_data.push(text);
-                col_idx += 1;
-            }
-
-            table_data.rows.push(row_data);
-            output_row_idx += 1;
-        }
-
-        current_row = batch_end;
-
-        // 报告进度（DOM 读取阶段占 0% - 80%）
-        if let Some(callback) = progress_callback {
-            let progress = (current_row as f64 / total_rows as f64) * 80.0;
-            let _ = callback.call1(&JsValue::NULL, &JsValue::from_f64(progress));
-        }
-
-        // 在批次之间让出控制权
-        if current_row < total_rows {
-            yield_to_browser().await?;
-        }
-    }
-
-    Ok(table_data)
+    extract_table_data_batch_with_offset(
+        table_id,
+        tbody_id,
+        batch_size,
+        exclude_hidden,
+        &progress_info,
+    )
+    .await
 }
 
 /// 同步生成 XLSX 文件并触发下载
@@ -323,7 +138,9 @@ fn generate_and_download_xlsx(
             && (i % 100 == 0 || i == total_rows - 1)
         {
             let progress = 80.0 + ((i + 1) as f64 / total_rows as f64) * 15.0;
-            let _ = callback.call1(&JsValue::NULL, &JsValue::from_f64(progress));
+            if let Err(e) = callback.call1(&JsValue::NULL, &JsValue::from_f64(progress)) {
+                web_sys::console::warn_1(&e);
+            }
         }
     }
 
@@ -350,7 +167,9 @@ fn generate_and_download_xlsx(
 
     // 报告合并单元格完成进度
     if let Some(callback) = progress_callback {
-        let _ = callback.call1(&JsValue::NULL, &JsValue::from_f64(98.0));
+        if let Err(e) = callback.call1(&JsValue::NULL, &JsValue::from_f64(98.0)) {
+            web_sys::console::warn_1(&e);
+        }
     }
 
     // 将工作簿写入内存缓冲区
@@ -483,7 +302,9 @@ pub async fn export_tables_to_xlsx_batch(
 
     // 报告初始进度
     if let Some(ref callback) = progress_callback {
-        let _ = callback.call1(&JsValue::NULL, &JsValue::from_f64(0.0));
+        if let Err(e) = callback.call1(&JsValue::NULL, &JsValue::from_f64(0.0)) {
+            web_sys::console::warn_1(&e);
+        }
     }
 
     // 阶段一：逐个表格分批提取数据（0% - 80% 进度）
@@ -574,7 +395,7 @@ async fn extract_table_data_batch_with_offset(
     }
 
     let mut table_data = TableData::with_capacity(total_rows);
-    let mut rowspan_tracker: HashMap<(usize, usize), String> = HashMap::new();
+    let mut tracker = RowSpanTracker::new();
     let mut output_row_idx: u32 = 0;
 
     let mut current_row = 0;
@@ -605,9 +426,10 @@ async fn extract_table_data_batch_with_offset(
             let cells = row.cells();
             let cell_count = cells.length();
             let mut col_idx: usize = 0;
+            let u_row_idx = i as u32;
 
             for cell_idx in 0..cell_count {
-                while let Some(text) = rowspan_tracker.remove(&(i, col_idx)) {
+                while let Some(text) = tracker.pop(u_row_idx, col_idx) {
                     row_data.push(text);
                     col_idx += 1;
                 }
@@ -660,6 +482,9 @@ async fn extract_table_data_batch_with_offset(
 
                 let last_row = output_row_idx + visible_rows_covered;
                 let last_col = (col_idx + span.colspan as usize - 1) as u16;
+                if last_col > 16383 {
+                    return Err(JsValue::from_str("列数超过 Excel 限制 (16384)"));
+                }
 
                 // 记录合并区域（仅当范围覆盖多个单元格时）
                 if last_row > output_row_idx || last_col as usize > col_idx {
@@ -671,18 +496,7 @@ async fn extract_table_data_batch_with_offset(
                     ));
                 }
 
-                if span.rowspan > 1 {
-                    for r in 1..span.rowspan as usize {
-                        for c in 0..span.colspan as usize {
-                            let fill_text = if c == 0 {
-                                span.text.clone()
-                            } else {
-                                String::new()
-                            };
-                            rowspan_tracker.insert((i + r, col_idx + c), fill_text);
-                        }
-                    }
-                }
+                tracker.add(u_row_idx, col_idx, &span);
 
                 row_data.push(span.text);
                 for _ in 1..span.colspan {
@@ -692,7 +506,7 @@ async fn extract_table_data_batch_with_offset(
                 col_idx += span.colspan as usize;
             }
 
-            while let Some(text) = rowspan_tracker.remove(&(i, col_idx)) {
+            while let Some(text) = tracker.pop(u_row_idx, col_idx) {
                 row_data.push(text);
                 col_idx += 1;
             }
@@ -707,7 +521,9 @@ async fn extract_table_data_batch_with_offset(
         if let Some((callback, start, range)) = progress_info {
             let local_progress = current_row as f64 / total_rows as f64;
             let progress = start + local_progress * range;
-            let _ = callback.call1(&JsValue::NULL, &JsValue::from_f64(progress));
+            if let Err(e) = callback.call1(&JsValue::NULL, &JsValue::from_f64(progress)) {
+                web_sys::console::warn_1(&e);
+            }
         }
 
         if current_row < total_rows {
@@ -759,7 +575,9 @@ fn generate_and_download_xlsx_multi(
                 let sheet_progress_range = 15.0 / total_sheets as f64;
                 let row_progress = (i + 1) as f64 / total_rows as f64;
                 let progress = sheet_progress_start + row_progress * sheet_progress_range;
-                let _ = callback.call1(&JsValue::NULL, &JsValue::from_f64(progress));
+                if let Err(e) = callback.call1(&JsValue::NULL, &JsValue::from_f64(progress)) {
+                    web_sys::console::warn_1(&e);
+                }
             }
         }
 
@@ -786,7 +604,9 @@ fn generate_and_download_xlsx_multi(
 
     // 报告完成进度
     if let Some(callback) = progress_callback {
-        let _ = callback.call1(&JsValue::NULL, &JsValue::from_f64(98.0));
+        if let Err(e) = callback.call1(&JsValue::NULL, &JsValue::from_f64(98.0)) {
+            web_sys::console::warn_1(&e);
+        }
     }
 
     let xlsx_bytes = workbook
