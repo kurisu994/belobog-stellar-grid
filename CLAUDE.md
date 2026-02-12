@@ -116,3 +116,25 @@ src/
   - `test_unified_api.rs`: 4 个统一 API 测试
 - 新功能必须添加对应的集成测试。
 - 测试覆盖：正常输入、边界值、Unicode 字符、大数据量、隐藏行列、合并单元格等场景。
+
+
+js导出需要优化，我一般会传入表头数组像这样：
+```javascript
+[
+  {
+    title: '姓名',
+    dataIndex: 'name',
+    key: 'name',
+  },
+  {
+    title: '年龄',
+    dataIndex: 'age',
+    key: 'age',
+  },
+  {
+    title: '住址',
+    dataIndex: 'address',
+    key: 'address',
+  },
+]
+```

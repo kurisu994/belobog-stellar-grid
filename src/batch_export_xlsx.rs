@@ -2,6 +2,7 @@
 ///
 /// 提供大数据量表格的分批处理功能，避免阻塞主线程
 /// 采用两阶段策略：分批读取 DOM 数据 + 同步生成 XLSX
+use crate::core::find_table_element;
 use crate::resource::UrlGuard;
 use crate::utils::is_element_hidden;
 use crate::validation::{ensure_extension, validate_filename};
@@ -11,8 +12,8 @@ use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{
-    Blob, HtmlAnchorElement, HtmlTableCellElement, HtmlTableElement, HtmlTableRowElement,
-    HtmlTableSectionElement, Url,
+    Blob, HtmlAnchorElement, HtmlTableCellElement, HtmlTableRowElement, HtmlTableSectionElement,
+    Url,
 };
 
 /// 合并单元格区域信息
@@ -177,13 +178,11 @@ async fn extract_table_data_batch(
         .document()
         .ok_or_else(|| JsValue::from_str("无法获取 document 对象"))?;
 
-    // 1. 获取主表格（通常包含表头）
+    // 1. 获取主表格（支持直接的 table 或包含 table 的容器）
     let table_element = document
         .get_element_by_id(table_id)
-        .ok_or_else(|| JsValue::from_str(&format!("找不到 ID 为 '{}' 的表格元素", table_id)))?;
-    let table = table_element
-        .dyn_into::<HtmlTableElement>()
-        .map_err(|_| JsValue::from_str(&format!("元素 '{}' 不是有效的 HTML 表格", table_id)))?;
+        .ok_or_else(|| JsValue::from_str(&format!("找不到 ID 为 '{}' 的元素", table_id)))?;
+    let table = find_table_element(table_element, table_id)?;
     let table_rows = table.rows();
     let table_row_count = table_rows.length() as usize;
 
@@ -630,13 +629,11 @@ async fn extract_table_data_batch_with_offset(
         .document()
         .ok_or_else(|| JsValue::from_str("无法获取 document 对象"))?;
 
-    // 获取主表格
+    // 获取主表格（支持直接的 table 或包含 table 的容器）
     let table_element = document
         .get_element_by_id(table_id)
-        .ok_or_else(|| JsValue::from_str(&format!("找不到 ID 为 '{}' 的表格元素", table_id)))?;
-    let table = table_element
-        .dyn_into::<HtmlTableElement>()
-        .map_err(|_| JsValue::from_str(&format!("元素 '{}' 不是有效的 HTML 表格", table_id)))?;
+        .ok_or_else(|| JsValue::from_str(&format!("找不到 ID 为 '{}' 的元素", table_id)))?;
+    let table = find_table_element(table_element, table_id)?;
     let table_rows = table.rows();
     let table_row_count = table_rows.length() as usize;
 

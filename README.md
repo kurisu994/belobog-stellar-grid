@@ -332,6 +332,37 @@ export_tables_xlsx(
 
 ---
 
+#### `export_data(data, filename?, format?, progress_callback?)` 🆕 直接数据导出
+
+不依赖 DOM，直接将 JavaScript 二维数组导出为 CSV 或 XLSX 文件。
+
+**参数**：
+
+- `data`: JS 二维数组 `Array<Array<string | number | boolean>>`
+- `filename`: 导出文件名（可选）
+- `format`: 导出格式（可选，默认 CSV）
+- `progress_callback`: 进度回调函数（可选）
+
+**示例**：
+
+```javascript
+import { export_data, ExportFormat } from "belobog-stellar-grid";
+
+const data = [
+  ["姓名", "年龄", "城市"],
+  ["张三", 28, "北京"],
+  ["李四", 35, "上海"]
+];
+
+// 导出 CSV
+export_data(data, "用户列表.csv");
+
+// 导出 Excel
+export_data(data, "用户列表.xlsx", ExportFormat.Xlsx);
+```
+
+---
+
 ### 文件名安全验证
 
 所有导出函数都会自动验证文件名安全性：
@@ -502,6 +533,7 @@ belobog-stellar-grid/
 - [x] 导出时保留合并单元格状态（支持 colspan 和 rowspan）
 - [x] 支持多工作表导出（多表格导出到同一 Excel 文件的不同 sheet）
 - [x] 支持检测并排除隐藏行/列（`display: none`）
+- [x] 支持容器元素查找（自动在 `div` 等容器中查找 `table`）
 
 ### 数据选择与过滤
 
@@ -511,7 +543,7 @@ belobog-stellar-grid/
 
 ### 其他
 
-- [ ] 支持从 JavaScript 数组直接生成文件（不依赖 DOM）
+- [x] 支持从 JavaScript 数组直接生成文件（不依赖 DOM）
 - [ ] CSV 导出添加 BOM 头选项（兼容旧版 Excel）
 - [ ] 探索 Node.js/服务端支持可能性
 

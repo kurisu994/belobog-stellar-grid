@@ -5,7 +5,48 @@ use wasm_bindgen::JsCast;
 ///
 /// 提供从 DOM 中提取表格数据的功能，支持合并单元格（colspan/rowspan）
 use wasm_bindgen::prelude::*;
-use web_sys::{HtmlTableCellElement, HtmlTableElement, HtmlTableRowElement};
+use web_sys::{Element, HtmlTableCellElement, HtmlTableElement, HtmlTableRowElement};
+
+/// 根据 ID 查找 table 元素
+///
+/// 支持两种情况：
+/// 1. ID 直接指向 `<table>` 元素
+/// 2. ID 指向容器元素（如 `<div>`、`<section>`），在其内部查找第一个 `<table>`
+///
+/// # 参数
+/// * `element` - 通过 ID 获取到的 DOM 元素
+/// * `element_id` - 元素的 ID（用于错误信息）
+///
+/// # 返回值
+/// * `Ok(HtmlTableElement)` - 找到的表格元素
+/// * `Err(JsValue)` - 未找到有效的表格元素
+pub fn find_table_element(element: Element, element_id: &str) -> Result<HtmlTableElement, JsValue> {
+    // 先尝试直接转换为 HtmlTableElement
+    match element.clone().dyn_into::<HtmlTableElement>() {
+        Ok(table) => Ok(table),
+        Err(_) => {
+            // 不是 table 元素，在其内部查找第一个 <table>
+            element
+                .query_selector("table")
+                .map_err(|e| {
+                    JsValue::from_str(&format!("在元素 '{}' 内查找表格失败: {:?}", element_id, e))
+                })?
+                .ok_or_else(|| {
+                    JsValue::from_str(&format!(
+                        "元素 '{}' 不是表格，且其内部也未找到 <table> 元素",
+                        element_id
+                    ))
+                })?
+                .dyn_into::<HtmlTableElement>()
+                .map_err(|_| {
+                    JsValue::from_str(&format!(
+                        "在元素 '{}' 内找到的元素不是有效的 HTML 表格",
+                        element_id
+                    ))
+                })
+        }
+    }
+}
 
 /// 合并单元格区域信息
 #[derive(Debug, Clone)]
@@ -134,14 +175,12 @@ pub fn extract_table_data_with_merge(
         .document()
         .ok_or_else(|| JsValue::from_str("无法获取 document 对象"))?;
 
-    // 根据 table_id 获取 table 元素，并进行类型检查
-    let table_element = document
+    // 根据 table_id 获取元素，支持直接的 table 或包含 table 的容器
+    let element = document
         .get_element_by_id(table_id)
-        .ok_or_else(|| JsValue::from_str(&format!("找不到 ID 为 '{}' 的表格元素", table_id)))?;
+        .ok_or_else(|| JsValue::from_str(&format!("找不到 ID 为 '{}' 的元素", table_id)))?;
 
-    let table = table_element
-        .dyn_into::<HtmlTableElement>()
-        .map_err(|_| JsValue::from_str(&format!("元素 '{}' 不是有效的 HTML 表格", table_id)))?;
+    let table = find_table_element(element, table_id)?;
 
     // 遍历 table 中的每一行
     let rows = table.rows();

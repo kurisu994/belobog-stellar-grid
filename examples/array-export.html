@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数组直接导出示例 - belobog-stellar-grid</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            padding: 40px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 { color: #333; margin-bottom: 10px; font-size: 32px; }
+        .subtitle { color: #666; margin-bottom: 30px; font-size: 14px; }
+        .section { margin-bottom: 40px; }
+        .section h2 { color: #444; margin-bottom: 15px; font-size: 20px; border-left: 4px solid #667eea; padding-left: 12px; }
+        .section p { color: #666; margin-bottom: 15px; line-height: 1.6; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-weight: 600;
+            font-size: 13px;
+        }
+        tr:hover { background-color: #f8f9fa; }
+        .button-group {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin: 20px 0;
+        }
+        button {
+            padding: 12px 24px;
+            font-size: 14px;
+            font-weight: 600;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            min-width: 140px;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102,126,234,0.4);
+        }
+        .btn-excel {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+        }
+        .btn-excel:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(40,167,69,0.4);
+        }
+        .btn-orange {
+            background: linear-gradient(135deg, #FF9966 0%, #FF5E62 100%);
+            color: white;
+        }
+        .btn-orange:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(255, 94, 98, 0.4);
+        }
+        button:active { transform: translateY(0); }
+        .code {
+            background: #e8f0fe;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            color: #5f6368;
+        }
+        pre {
+            background: #282c34;
+            color: #abb2bf;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-size: 13px;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+        pre .keyword { color: #c678dd; }
+        pre .string { color: #98c379; }
+        pre .comment { color: #5c6370; font-style: italic; }
+        pre .number { color: #d19a66; }
+        pre .func { color: #61afef; }
+        #preview-table { margin-top: 15px; }
+        .info-box {
+            background: #e6f7ff;
+            border: 1px solid #91d5ff;
+            border-radius: 8px;
+            padding: 15px 20px;
+            margin-bottom: 20px;
+            color: #0050b3;
+            font-size: 14px;
+        }
+        .info-box strong { color: #003a8c; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📦 数组直接导出</h1>
+        <p class="subtitle">
+            使用 <span class="code">export_data()</span> 从 JavaScript 数组直接生成 CSV/XLSX 文件，<strong>无需 DOM 表格</strong>
+        </p>
+
+        <div class="info-box">
+            <strong>💡 适用场景：</strong>
+            数据来自 API 接口、计算结果、用户输入等，无需先渲染到 HTML 表格再导出。
+            支持字符串、数字、布尔值、null/undefined 等多种数据类型。
+        </div>
+
+        <!-- 场景1: 基本数组导出 -->
+        <div class="section">
+            <h2>场景1: 基本数组导出</h2>
+            <p>直接传入二维数组，第一行作为表头：</p>
+
+            <pre><span class="keyword">const</span> data = [
+    [<span class="string">'姓名'</span>, <span class="string">'年龄'</span>, <span class="string">'城市'</span>, <span class="string">'邮箱'</span>],
+    [<span class="string">'张三'</span>, <span class="number">28</span>, <span class="string">'北京'</span>, <span class="string">'zhangsan@example.com'</span>],
+    [<span class="string">'李四'</span>, <span class="number">35</span>, <span class="string">'上海'</span>, <span class="string">'lisi@example.com'</span>],
+    [<span class="string">'王五'</span>, <span class="number">42</span>, <span class="string">'广州'</span>, <span class="string">'wangwu@example.com'</span>],
+];
+
+<span class="func">export_data</span>(data, <span class="string">'用户数据.csv'</span>);
+<span class="func">export_data</span>(data, <span class="string">'用户数据.xlsx'</span>, ExportFormat.Xlsx);</pre>
+
+            <table id="preview-basic">
+                <thead><tr><th>姓名</th><th>年龄</th><th>城市</th><th>邮箱</th></tr></thead>
+                <tbody>
+                    <tr><td>张三</td><td>28</td><td>北京</td><td>zhangsan@example.com</td></tr>
+                    <tr><td>李四</td><td>35</td><td>上海</td><td>lisi@example.com</td></tr>
+                    <tr><td>王五</td><td>42</td><td>广州</td><td>wangwu@example.com</td></tr>
+                </tbody>
+            </table>
+
+            <div class="button-group">
+                <button class="btn-primary" onclick="exportBasicCsv()">📄 导出为 CSV</button>
+                <button class="btn-excel" onclick="exportBasicXlsx()">📗 导出为 Excel</button>
+            </div>
+        </div>
+
+        <!-- 场景2: API 数据导出 -->
+        <div class="section">
+            <h2>场景2: 模拟 API 数据导出</h2>
+            <p>模拟从 API 获取 JSON 数据后直接导出（无需渲染到页面）：</p>
+
+            <pre><span class="comment">// 模拟从 API 获取的 JSON 数据</span>
+<span class="keyword">const</span> apiData = [
+    { id: <span class="number">1001</span>, product: <span class="string">'MacBook Pro'</span>, price: <span class="number">18999</span>, stock: <span class="number">56</span>, active: <span class="keyword">true</span> },
+    { id: <span class="number">1002</span>, product: <span class="string">'iPhone 15'</span>, price: <span class="number">8999</span>, stock: <span class="number">128</span>, active: <span class="keyword">true</span> },
+    { id: <span class="number">1003</span>, product: <span class="string">'AirPods Max'</span>, price: <span class="number">4399</span>, stock: <span class="number">0</span>, active: <span class="keyword">false</span> },
+];
+
+<span class="comment">// 转换为二维数组（表头 + 数据行）</span>
+<span class="keyword">const</span> headers = [<span class="string">'ID'</span>, <span class="string">'产品名称'</span>, <span class="string">'价格'</span>, <span class="string">'库存'</span>, <span class="string">'是否在售'</span>];
+<span class="keyword">const</span> rows = apiData.<span class="func">map</span>(item =>
+    [item.id, item.product, item.price, item.stock, item.active]
+);
+
+<span class="func">export_data</span>([headers, ...rows], <span class="string">'产品清单.xlsx'</span>, ExportFormat.Xlsx);</pre>
+
+            <div class="button-group">
+                <button class="btn-primary" onclick="exportApiCsv()">📄 导出为 CSV</button>
+                <button class="btn-excel" onclick="exportApiXlsx()">📗 导出为 Excel</button>
+            </div>
+        </div>
+
+        <!-- 场景3: 带进度回调的大数据导出 -->
+        <div class="section">
+            <h2>场景3: 大数据量导出（带进度回调）</h2>
+            <p>动态生成大量数据并导出，支持进度回调：</p>
+
+            <div class="button-group">
+                <button class="btn-orange" onclick="exportLargeCsv()">📄 生成 10000 行 CSV</button>
+                <button class="btn-orange" onclick="exportLargeXlsx()">📗 生成 10000 行 Excel</button>
+            </div>
+            <div id="progress-info" style="color: #666; font-size: 14px; margin-top: 10px;"></div>
+        </div>
+
+        <!-- 代码示例 -->
+        <div class="section">
+            <h2>💡 API 概览</h2>
+            <pre><span class="keyword">import</span> { export_data, ExportFormat } <span class="keyword">from</span> <span class="string">'./pkg/belobog_stellar_grid.js'</span>;
+
+<span class="comment">// export_data(data, filename?, format?, progressCallback?)</span>
+
+<span class="comment">// 参数说明：</span>
+<span class="comment">// data: Array&lt;Array&lt;string | number | boolean | null&gt;&gt;  二维数组</span>
+<span class="comment">// filename?: string                                      文件名（可选）</span>
+<span class="comment">// format?: ExportFormat.Csv | ExportFormat.Xlsx           格式（默认 CSV）</span>
+<span class="comment">// progressCallback?: (progress: number) => void           进度回调（可选）</span>
+
+<span class="comment">// 最简用法</span>
+<span class="func">export_data</span>([[<span class="string">'A'</span>, <span class="string">'B'</span>], [<span class="number">1</span>, <span class="number">2</span>]]);
+
+<span class="comment">// 完整用法</span>
+<span class="func">export_data</span>(
+    [[<span class="string">'姓名'</span>, <span class="string">'分数'</span>], [<span class="string">'张三'</span>, <span class="number">95</span>]],
+    <span class="string">'成绩单.xlsx'</span>,
+    ExportFormat.Xlsx,
+    (progress) => console.log(<span class="string">`进度: ${progress}%`</span>)
+);</pre>
+        </div>
+    </div>
+
+    <script type="module">
+        import init, { export_data, ExportFormat } from '../pkg/belobog_stellar_grid.js';
+
+        await init();
+
+        // 场景1: 基本数组导出
+        const basicData = [
+            ['姓名', '年龄', '城市', '邮箱'],
+            ['张三', 28, '北京', 'zhangsan@example.com'],
+            ['李四', 35, '上海', 'lisi@example.com'],
+            ['王五', 42, '广州', 'wangwu@example.com'],
+        ];
+
+        window.exportBasicCsv = () => {
+            export_data(basicData, '用户数据.csv');
+            console.log('✅ 数组导出 CSV 完成');
+        };
+
+        window.exportBasicXlsx = () => {
+            export_data(basicData, '用户数据.xlsx', ExportFormat.Xlsx);
+            console.log('✅ 数组导出 Excel 完成');
+        };
+
+        // 场景2: API 数据导出
+        const apiData = [
+            { id: 1001, product: 'MacBook Pro 16"', price: 18999, stock: 56, active: true },
+            { id: 1002, product: 'iPhone 15 Pro', price: 8999, stock: 128, active: true },
+            { id: 1003, product: 'AirPods Max', price: 4399, stock: 0, active: false },
+            { id: 1004, product: 'iPad Air', price: 4799, stock: 89, active: true },
+            { id: 1005, product: 'Apple Watch Ultra', price: 6299, stock: 23, active: true },
+        ];
+
+        function apiToArray(data) {
+            const headers = ['ID', '产品名称', '价格 (¥)', '库存', '是否在售'];
+            const rows = data.map(item => [item.id, item.product, item.price, item.stock, item.active]);
+            return [headers, ...rows];
+        }
+
+        window.exportApiCsv = () => {
+            export_data(apiToArray(apiData), '产品清单.csv');
+            console.log('✅ API 数据导出 CSV 完成');
+        };
+
+        window.exportApiXlsx = () => {
+            export_data(apiToArray(apiData), '产品清单.xlsx', ExportFormat.Xlsx);
+            console.log('✅ API 数据导出 Excel 完成');
+        };
+
+        // 场景3: 大数据量导出
+        function generateLargeData(count) {
+            const headers = ['序号', '用户名', '邮箱', '部门', '薪资', '入职日期'];
+            const departments = ['技术部', '产品部', '设计部', '市场部', '人力资源部', '财务部'];
+            const rows = [headers];
+            for (let i = 1; i <= count; i++) {
+                rows.push([
+                    i,
+                    `用户_${i}`,
+                    `user${i}@example.com`,
+                    departments[i % departments.length],
+                    Math.floor(Math.random() * 30000) + 10000,
+                    `2024-${String(Math.floor(Math.random() * 12) + 1).padStart(2, '0')}-${String(Math.floor(Math.random() * 28) + 1).padStart(2, '0')}`,
+                ]);
+            }
+            return rows;
+        }
+
+        const progressInfo = document.getElementById('progress-info');
+
+        window.exportLargeCsv = () => {
+            const start = performance.now();
+            const data = generateLargeData(10000);
+            progressInfo.textContent = '⏳ 正在导出...';
+
+            export_data(data, '大数据_10000行.csv', ExportFormat.Csv, (progress) => {
+                progressInfo.textContent = `⏳ 导出进度: ${progress.toFixed(1)}%`;
+            });
+
+            const elapsed = (performance.now() - start).toFixed(0);
+            progressInfo.textContent = `✅ 10000 行 CSV 导出完成，耗时 ${elapsed}ms`;
+            console.log(`✅ 大数据 CSV 导出完成，耗时 ${elapsed}ms`);
+        };
+
+        window.exportLargeXlsx = () => {
+            const start = performance.now();
+            const data = generateLargeData(10000);
+            progressInfo.textContent = '⏳ 正在导出...';
+
+            export_data(data, '大数据_10000行.xlsx', ExportFormat.Xlsx, (progress) => {
+                progressInfo.textContent = `⏳ 导出进度: ${progress.toFixed(1)}%`;
+            });
+
+            const elapsed = (performance.now() - start).toFixed(0);
+            progressInfo.textContent = `✅ 10000 行 Excel 导出完成，耗时 ${elapsed}ms`;
+            console.log(`✅ 大数据 Excel 导出完成，耗时 ${elapsed}ms`);
+        };
+
+        console.log('🚀 WebAssembly 已初始化，数组直接导出功能可用');
+    </script>
+</body>
+</html>

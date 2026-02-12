@@ -15,7 +15,7 @@ pub use resource::UrlGuard;
 pub use validation::{ensure_extension, validate_filename};
 
 // 导出新的统一接口
-pub use core::{ExportFormat, export_table, export_tables_xlsx};
+pub use core::{ExportFormat, export_data, export_table, export_tables_xlsx};
 
 // 导出分批异步导出
 pub use batch_export::export_table_to_csv_batch;

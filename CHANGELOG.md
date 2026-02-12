@@ -7,6 +7,20 @@
 
 ---
 
+## [1.0.3] - 2026-02-12
+
+### ✨ 新增
+
+- 🆕 **直接数据导出 (Direct Data Export)**: `export_data()`
+  - 支持不依赖 DOM，直接将 JavaScript 二维数组导出为 CSV 或 Excel 文件
+  - 适用于纯数据导出场景（如 API 返回的数据）
+  - 支持 CSV 和 XLSX 格式，支持进度回调
+
+- 🆕 **容器元素支持**
+  - 导出函数现在支持传入容器元素 ID（如 `div`），会自动查找内部的 `table` 元素
+  - 完美兼容 Ant Design、Element Plus 等 UI 组件库的表格结构
+  - 涉及所有导出 API：`export_table`, `export_table_to_csv_batch`, `export_table_to_xlsx_batch`
+
 ## [1.0.2] - 2026-02-11
 
 ### ✨ 新增
