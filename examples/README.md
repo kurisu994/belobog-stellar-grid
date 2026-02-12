@@ -210,6 +210,8 @@ export_table("table-container", "AntDesign表格.xlsx", ExportFormat.Xlsx);
 - ✅ 不依赖 DOM，直接从 JS 数组导出
 - ✅ 支持 API 数据直接导出
 - ✅ 支持多种数据类型（字符串、数字、布尔值）
+- ✅ 支持嵌套表头（多级分组列）
+- ✅ 支持数据合并单元格（colSpan / rowSpan）
 - ✅ 带进度回调
 
 **适用场景**：
@@ -221,14 +223,86 @@ export_table("table-container", "AntDesign表格.xlsx", ExportFormat.Xlsx);
 **关键代码**：
 
 ```javascript
+import init, { export_data, ExportFormat } from "../pkg/belobog_stellar_grid.js";
+
+await init();
+
+// 模式 1：二维数组直接导出
 const data = [
   ['姓名', '年龄', '部门'],
   ['张三', 28, '研发部'],
   ['李四', 32, '市场部']
 ];
+export_data(data, null, "员工名单.xlsx", ExportFormat.Xlsx);
 
-// 直接导出数组数据
-export_data(data, "员工名单.xlsx", ExportFormat.Xlsx);
+// 模式 2：columns + dataSource（Ant Design 风格）
+const columns = [
+  { title: '姓名', key: 'name' },
+  { title: '其他', children: [
+    { title: '年龄', key: 'age' },
+    { title: '住址', key: 'address' }
+  ]}
+];
+const dataSource = [
+  { name: '张三', age: 28, address: '杭州' },
+  { name: '李四', age: 32, address: '北京' }
+];
+export_data(dataSource, columns, "员工信息.xlsx", ExportFormat.Xlsx);
+```
+
+---
+
+### 7. tree-export.html - 树形数据导出示例 🌳
+
+**功能**：
+
+- ✅ 递归拍平嵌套 children 结构
+- ✅ 可选层级缩进（指定列自动添加空格）
+- ✅ 自定义 children 字段名
+- ✅ 支持嵌套表头 + 树形数据组合
+- ✅ 大数据量树形导出
+
+**适用场景**：
+
+- 组织架构导出
+- 商品分类目录导出
+- 菜单/权限树导出
+- 任何包含父子关系的层级数据
+
+**关键代码**：
+
+```javascript
+import init, { export_data, ExportFormat } from "../pkg/belobog_stellar_grid.js";
+
+await init();
+
+const treeData = [
+  {
+    name: 'CEO', title: 'CEO',
+    children: [
+      { name: 'CTO', title: 'CTO' },
+      { name: 'CFO', title: 'CFO',
+        children: [
+          { name: '会计', title: '会计' }
+        ]
+      }
+    ]
+  }
+];
+
+const columns = [
+  { title: '姓名', key: 'name' },
+  { title: '职位', key: 'title' }
+];
+
+// 基本导出（传入 children_key 启用树形模式）
+export_data(treeData, columns, '组织架构.xlsx', ExportFormat.Xlsx, undefined, undefined, 'children');
+
+// 带层级缩进导出（'name' 列会根据层级自动添加空格）
+export_data(treeData, columns, '组织架构.xlsx', ExportFormat.Xlsx, undefined, 'name', 'children');
+
+// 自定义 children 字段名
+export_data(data, columns, 'file.xlsx', ExportFormat.Xlsx, undefined, 'name', 'subCategories');
 ```
 
 ## 🎯 使用指南
@@ -417,6 +491,24 @@ async function exportAll() {
 - 每批处理后让出控制权给浏览器，保持页面响应性
 
 **返回**：Promise<void>
+
+---
+
+### export_data(data, columns?, filename?, format?, callback?, indent_column?, children_key?)
+
+从 JavaScript 数组直接生成文件，不依赖 DOM。支持二维数组、对象数组、嵌套表头、数据合并和树形数据导出。
+
+**参数**：
+
+- `data` (Array): 数据源。无 columns 时为二维数组；有 columns 时为对象数组
+- `columns` (Array, 可选): 表头配置数组，支持嵌套 children
+- `filename` (string, 可选): 导出文件名
+- `format` (ExportFormat, 可选): 导出格式（Csv / Xlsx）
+- `callback` (function, 可选): 进度回调函数
+- `indent_column` (string, 可选): 树形数据模式下，指定需要缩进的列的 key
+- `children_key` (string, 可选): 传入此参数启用树形数据模式，指定子节点字段名（如 `"children"`）
+
+**返回**：无（成功）或抛出异常（失败）
 
 ## 🌐 浏览器兼容性
 

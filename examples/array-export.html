@@ -259,9 +259,52 @@
             </div>
         </div>
 
-        <!-- 场景5: 带进度回调的大数据导出 -->
+        <!-- 场景5: 数据区域合并单元格 -->
         <div class="section">
-            <h2>场景5: 大数据量导出（带进度回调）</h2>
+            <h2>场景5: 数据合并单元格（colSpan / rowSpan）</h2>
+            <p>数据对象中的值可以使用 <span class="code">{ value, colSpan?, rowSpan? }</span> 格式来指定合并：</p>
+
+            <pre><span class="keyword">const</span> columns = [
+    { title: <span class="string">'姓名'</span>, key: <span class="string">'name'</span> },
+    { title: <span class="string">'科目'</span>, key: <span class="string">'subject'</span> },
+    { title: <span class="string">'成绩'</span>, key: <span class="string">'score'</span> },
+    { title: <span class="string">'评价'</span>, key: <span class="string">'comment'</span> },
+];
+
+<span class="keyword">const</span> data = [
+    <span class="comment">// 张三的姓名合并2行，评价合并2行</span>
+    { name: { value: <span class="string">'张三'</span>, rowSpan: <span class="number">2</span> }, subject: <span class="string">'数学'</span>,
+      score: <span class="number">90</span>, comment: { value: <span class="string">'优秀'</span>, rowSpan: <span class="number">2</span> } },
+    { name: { value: <span class="string">''</span>, rowSpan: <span class="number">0</span> }, subject: <span class="string">'英语'</span>,
+      score: <span class="number">85</span>, comment: { value: <span class="string">''</span>, rowSpan: <span class="number">0</span> } },
+    <span class="comment">// 李四的地址横跨2列</span>
+    { name: <span class="string">'李四'</span>, subject: { value: <span class="string">'全科'</span>, colSpan: <span class="number">2</span> },
+      score: { value: <span class="string">''</span>, colSpan: <span class="number">0</span> }, comment: <span class="string">'良好'</span> },
+    <span class="comment">// 正常行</span>
+    { name: <span class="string">'王五'</span>, subject: <span class="string">'数学'</span>, score: <span class="number">95</span>, comment: <span class="string">'优秀'</span> },
+];</pre>
+
+            <table>
+                <thead>
+                    <tr><th>姓名</th><th>科目</th><th>成绩</th><th>评价</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td rowspan="2">张三</td><td>数学</td><td>90</td><td rowspan="2">优秀</td></tr>
+                    <tr><td>英语</td><td>85</td></tr>
+                    <tr><td>李四</td><td colspan="2">全科</td><td>良好</td></tr>
+                    <tr><td>王五</td><td>数学</td><td>95</td><td>优秀</td></tr>
+                </tbody>
+            </table>
+
+            <div class="button-group">
+                <button class="btn-primary" onclick="exportDataMergeCsv()">📄 导出为 CSV</button>
+                <button class="btn-excel" onclick="exportDataMergeXlsx()">📗 导出为 Excel（含合并单元格）</button>
+            </div>
+        </div>
+
+        <!-- 场景6: 大数据量导出（带进度回调） -->
+        <div class="section">
+            <h2>场景6: 大数据量导出（带进度回调）</h2>
             <p>动态生成大量数据并导出，支持进度回调：</p>
 
             <div class="button-group">
@@ -271,9 +314,9 @@
             <div id="progress-info" style="color: #666; font-size: 14px; margin-top: 10px;"></div>
         </div>
 
-        <!-- 场景6: 错误处理演示 -->
+        <!-- 场景7: 错误处理演示 -->
         <div class="section">
-            <h2>场景6: 错误处理演示</h2>
+            <h2>场景7: 错误处理演示</h2>
             <p>演示当传入对象数组但忘记提供 <code>columns</code> 时的错误提示：</p>
             <pre><span class="comment">// 错误用法：对象数组必须提供 columns</span>
 <span class="keyword">const</span> data = [{ name: <span class="string">'张三'</span>, age: <span class="number">28</span> }];
@@ -289,7 +332,7 @@
             <h2>💡 API 概览</h2>
             <pre><span class="keyword">import</span> { export_data, ExportFormat } <span class="keyword">from</span> <span class="string">'./pkg/belobog_stellar_grid.js'</span>;
 
-<span class="comment">// export_data(data, columns?, filename?, format?, progressCallback?)</span>
+<span class="comment">// export_data(data, columns?, filename?, format?, progressCallback?, indent_column?, children_key?)</span>
 
 <span class="comment">// 参数说明：</span>
 <span class="comment">// data     : Array&lt;Array&gt; 二维数组 或 Array&lt;Object&gt; 对象数组</span>
@@ -318,6 +361,16 @@
        { title: <span class="string">'住址'</span>, key: <span class="string">'address'</span> }
      ]}],
     <span class="string">'报表.xlsx'</span>, ExportFormat.Xlsx
+);
+
+<span class="comment">// 模式4: 数据合并单元格（colSpan / rowSpan）</span>
+<span class="comment">// 单元格值使用 { value, colSpan?, rowSpan? } 格式</span>
+<span class="func">export_data</span>(
+    [{ name: { value: <span class="string">'张三'</span>, rowSpan: <span class="number">2</span> }, score: <span class="number">90</span> },
+     { name: { value: <span class="string">''</span>, rowSpan: <span class="number">0</span> }, score: <span class="number">85</span> }],
+    [{ title: <span class="string">'姓名'</span>, key: <span class="string">'name'</span> },
+     { title: <span class="string">'成绩'</span>, key: <span class="string">'score'</span> }],
+    <span class="string">'合并.xlsx'</span>, ExportFormat.Xlsx
 );</pre>
         </div>
     </div>
@@ -419,6 +472,34 @@
         window.exportDeepNestedXlsx = () => {
             export_data(deepData, deepColumns, '三级表头.xlsx', ExportFormat.Xlsx);
             console.log('✅ 三级嵌套表头导出 Excel 完成');
+        };
+
+        // 场景5: 数据合并单元格
+        const mergeColumns = [
+            { title: '姓名', key: 'name' },
+            { title: '科目', key: 'subject' },
+            { title: '成绩', key: 'score' },
+            { title: '评价', key: 'comment' },
+        ];
+
+        const mergeData = [
+            // 张三的姓名合并2行，评价合并2行
+            { name: { value: '张三', rowSpan: 2 }, subject: '数学', score: 90, comment: { value: '优秀', rowSpan: 2 } },
+            { name: { value: '', rowSpan: 0 }, subject: '英语', score: 85, comment: { value: '', rowSpan: 0 } },
+            // 李四的科目横跨2列（科目+成绩）
+            { name: '李四', subject: { value: '全科', colSpan: 2 }, score: { value: '', colSpan: 0 }, comment: '良好' },
+            // 正常行
+            { name: '王五', subject: '数学', score: 95, comment: '优秀' },
+        ];
+
+        window.exportDataMergeCsv = () => {
+            export_data(mergeData, mergeColumns, '数据合并.csv');
+            console.log('✅ 数据合并单元格导出 CSV 完成');
+        };
+
+        window.exportDataMergeXlsx = () => {
+            export_data(mergeData, mergeColumns, '数据合并.xlsx', ExportFormat.Xlsx);
+            console.log('✅ 数据合并单元格导出 Excel 完成（含合并单元格）');
         };
 
         // 场景5: 大数据量导出

@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>belobog-stellar-grid - 树形数据导出示例</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+                         'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
+            background: #f5f7fa;
+            padding: 20px;
+        }
+        .container { max-width: 1000px; margin: 0 auto; }
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        h1 { color: #333; margin-bottom: 8px; }
+        .subtitle { color: #666; font-size: 1rem; }
+        .back-link {
+            display: inline-block;
+            color: #667eea;
+            text-decoration: none;
+            margin-bottom: 20px;
+        }
+        .back-link:hover { text-decoration: underline; }
+        .scenario {
+            background: #fff;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+        }
+        .scenario h2 {
+            color: #333;
+            font-size: 1.2rem;
+            margin-bottom: 12px;
+            border-left: 4px solid #667eea;
+            padding-left: 12px;
+        }
+        .scenario p {
+            color: #666;
+            margin-bottom: 16px;
+            line-height: 1.6;
+        }
+        .btn-group { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.95rem;
+            transition: all 0.3s;
+        }
+        .btn-csv { background: #52c41a; color: #fff; }
+        .btn-csv:hover { background: #389e0d; }
+        .btn-xlsx { background: #1890ff; color: #fff; }
+        .btn-xlsx:hover { background: #096dd9; }
+        .btn-disabled { background: #d9d9d9; color: #999; cursor: not-allowed; }
+        .status {
+            padding: 10px 16px;
+            border-radius: 6px;
+            margin-top: 10px;
+            display: none;
+            font-size: 0.9rem;
+        }
+        .status.success { display: block; background: #f6ffed; color: #52c41a; border: 1px solid #b7eb8f; }
+        .status.error { display: block; background: #fff2f0; color: #ff4d4f; border: 1px solid #ffa39e; }
+        pre {
+            background: #f5f5f5;
+            padding: 16px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-size: 0.85rem;
+            line-height: 1.5;
+            margin-bottom: 16px;
+        }
+        .data-preview {
+            border: 1px solid #e8e8e8;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+            background: #fafafa;
+        }
+        .data-preview h3 {
+            color: #555;
+            font-size: 0.95rem;
+            margin-bottom: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="index.html" class="back-link">← 返回示例列表</a>
+        <header>
+            <h1>🌳 树形数据导出示例</h1>
+            <p class="subtitle">将嵌套的 children 结构递归拍平后导出，支持层级缩进</p>
+        </header>
+
+        <!-- 场景 1：基本树形结构 -->
+        <div class="scenario">
+            <h2>场景 1：组织架构导出</h2>
+            <p>典型的树形数据——公司组织架构，使用 <code>children</code> 表示上下级关系。</p>
+            <div class="data-preview">
+                <h3>📋 数据预览</h3>
+<pre>
+CEO (张三)
+├── CTO (李四)
+│   ├── 前端组长 (王五)
+│   └── 后端组长 (赵六)
+├── CFO (孙七)
+│   └── 会计 (周八)
+└── COO (吴九)
+</pre>
+            </div>
+            <div class="btn-group">
+                <button class="btn-csv" onclick="exportScenario1('csv')">📄 导出 CSV</button>
+                <button class="btn-xlsx" onclick="exportScenario1('xlsx')">📊 导出 XLSX</button>
+                <button class="btn-csv" onclick="exportScenario1('csv', true)">📄 CSV (带缩进)</button>
+                <button class="btn-xlsx" onclick="exportScenario1('xlsx', true)">📊 XLSX (带缩进)</button>
+            </div>
+            <div id="status1" class="status"></div>
+        </div>
+
+        <!-- 场景 2：多级分类目录 -->
+        <div class="scenario">
+            <h2>场景 2：商品分类目录</h2>
+            <p>电商常见的多级分类树，支持自定义子节点字段名（如 <code>subCategories</code>）。</p>
+            <div class="data-preview">
+                <h3>📋 数据预览</h3>
+<pre>
+电子产品
+├── 手机
+│   ├── 智能手机
+│   └── 功能手机
+├── 电脑
+│   ├── 笔记本
+│   └── 台式机
+服装
+├── 男装
+└── 女装
+    └── 连衣裙
+</pre>
+            </div>
+            <div class="btn-group">
+                <button class="btn-xlsx" onclick="exportScenario2()">📊 导出 XLSX（带缩进）</button>
+            </div>
+            <div id="status2" class="status"></div>
+        </div>
+
+        <!-- 场景 3：嵌套表头 + 树形数据 -->
+        <div class="scenario">
+            <h2>场景 3：嵌套表头 + 树形数据</h2>
+            <p>表头配置为多层嵌套结构（分组列），数据也是树形结构，两者独立：表头嵌套控制列的分组合并，数据嵌套控制行的层级拍平。</p>
+            <div class="data-preview">
+                <h3>📋 数据预览</h3>
+<pre>
+列配置: 部门 | 详情 → (负责人, 人数)
+数据:
+技术部 (张三, 100)
+├── 前端组 (李四, 30)
+└── 后端组 (王五, 70)
+    └── 数据库组 (赵六, 20)
+</pre>
+            </div>
+            <div class="btn-group">
+                <button class="btn-xlsx" onclick="exportScenario3()">📊 导出 XLSX（嵌套表头 + 树形数据）</button>
+            </div>
+            <div id="status3" class="status"></div>
+        </div>
+
+        <!-- 场景 4：大数据量树 -->
+        <div class="scenario">
+            <h2>场景 4：大数据量树形结构</h2>
+            <p>动态生成包含数百个节点的树形数据，测试性能。</p>
+            <div class="btn-group">
+                <button class="btn-xlsx" onclick="exportScenario4()">📊 导出 XLSX（500+ 节点）</button>
+            </div>
+            <div id="status4" class="status"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        import init, { export_data, ExportFormat } from '../pkg/belobog_stellar_grid.js';
+
+        await init();
+
+        function showStatus(id, success, message) {
+            const el = document.getElementById(id);
+            el.className = success ? 'status success' : 'status error';
+            el.textContent = message;
+        }
+
+        // ===== 场景 1：组织架构 =====
+        const orgData = [
+            {
+                id: 1, name: 'CEO - 张三', title: 'CEO', level: '高管',
+                children: [
+                    {
+                        id: 2, name: 'CTO - 李四', title: 'CTO', level: '高管',
+                        children: [
+                            { id: 5, name: '前端组长 - 王五', title: '组长', level: '中层' },
+                            { id: 6, name: '后端组长 - 赵六', title: '组长', level: '中层' },
+                        ]
+                    },
+                    {
+                        id: 3, name: 'CFO - 孙七', title: 'CFO', level: '高管',
+                        children: [
+                            { id: 7, name: '会计 - 周八', title: '会计', level: '基层' },
+                        ]
+                    },
+                    { id: 4, name: 'COO - 吴九', title: 'COO', level: '高管' },
+                ]
+            }
+        ];
+
+        const orgColumns = [
+            { title: 'ID', key: 'id' },
+            { title: '姓名', key: 'name' },
+            { title: '职位', key: 'title' },
+            { title: '层级', key: 'level' },
+        ];
+
+        window.exportScenario1 = function(fmt, indent) {
+            try {
+                const format = fmt === 'xlsx' ? ExportFormat.Xlsx : ExportFormat.Csv;
+                const filename = indent ? `组织架构_缩进.${fmt}` : `组织架构.${fmt}`;
+                export_data(
+                    orgData,
+                    orgColumns,
+                    filename,
+                    format,
+                    undefined,                     // progress_callback
+                    indent ? 'name' : undefined,   // indent_column
+                    indent ? 'children' : undefined // children_key
+                );
+                showStatus('status1', true, `✅ 导出成功: ${filename}`);
+            } catch(e) {
+                showStatus('status1', false, `❌ 导出失败: ${e}`);
+            }
+        };
+
+        // ===== 场景 2：商品分类（自定义 children_key）=====
+        const categoryData = [
+            {
+                id: 1, name: '电子产品', code: 'ELEC',
+                subCategories: [
+                    {
+                        id: 2, name: '手机', code: 'PHONE',
+                        subCategories: [
+                            { id: 5, name: '智能手机', code: 'SMART' },
+                            { id: 6, name: '功能手机', code: 'FEATURE' },
+                        ]
+                    },
+                    {
+                        id: 3, name: '电脑', code: 'PC',
+                        subCategories: [
+                            { id: 7, name: '笔记本', code: 'LAPTOP' },
+                            { id: 8, name: '台式机', code: 'DESKTOP' },
+                        ]
+                    },
+                ]
+            },
+            {
+                id: 4, name: '服装', code: 'CLOTH',
+                subCategories: [
+                    { id: 9, name: '男装', code: 'MALE' },
+                    {
+                        id: 10, name: '女装', code: 'FEMALE',
+                        subCategories: [
+                            { id: 11, name: '连衣裙', code: 'DRESS' },
+                        ]
+                    },
+                ]
+            },
+        ];
+
+        const categoryColumns = [
+            { title: 'ID', key: 'id' },
+            { title: '分类名称', key: 'name' },
+            { title: '编码', key: 'code' },
+        ];
+
+        window.exportScenario2 = function() {
+            try {
+                export_data(
+                    categoryData,
+                    categoryColumns,
+                    '商品分类.xlsx',
+                    ExportFormat.Xlsx,
+                    undefined,         // progress_callback
+                    'name',            // indent_column
+                    'subCategories',   // 自定义 children_key
+                );
+                showStatus('status2', true, '✅ 导出成功: 商品分类.xlsx');
+            } catch(e) {
+                showStatus('status2', false, `❌ 导出失败: ${e}`);
+            }
+        };
+
+        // ===== 场景 3：嵌套表头 + 树形数据 =====
+        const nestedColumns = [
+            { title: '部门', key: 'dept' },
+            {
+                title: '详情',
+                children: [
+                    { title: '负责人', key: 'leader' },
+                    { title: '人数', key: 'count' },
+                ]
+            },
+        ];
+
+        const deptTreeData = [
+            {
+                dept: '技术部', leader: '张三', count: 100,
+                children: [
+                    { dept: '前端组', leader: '李四', count: 30 },
+                    {
+                        dept: '后端组', leader: '王五', count: 70,
+                        children: [
+                            { dept: '数据库组', leader: '赵六', count: 20 },
+                        ]
+                    },
+                ]
+            },
+        ];
+
+        window.exportScenario3 = function() {
+            try {
+                export_data(
+                    deptTreeData,
+                    nestedColumns,
+                    '部门架构.xlsx',
+                    ExportFormat.Xlsx,
+                    undefined,    // progress_callback
+                    'dept',       // indent_column
+                    'children',   // children_key
+                );
+                showStatus('status3', true, '✅ 导出成功: 部门架构.xlsx');
+            } catch(e) {
+                showStatus('status3', false, `❌ 导出失败: ${e}`);
+            }
+        };
+
+        // ===== 场景 4：大数据量树 =====
+        function generateLargeTree(depth, breadth, prefix = '') {
+            const nodes = [];
+            for (let i = 1; i <= breadth; i++) {
+                const id = `${prefix}${i}`;
+                const node = {
+                    id: id,
+                    name: `节点_${id}`,
+                    value: Math.floor(Math.random() * 1000),
+                    status: Math.random() > 0.5 ? '启用' : '禁用',
+                };
+                if (depth > 1) {
+                    node.children = generateLargeTree(depth - 1, breadth, `${id}-`);
+                }
+                nodes.push(node);
+            }
+            return nodes;
+        }
+
+        const largeColumns = [
+            { title: 'ID', key: 'id' },
+            { title: '名称', key: 'name' },
+            { title: '值', key: 'value' },
+            { title: '状态', key: 'status' },
+        ];
+
+        window.exportScenario4 = function() {
+            try {
+                const start = performance.now();
+                const data = generateLargeTree(4, 5); // 5^4 = 625 叶子节点
+                export_data(
+                    data,
+                    largeColumns,
+                    '大数据量树.xlsx',
+                    ExportFormat.Xlsx,
+                    undefined,    // progress_callback
+                    'name',       // indent_column
+                    'children',   // children_key
+                );
+                const elapsed = (performance.now() - start).toFixed(0);
+                showStatus('status4', true, `✅ 导出成功，耗时: ${elapsed}ms`);
+            } catch(e) {
+                showStatus('status4', false, `❌ 导出失败: ${e}`);
+            }
+        };
+    </script>
+</body>
+</html>

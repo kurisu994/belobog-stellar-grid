@@ -30,7 +30,7 @@
 - **🚀 极致性能**：Rust 原生速度 + WebAssembly 优化
 - **🔒 企业级安全**：内置文件名验证，防止路径遍历攻击
 - **📦 轻量级**：约 117KB 的 WASM 文件（gzip 后约 40KB）
-- **✅ 100% 测试覆盖**：47 个单元测试确保代码质量
+- **✅ 100% 测试覆盖**：88 个单元测试确保代码质量
 - **🏗️ 模块化架构**：清晰的模块设计，易于维护和扩展
 - **🌍 国际化支持**：完美支持中文、日文、韩文等 Unicode 字符
 - **💾 多格式导出**：支持 CSV 和 XLSX (Excel) 两种格式
@@ -205,6 +205,9 @@ try {
 | basic-export.html      | ![简单](https://img.shields.io/badge/难度-简单-green)  | 基础导出示例 |
 | progress-export.html   | ![中等](https://img.shields.io/badge/难度-中等-yellow) | 进度显示示例 |
 | advanced-features.html | ![进阶](https://img.shields.io/badge/难度-进阶-orange) | 高级特性示例 |
+| container-export.html  | ![中等](https://img.shields.io/badge/难度-中等-yellow) | 容器元素导出示例 |
+| array-export.html      | ![进阶](https://img.shields.io/badge/难度-进阶-orange) | 数组导出（嵌套表头 + 数据合并）示例 |
+| tree-export.html       | ![进阶](https://img.shields.io/badge/难度-进阶-orange) | 树形数据导出（递归拍平 + 层级缩进）示例 |
 | virtual-scroll-export.html | ![高级](https://img.shields.io/badge/难度-高级-red) | 虚拟滚动导出（百万级数据）示例 |
 
 **运行示例**：
@@ -332,35 +335,90 @@ export_tables_xlsx(
 
 ---
 
-#### `export_data(data, columns?, filename?, format?, progress_callback?)` 🆕 直接数据导出
+#### `export_data(data, columns?, filename?, format?, callback?, indent_column?, children_key?)` 🆕 直接数据导出
 
-不依赖 DOM，直接将 JavaScript 二维数组或对象数组导出为 CSV 或 XLSX 文件。
+不依赖 DOM，直接将 JavaScript 二维数组或对象数组导出为 CSV 或 XLSX 文件。支持嵌套表头、数据合并和树形数据导出。
 
 **参数**：
 
 - `data`: JS 数组（二维数组 `Array<Array<any>>` 或对象数组 `Array<Object>`）
-- `columns`: 表头配置数组（可选，导出对象数组时必填）
+- `columns`: 表头配置数组（可选，导出对象数组时必填），支持嵌套 `children` 实现多级表头
 - `filename`: 导出文件名（可选）
 - `format`: 导出格式（可选，默认 CSV）
 - `progress_callback`: 进度回调函数（可选）
+- `indent_column`: 树形模式下，需要缩进的列的 key（可选，如 `"name"`）
+- `children_key`: 传入此参数启用树形数据模式，指定子节点字段名（可选，如 `"children"`）
 
 **示例**：
 
 ```javascript
 import { export_data, ExportFormat } from "belobog-stellar-grid";
 
+// 1. 二维数组导出
 const data = [
   ["姓名", "年龄", "城市"],
   ["张三", 28, "北京"],
   ["李四", 35, "上海"]
 ];
+export_data(data, undefined, "用户列表.csv");
 
-// 导出 CSV
-export_data(data, "用户列表.csv");
+// 2. 对象数组 + 表头配置
+const columns = [
+  { title: "姓名", key: "name" },
+  { title: "年龄", key: "age" }
+];
+const objData = [
+  { name: "张三", age: 28 },
+  { name: "李四", age: 35 }
+];
+export_data(objData, columns, "用户.xlsx", ExportFormat.Xlsx);
 
-// 导出 Excel
-export_data(data, "用户列表.xlsx", ExportFormat.Xlsx);
+// 3. 嵌套表头（多行表头 + 合并单元格）
+const nestedColumns = [
+  { title: "姓名", key: "name" },
+  { title: "其他", children: [
+    { title: "年龄", key: "age" },
+    { title: "住址", key: "address" }
+  ]}
+];
+export_data(objData, nestedColumns, "报表.xlsx", ExportFormat.Xlsx);
+
+// 4. 数据合并单元格（colSpan / rowSpan）
+const mergeData = [
+  { name: { value: "张三", rowSpan: 2 }, subject: "数学", score: 90 },
+  { name: { value: "", rowSpan: 0 }, subject: "英语", score: 85 },
+  { name: "李四", subject: "数学", score: 95 },
+];
+export_data(mergeData, columns, "合并.xlsx", ExportFormat.Xlsx);
+
+// 5. 树形数据导出（传入 children_key 启用树形模式）
+const treeData = [
+  {
+    name: 'CEO', title: 'CEO',
+    children: [
+      { name: 'CTO', title: 'CTO' },
+      { name: 'CFO', title: 'CFO',
+        children: [{ name: '会计', title: '会计' }]
+      }
+    ]
+  }
+];
+// 带层级缩进（name 列根据层级自动添加空格）
+export_data(treeData, columns, '组织架构.xlsx', ExportFormat.Xlsx, undefined, 'name', 'children');
+
+// 自定义 children 字段名
+export_data(data, columns, 'file.xlsx', ExportFormat.Xlsx, undefined, 'name', 'subCategories');
 ```
+
+**数据合并单元格说明**：
+
+当数据对象中的值为 `{ value, colSpan?, rowSpan? }` 格式时，自动处理合并：
+
+| 属性 | 说明 |
+|------|------|
+| `value` | 单元格显示的值 |
+| `colSpan` | 横向合并列数（默认 1，设为 0 表示被左侧合并覆盖） |
+| `rowSpan` | 纵向合并行数（默认 1，设为 0 表示被上方合并覆盖） |
 
 ---
 
@@ -491,14 +549,16 @@ belobog-stellar-grid/
 │   ├── core/              # 核心导出模块组
 │   │   ├── mod.rs         # 统一 API 和协调
 │   │   ├── table_extractor.rs  # 表格数据提取
+│   │   ├── data_export.rs # 数据导出（columns + dataSource，支持嵌套表头、数据合并、树形数据）
 │   │   ├── export_csv.rs  # CSV 导出
 │   │   └── export_xlsx.rs # XLSX 导出
 │   ├── batch_export.rs    # 异步分批导出
 │   └── utils.rs           # 调试工具
-├── tests/                 # 测试目录（47 个测试）
-│   ├── lib_tests.rs       # 基础功能测试（35 个）
+├── tests/                 # 测试目录（97 个测试）
+│   ├── lib_tests.rs       # 基础功能测试（41 个）
 │   ├── test_resource.rs   # RAII 资源测试（8 个）
-│   └── test_unified_api.rs # 统一 API 测试（4 个）
+│   ├── test_unified_api.rs # 统一 API 测试（4 个）
+│   └── test_data_export.rs # 数据导出测试（33 个）
 ├── examples/              # 示例目录
 ├── pkg/                   # WASM 包输出
 └── README.md             # 项目文档
@@ -545,6 +605,8 @@ belobog-stellar-grid/
 ### 其他
 
 - [x] 支持从 JavaScript 数组直接生成文件（不依赖 DOM）
+- [x] 支持数据区域合并单元格（colSpan / rowSpan）
+- [x] 支持树形数据导出（递归拍平 children + 层级缩进）
 - [ ] CSV 导出添加 BOM 头选项（兼容旧版 Excel）
 - [ ] 探索 Node.js/服务端支持可能性
 

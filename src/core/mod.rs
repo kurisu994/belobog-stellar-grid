@@ -6,7 +6,7 @@ mod export_csv;
 pub(crate) mod export_xlsx;
 mod table_extractor;
 
-use data_export::build_table_data_from_array;
+use data_export::{build_table_data_from_array, build_table_data_from_tree};
 use export_csv::export_as_csv;
 use export_xlsx::{export_as_xlsx, export_as_xlsx_multi};
 use table_extractor::extract_table_data;
@@ -239,7 +239,7 @@ fn parse_js_array_data(data: &JsValue) -> Result<Vec<Vec<String>>, JsValue> {
 
         // 确保每一行都是数组
         if !js_sys::Array::is_array(&row_val) {
-             return Err(JsValue::from_str(&format!(
+            return Err(JsValue::from_str(&format!(
                 "第 {} 行数据格式错误：期望是数组，实际不是。未提供 columns 时 data 必须是二维数组",
                 i + 1
             )));
@@ -302,6 +302,15 @@ fn parse_js_array_data(data: &JsValue) -> Result<Vec<Vec<String>>, JsValue> {
 ///   ]}
 /// ];
 /// export_data(data, nestedColumns, '用户.xlsx', ExportFormat.Xlsx);
+///
+/// // 4. 树形数据导出（递归拍平 children + 层级缩进）
+/// const treeData = [
+///   { name: 'CEO', children: [
+///     { name: 'CTO' },
+///     { name: 'CFO', children: [{ name: '会计' }] }
+///   ]}
+/// ];
+/// export_data(treeData, columns, '组织架构.xlsx', ExportFormat.Xlsx, null, 'name', 'children');
 /// ```
 #[wasm_bindgen]
 pub fn export_data(
@@ -310,6 +319,8 @@ pub fn export_data(
     filename: Option<String>,
     format: Option<ExportFormat>,
     progress_callback: Option<js_sys::Function>,
+    indent_column: Option<String>,
+    children_key: Option<String>,
 ) -> Result<(), JsValue> {
     let format = format.unwrap_or_default();
 
@@ -327,6 +338,16 @@ pub fn export_data(
                     };
                     export_as_xlsx(table_data, filename, progress_callback)
                 }
+            };
+        }
+
+        // 判断是否为树形数据模式（提供了 children_key）
+        if let Some(ck) = children_key {
+            let table_data =
+                build_table_data_from_tree(&cols, &data, indent_column.as_deref(), &ck)?;
+            return match format {
+                ExportFormat::Csv => export_as_csv(table_data.rows, filename, progress_callback),
+                ExportFormat::Xlsx => export_as_xlsx(table_data, filename, progress_callback),
             };
         }
 
