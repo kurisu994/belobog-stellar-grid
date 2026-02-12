@@ -139,16 +139,9 @@ pub fn export_as_xlsx_multi(
         // 写入数据
         for (i, row_data) in table_data.rows.iter().enumerate() {
             for (j, cell_text) in row_data.iter().enumerate() {
-                // 检测公式：以 = 开头且长度大于 1 的内容视为公式
-                if cell_text.starts_with('=') && cell_text.len() > 1 {
-                    worksheet
-                        .write_formula(i as u32, j as u16, cell_text.as_str())
-                        .map_err(|e| JsValue::from_str(&format!("写入 Excel 公式失败: {}", e)))?;
-                } else {
-                    worksheet
-                        .write_string(i as u32, j as u16, cell_text)
-                        .map_err(|e| JsValue::from_str(&format!("写入 Excel 单元格失败: {}", e)))?;
-                }
+                worksheet
+                    .write_string(i as u32, j as u16, cell_text)
+                    .map_err(|e| JsValue::from_str(&format!("写入 Excel 单元格失败: {}", e)))?;
             }
 
             // 报告进度（数据写入阶段占 0% - 80%，按 sheet 均分）

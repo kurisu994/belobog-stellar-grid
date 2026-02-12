@@ -33,8 +33,8 @@ pub fn validate_filename(filename: &str) -> Result<(), String> {
         }
     }
 
-    // 检查文件名长度（大多数文件系统限制为 255 字节）
-    if filename.len() > 255 {
+    // 检查文件名长度（大多数文件系统限制为 255 个字符）
+    if filename.chars().count() > 255 {
         return Err("文件名过长（最大 255 个字符）".to_string());
     }
 

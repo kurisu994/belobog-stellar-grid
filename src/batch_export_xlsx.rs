@@ -2,92 +2,15 @@
 ///
 /// 提供大数据量表格的分批处理功能，避免阻塞主线程
 /// 采用两阶段策略：分批读取 DOM 数据 + 同步生成 XLSX
-use crate::core::find_table_element;
-use crate::resource::UrlGuard;
-use crate::utils::is_element_hidden;
-use crate::validation::{ensure_extension, validate_filename};
+use crate::core::{
+    MergeRange, TableData, create_and_download_xlsx, find_table_element, get_cell_span,
+};
+use crate::utils::{is_element_hidden, yield_to_browser};
 use rust_xlsxwriter::{Format, Workbook};
 use std::collections::HashMap;
 use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::*;
-use wasm_bindgen_futures::JsFuture;
-use web_sys::{
-    Blob, HtmlAnchorElement, HtmlTableCellElement, HtmlTableRowElement, HtmlTableSectionElement,
-    Url,
-};
-
-/// 合并单元格区域信息
-#[derive(Debug, Clone)]
-struct MergeRange {
-    /// 起始行索引（0-based）
-    first_row: u32,
-    /// 起始列索引（0-based）
-    first_col: u16,
-    /// 结束行索引（0-based，inclusive）
-    last_row: u32,
-    /// 结束列索引（0-based，inclusive）
-    last_col: u16,
-}
-
-impl MergeRange {
-    /// 创建新的合并区域
-    fn new(first_row: u32, first_col: u16, last_row: u32, last_col: u16) -> Self {
-        Self {
-            first_row,
-            first_col,
-            last_row,
-            last_col,
-        }
-    }
-}
-
-/// 分批导出用的表格数据结构
-#[derive(Debug)]
-struct BatchTableData {
-    /// 二维字符串数组，表示表格数据
-    rows: Vec<Vec<String>>,
-    /// 合并单元格区域列表
-    merge_ranges: Vec<MergeRange>,
-}
-
-impl BatchTableData {
-    #[allow(dead_code)]
-    fn new() -> Self {
-        Self {
-            rows: Vec::new(),
-            merge_ranges: Vec::new(),
-        }
-    }
-
-    fn with_capacity(capacity: usize) -> Self {
-        Self {
-            rows: Vec::with_capacity(capacity),
-            merge_ranges: Vec::new(),
-        }
-    }
-}
-
-/// 单元格跨度信息
-struct CellSpan {
-    /// 单元格文本内容
-    text: String,
-    /// 列跨度（colspan 属性值）
-    colspan: u32,
-    /// 行跨度（rowspan 属性值）
-    rowspan: u32,
-}
-
-/// 获取单元格的跨度信息
-fn get_cell_span(cell: &HtmlTableCellElement) -> CellSpan {
-    let text = cell.inner_text();
-    let colspan = cell.col_span().max(1);
-    let rowspan = cell.row_span().max(1);
-    CellSpan {
-        text,
-        colspan,
-        rowspan,
-    }
-}
+use web_sys::{HtmlTableCellElement, HtmlTableRowElement, HtmlTableSectionElement};
 
 /// 分批异步导出 HTML 表格到 XLSX 文件
 ///
@@ -171,7 +94,7 @@ async fn extract_table_data_batch(
     batch_size: usize,
     exclude_hidden: bool,
     progress_callback: &Option<js_sys::Function>,
-) -> Result<BatchTableData, JsValue> {
+) -> Result<TableData, JsValue> {
     // 安全地获取全局的 window 和 document 对象
     let window = web_sys::window().ok_or_else(|| JsValue::from_str("无法获取 window 对象"))?;
     let document = window
@@ -214,7 +137,7 @@ async fn extract_table_data_batch(
         return Err(JsValue::from_str("表格为空，没有数据可导出"));
     }
 
-    let mut table_data = BatchTableData::with_capacity(total_rows);
+    let mut table_data = TableData::with_capacity(total_rows);
 
     // 用于追踪被 rowspan 占用的位置
     let mut rowspan_tracker: HashMap<(usize, usize), String> = HashMap::new();
@@ -285,13 +208,41 @@ async fn extract_table_data_batch(
 
                 let span = get_cell_span(&cell);
 
-                // 记录合并区域（仅当 colspan > 1 或 rowspan > 1 时）
-                if span.colspan > 1 || span.rowspan > 1 {
+                // 计算实际覆盖的可见行数 (effective_rowspan)
+                let mut visible_rows_covered = 0;
+                if span.rowspan > 1 {
+                    for r in 1..span.rowspan as usize {
+                        let next_row_idx = i + r;
+                        let next_row = if next_row_idx < table_row_count {
+                            table_rows.get_with_index(next_row_idx as u32)
+                        } else if let Some(ref rows) = tbody_rows_collection {
+                            rows.get_with_index((next_row_idx - table_row_count) as u32)
+                        } else {
+                            None
+                        };
+
+                        if let Some(next_row) = next_row {
+                            #[allow(clippy::collapsible_if)]
+                            if let Ok(next_row_el) = next_row.dyn_into::<HtmlTableRowElement>() {
+                                if !exclude_hidden || !is_element_hidden(&next_row_el) {
+                                    visible_rows_covered += 1;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                let last_row = output_row_idx + visible_rows_covered;
+                // 此时 col_idx 是当前单元格的起始列
+                let last_col = (col_idx + span.colspan as usize - 1) as u16;
+
+                // 记录合并区域（仅当范围覆盖多个单元格时）
+                if last_row > output_row_idx || last_col as usize > col_idx {
                     table_data.merge_ranges.push(MergeRange::new(
                         output_row_idx,
                         col_idx as u16,
-                        output_row_idx + span.rowspan - 1,
-                        (col_idx + span.colspan as usize - 1) as u16,
+                        last_row,
+                        last_col,
                     ));
                 }
 
@@ -349,7 +300,7 @@ async fn extract_table_data_batch(
 ///
 /// 内存中的数据写入 XLSX 非常快，通常 < 500ms
 fn generate_and_download_xlsx(
-    table_data: BatchTableData,
+    table_data: TableData,
     filename: Option<String>,
     progress_callback: &Option<js_sys::Function>,
 ) -> Result<(), JsValue> {
@@ -362,16 +313,9 @@ fn generate_and_download_xlsx(
     // 写入所有数据
     for (i, row_data) in table_data.rows.iter().enumerate() {
         for (j, cell_text) in row_data.iter().enumerate() {
-            // 检测公式：以 = 开头且长度大于 1 的内容视为公式
-            if cell_text.starts_with('=') && cell_text.len() > 1 {
-                worksheet
-                    .write_formula(i as u32, j as u16, cell_text.as_str())
-                    .map_err(|e| JsValue::from_str(&format!("写入 Excel 公式失败: {}", e)))?;
-            } else {
-                worksheet
-                    .write_string(i as u32, j as u16, cell_text)
-                    .map_err(|e| JsValue::from_str(&format!("写入 Excel 单元格失败: {}", e)))?;
-            }
+            worksheet
+                .write_string(i as u32, j as u16, cell_text)
+                .map_err(|e| JsValue::from_str(&format!("写入 Excel 单元格失败: {}", e)))?;
         }
 
         // 定期报告进度（XLSX 生成阶段占 80% - 95%）
@@ -383,16 +327,22 @@ fn generate_and_download_xlsx(
         }
     }
 
-    // 应用合并单元格
+    // 应用合并单元格（需要传入首单元格文本，因为 merge_range 会覆盖内容）
     let merge_format = Format::new();
     for merge in &table_data.merge_ranges {
+        let text = table_data
+            .rows
+            .get(merge.first_row as usize)
+            .and_then(|row| row.get(merge.first_col as usize))
+            .map(|s| s.as_str())
+            .unwrap_or("");
         worksheet
             .merge_range(
                 merge.first_row,
                 merge.first_col,
                 merge.last_row,
                 merge.last_col,
-                "", // 使用空字符串，因为内容已经写入了
+                text,
                 &merge_format,
             )
             .map_err(|e| JsValue::from_str(&format!("合并单元格失败: {}", e)))?;
@@ -414,53 +364,6 @@ fn generate_and_download_xlsx(
 
     // 创建并下载文件
     create_and_download_xlsx(&xlsx_bytes, filename)
-}
-
-/// 创建 Excel Blob 并触发下载
-fn create_and_download_xlsx(data: &[u8], filename: Option<String>) -> Result<(), JsValue> {
-    let window = web_sys::window().ok_or_else(|| JsValue::from_str("无法获取 window 对象"))?;
-    let document = window
-        .document()
-        .ok_or_else(|| JsValue::from_str("无法获取 document 对象"))?;
-
-    // 创建 Excel Blob 对象
-    let blob_property_bag = web_sys::BlobPropertyBag::new();
-    blob_property_bag.set_type("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-
-    let array = js_sys::Array::of1(&js_sys::Uint8Array::from(data));
-    let blob = Blob::new_with_u8_array_sequence_and_options(&array, &blob_property_bag)
-        .map_err(|e| JsValue::from_str(&format!("创建 Blob 对象失败: {:?}", e)))?;
-
-    // 创建下载链接
-    let url = Url::create_object_url_with_blob(&blob)
-        .map_err(|e| JsValue::from_str(&format!("创建下载链接失败: {:?}", e)))?;
-
-    // 使用 RAII 模式确保 URL 资源释放
-    let _url_guard = UrlGuard::new(&url);
-
-    // 设置文件名
-    let final_filename = filename.unwrap_or_else(|| "table_export.xlsx".to_string());
-
-    // 验证文件名安全性
-    if let Err(e) = validate_filename(&final_filename) {
-        return Err(JsValue::from_str(&format!("文件名验证失败: {}", e)));
-    }
-
-    let final_filename = ensure_extension(&final_filename, "xlsx");
-
-    // 创建下载链接元素
-    let anchor = document
-        .create_element("a")
-        .map_err(|e| JsValue::from_str(&format!("创建下载链接元素失败: {:?}", e)))?;
-    let anchor = anchor
-        .dyn_into::<HtmlAnchorElement>()
-        .map_err(|_| JsValue::from_str("创建的元素不是有效的锚点元素"))?;
-
-    anchor.set_href(&url);
-    anchor.set_download(&final_filename);
-    anchor.click();
-
-    Ok(())
 }
 
 /// 多工作表分批异步导出配置项（从 JS 对象解析）
@@ -579,7 +482,7 @@ pub async fn export_tables_to_xlsx_batch(
     }
 
     // 阶段一：逐个表格分批提取数据（0% - 80% 进度）
-    let mut all_sheets_data: Vec<(String, BatchTableData)> = Vec::with_capacity(total_sheets);
+    let mut all_sheets_data: Vec<(String, TableData)> = Vec::with_capacity(total_sheets);
 
     for (sheet_idx, config) in configs.iter().enumerate() {
         // 计算当前 sheet 在阶段一中的进度范围
@@ -623,7 +526,7 @@ async fn extract_table_data_batch_with_offset(
     batch_size: usize,
     exclude_hidden: bool,
     progress_info: &Option<(js_sys::Function, f64, f64)>,
-) -> Result<BatchTableData, JsValue> {
+) -> Result<TableData, JsValue> {
     let window = web_sys::window().ok_or_else(|| JsValue::from_str("无法获取 window 对象"))?;
     let document = window
         .document()
@@ -665,7 +568,7 @@ async fn extract_table_data_batch_with_offset(
         return Err(JsValue::from_str("表格为空，没有数据可导出"));
     }
 
-    let mut table_data = BatchTableData::with_capacity(total_rows);
+    let mut table_data = TableData::with_capacity(total_rows);
     let mut rowspan_tracker: HashMap<(usize, usize), String> = HashMap::new();
     let mut output_row_idx: u32 = 0;
 
@@ -726,12 +629,40 @@ async fn extract_table_data_batch_with_offset(
 
                 let span = get_cell_span(&cell);
 
-                if span.colspan > 1 || span.rowspan > 1 {
+                // 计算实际覆盖的可见行数 (effective_rowspan)
+                let mut visible_rows_covered = 0;
+                if span.rowspan > 1 {
+                    for r in 1..span.rowspan as usize {
+                        let next_row_idx = i + r;
+                        let next_row = if next_row_idx < table_row_count {
+                            table_rows.get_with_index(next_row_idx as u32)
+                        } else if let Some(ref rows) = tbody_rows_collection {
+                            rows.get_with_index((next_row_idx - table_row_count) as u32)
+                        } else {
+                            None
+                        };
+
+                        if let Some(next_row) = next_row {
+                            #[allow(clippy::collapsible_if)]
+                            if let Ok(next_row_el) = next_row.dyn_into::<HtmlTableRowElement>() {
+                                if !exclude_hidden || !is_element_hidden(&next_row_el) {
+                                    visible_rows_covered += 1;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                let last_row = output_row_idx + visible_rows_covered;
+                let last_col = (col_idx + span.colspan as usize - 1) as u16;
+
+                // 记录合并区域（仅当范围覆盖多个单元格时）
+                if last_row > output_row_idx || last_col as usize > col_idx {
                     table_data.merge_ranges.push(MergeRange::new(
                         output_row_idx,
                         col_idx as u16,
-                        output_row_idx + span.rowspan - 1,
-                        (col_idx + span.colspan as usize - 1) as u16,
+                        last_row,
+                        last_col,
                     ));
                 }
 
@@ -784,7 +715,7 @@ async fn extract_table_data_batch_with_offset(
 
 /// 同步生成多工作表 XLSX 文件并触发下载
 fn generate_and_download_xlsx_multi(
-    all_sheets_data: Vec<(String, BatchTableData)>,
+    all_sheets_data: Vec<(String, TableData)>,
     filename: Option<String>,
     progress_callback: &Option<js_sys::Function>,
 ) -> Result<(), JsValue> {
@@ -808,15 +739,9 @@ fn generate_and_download_xlsx_multi(
         // 写入数据
         for (i, row_data) in table_data.rows.iter().enumerate() {
             for (j, cell_text) in row_data.iter().enumerate() {
-                if cell_text.starts_with('=') && cell_text.len() > 1 {
-                    worksheet
-                        .write_formula(i as u32, j as u16, cell_text.as_str())
-                        .map_err(|e| JsValue::from_str(&format!("写入 Excel 公式失败: {}", e)))?;
-                } else {
-                    worksheet
-                        .write_string(i as u32, j as u16, cell_text)
-                        .map_err(|e| JsValue::from_str(&format!("写入 Excel 单元格失败: {}", e)))?;
-                }
+                worksheet
+                    .write_string(i as u32, j as u16, cell_text)
+                    .map_err(|e| JsValue::from_str(&format!("写入 Excel 单元格失败: {}", e)))?;
             }
 
             // 报告进度（XLSX 生成阶段占 80% - 95%，按 sheet 均分）
@@ -832,16 +757,22 @@ fn generate_and_download_xlsx_multi(
             }
         }
 
-        // 应用合并单元格
+        // 应用合并单元格（需要传入首单元格文本，因为 merge_range 会覆盖内容）
         let merge_format = Format::new();
         for merge in &table_data.merge_ranges {
+            let text = table_data
+                .rows
+                .get(merge.first_row as usize)
+                .and_then(|row| row.get(merge.first_col as usize))
+                .map(|s| s.as_str())
+                .unwrap_or("");
             worksheet
                 .merge_range(
                     merge.first_row,
                     merge.first_col,
                     merge.last_row,
                     merge.last_col,
-                    "",
+                    text,
                     &merge_format,
                 )
                 .map_err(|e| JsValue::from_str(&format!("合并单元格失败: {}", e)))?;
@@ -862,15 +793,4 @@ fn generate_and_download_xlsx_multi(
     }
 
     create_and_download_xlsx(&xlsx_bytes, filename)
-}
-
-/// 让出控制权给浏览器事件循环
-async fn yield_to_browser() -> Result<(), JsValue> {
-    let promise = js_sys::Promise::new(&mut |resolve, _reject| {
-        let window = web_sys::window().expect("无法获取 window 对象");
-        let _ = window.set_timeout_with_callback_and_timeout_and_arguments_0(&resolve, 0);
-    });
-
-    JsFuture::from(promise).await?;
-    Ok(())
 }

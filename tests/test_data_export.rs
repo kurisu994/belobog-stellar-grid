@@ -262,6 +262,7 @@ fn test_merge_range_both_spans() {
 #[test]
 fn test_merge_ranges_combination() {
     // 模拟合并表头和数据的 merge_ranges
+    #[allow(unused)]
     struct SimpleMergeRange {
         first_row: u32,
         first_col: u16,
@@ -371,7 +372,7 @@ fn test_full_layout_with_data_merge() {
     let header_row_count = header_rows.len();
     assert_eq!(header_row_count, 2);
     // 张三在数据第0行，实际在第2行
-    assert_eq!(0 + header_row_count, 2);
+    assert_eq!(header_row_count, 2);
 }
 
 #[test]
@@ -410,7 +411,7 @@ fn test_empty_data_with_merge() {
 #[test]
 fn test_single_row_no_merge() {
     // 单行数据，所有单元格 span=1，不产生合并
-    let row = vec!["张三", "28", "北京"];
+    let row = ["张三", "28", "北京"];
     let merges: Vec<(u32, u32)> = Vec::new();
 
     assert_eq!(row.len(), 3);

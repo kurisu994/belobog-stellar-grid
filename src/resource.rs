@@ -35,8 +35,10 @@ impl Drop for UrlGuard {
             // 确保在对象销毁时释放 URL 资源
             if let Err(e) = Url::revoke_object_url(&self.url) {
                 // 记录错误但不阻止程序执行
-                // 在实际应用中，这里可以使用 console.error 或其他日志机制
-                wasm_bindgen::JsValue::from_str(&format!("释放 URL 资源失败: {:?}", e));
+                web_sys::console::error_1(&wasm_bindgen::JsValue::from_str(&format!(
+                    "释放 URL 资源失败: {:?}",
+                    e
+                )));
             }
         }
 

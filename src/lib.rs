@@ -5,11 +5,6 @@ mod resource;
 mod utils;
 mod validation;
 
-// 使用 `wee_alloc` 作为全局分配器以减小 WASM 文件大小
-#[cfg(feature = "wee_alloc")]
-#[global_allocator]
-static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
-
 // 重新导出所有公共 API
 pub use resource::UrlGuard;
 pub use validation::{ensure_extension, validate_filename};
@@ -22,4 +17,4 @@ pub use batch_export::export_table_to_csv_batch;
 pub use batch_export_xlsx::{export_table_to_xlsx_batch, export_tables_to_xlsx_batch};
 
 // 导出 utils 模块的公共函数
-pub use utils::set_panic_hook;
+pub use utils::{escape_csv_injection, set_panic_hook};

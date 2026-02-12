@@ -1,6 +1,7 @@
 //! 完整的单元测试套件
 //!
 //! 这个模块包含了所有核心功能的单元测试，旨在达到 100% 代码覆盖率
+#![allow(clippy::const_is_empty)]
 
 use belobog_stellar_grid::{ensure_extension, validate_filename};
 use csv::Writer;

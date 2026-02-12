@@ -35,7 +35,12 @@ pub fn export_as_csv(
 
     // 写入所有数据，并报告进度
     for (index, row_data) in table_data.into_iter().enumerate() {
-        wtr.write_record(&row_data)
+        let safe_row: Vec<std::borrow::Cow<str>> = row_data
+            .iter()
+            .map(|cell| crate::utils::escape_csv_injection(cell))
+            .collect();
+
+        wtr.write_record(safe_row.iter().map(|s| s.as_bytes()))
             .map_err(|e| JsValue::from_str(&format!("写入 CSV 数据失败: {}", e)))?;
 
         // 定期报告进度（每10行或最后一行）
@@ -69,7 +74,10 @@ pub fn export_as_csv(
 /// # 参数
 /// * `data` - CSV 数据字节
 /// * `filename` - 可选的导出文件名
-fn create_and_download_csv(data: &[u8], filename: Option<String>) -> Result<(), JsValue> {
+pub(crate) fn create_and_download_csv(
+    data: &[u8],
+    filename: Option<String>,
+) -> Result<(), JsValue> {
     let window = web_sys::window().ok_or_else(|| JsValue::from_str("无法获取 window 对象"))?;
     let document = window
         .document()

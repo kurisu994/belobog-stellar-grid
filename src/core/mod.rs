@@ -7,11 +7,14 @@ pub(crate) mod export_xlsx;
 mod table_extractor;
 
 use data_export::{build_table_data_from_array, build_table_data_from_tree};
+pub(crate) use export_csv::create_and_download_csv;
 use export_csv::export_as_csv;
+pub(crate) use export_xlsx::create_and_download_xlsx;
 use export_xlsx::{export_as_xlsx, export_as_xlsx_multi};
 use table_extractor::extract_table_data;
-pub(crate) use table_extractor::extract_table_data_with_merge;
-pub(crate) use table_extractor::find_table_element;
+pub(crate) use table_extractor::{
+    MergeRange, TableData, extract_table_data_with_merge, find_table_element, get_cell_span,
+};
 use wasm_bindgen::prelude::*;
 
 /// 导出格式枚举

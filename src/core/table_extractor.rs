@@ -91,6 +91,14 @@ impl TableData {
         }
     }
 
+    /// 创建指定容量的表格数据
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            rows: Vec::with_capacity(capacity),
+            merge_ranges: Vec::new(),
+        }
+    }
+
     /// 获取纯文本数据（用于 CSV 导出等场景）
     pub fn into_rows(self) -> Vec<Vec<String>> {
         self.rows
@@ -104,13 +112,13 @@ impl Default for TableData {
 }
 
 /// 单元格跨度信息
-struct CellSpan {
+pub(crate) struct CellSpan {
     /// 单元格文本内容
-    text: String,
+    pub text: String,
     /// 列跨度（colspan 属性值）
-    colspan: u32,
+    pub colspan: u32,
     /// 行跨度（rowspan 属性值）
-    rowspan: u32,
+    pub rowspan: u32,
 }
 
 /// 获取单元格的跨度信息
@@ -120,7 +128,7 @@ struct CellSpan {
 ///
 /// # 返回值
 /// 包含文本内容和跨度信息的 CellSpan 结构
-fn get_cell_span(cell: &HtmlTableCellElement) -> CellSpan {
+pub(crate) fn get_cell_span(cell: &HtmlTableCellElement) -> CellSpan {
     let text = cell.inner_text();
     // colspan/rowspan 最小为 1
     let colspan = cell.col_span().max(1);
@@ -250,13 +258,35 @@ pub fn extract_table_data_with_merge(
 
             let span = get_cell_span(&cell);
 
-            // 记录合并区域（仅当 colspan > 1 或 rowspan > 1 时）
-            if span.colspan > 1 || span.rowspan > 1 {
+            // 计算实际覆盖的可见行数 (effective_rowspan)
+            let mut visible_rows_covered = 0;
+            if span.rowspan > 1 {
+                for r in 1..span.rowspan {
+                    let next_row_idx = row_idx + r;
+                    // 安全获取下一行
+                    if let Some(next_row) = rows.get_with_index(next_row_idx) {
+                        // 检查是否可见
+                        #[allow(clippy::collapsible_if)]
+                        if let Ok(next_row_el) = next_row.dyn_into::<HtmlTableRowElement>() {
+                            if !exclude_hidden || !is_element_hidden(&next_row_el) {
+                                visible_rows_covered += 1;
+                            }
+                        }
+                    }
+                }
+            }
+
+            let last_row = output_row_idx + visible_rows_covered;
+            // 此时 col_idx 是当前单元格的起始列
+            let last_col = (col_idx + span.colspan as usize - 1) as u16;
+
+            // 记录合并区域（仅当范围覆盖多个单元格时）
+            if last_row > output_row_idx || last_col as usize > col_idx {
                 result.merge_ranges.push(MergeRange::new(
                     output_row_idx,
                     col_idx as u16,
-                    output_row_idx + span.rowspan - 1,
-                    (col_idx + span.colspan as usize - 1) as u16,
+                    last_row,
+                    last_col,
                 ));
             }
 

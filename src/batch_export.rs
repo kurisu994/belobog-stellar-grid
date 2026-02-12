@@ -2,42 +2,14 @@
 ///
 /// 提供大数据量表格的分批处理功能，避免阻塞主线程
 /// 支持合并单元格（colspan/rowspan）
-use crate::core::find_table_element;
-use crate::resource::UrlGuard;
-use crate::utils::is_element_hidden;
-use crate::validation::{ensure_extension, validate_filename};
+use crate::core::{create_and_download_csv, find_table_element, get_cell_span};
+use crate::utils::{is_element_hidden, yield_to_browser};
 use csv::Writer;
 use std::collections::HashMap;
 use std::io::Cursor;
 use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::*;
-use wasm_bindgen_futures::JsFuture;
-use web_sys::{
-    Blob, HtmlAnchorElement, HtmlTableCellElement, HtmlTableRowElement, HtmlTableSectionElement,
-    Url,
-};
-
-/// 单元格跨度信息
-struct CellSpan {
-    /// 单元格文本内容
-    text: String,
-    /// 列跨度（colspan 属性值）
-    colspan: u32,
-    /// 行跨度（rowspan 属性值）
-    rowspan: u32,
-}
-
-/// 获取单元格的跨度信息
-fn get_cell_span(cell: &HtmlTableCellElement) -> CellSpan {
-    let text = cell.inner_text();
-    let colspan = cell.col_span().max(1);
-    let rowspan = cell.row_span().max(1);
-    CellSpan {
-        text,
-        colspan,
-        rowspan,
-    }
-}
+use web_sys::{HtmlTableCellElement, HtmlTableRowElement, HtmlTableSectionElement};
 
 /// 分批异步导出 HTML 表格到 CSV 文件
 ///
@@ -186,7 +158,8 @@ pub async fn export_table_to_csv_batch(
             for cell_idx in 0..cell_count {
                 // 处理被上方 rowspan 占用的列
                 while let Some(text) = rowspan_tracker.remove(&(i, col_idx)) {
-                    row_data.push(text);
+                    let safe_text = crate::utils::escape_csv_injection(&text);
+                    row_data.push(safe_text.into_owned());
                     col_idx += 1;
                 }
 
@@ -227,10 +200,15 @@ pub async fn export_table_to_csv_batch(
                     }
                 }
 
-                // 处理 colspan: 当前单元格内容 + 空白填充
-                row_data.push(span.text);
-                for _ in 1..span.colspan {
-                    row_data.push(String::new());
+                // 处理当前单元格内容
+                let safe_text = crate::utils::escape_csv_injection(&span.text);
+                row_data.push(safe_text.into_owned());
+
+                // 处理 colspan
+                if span.colspan > 1 {
+                    for _ in 1..span.colspan {
+                        row_data.push(String::new());
+                    }
                 }
 
                 col_idx += span.colspan as usize;
@@ -238,13 +216,14 @@ pub async fn export_table_to_csv_batch(
 
             // 处理行尾残留的 rowspan 占位
             while let Some(text) = rowspan_tracker.remove(&(i, col_idx)) {
-                row_data.push(text);
+                let safe_text = crate::utils::escape_csv_injection(&text);
+                row_data.push(safe_text.into_owned());
                 col_idx += 1;
             }
 
-            // 安全地将行数据写入 CSV
+            // 写入 CSV 记录
             wtr.write_record(&row_data)
-                .map_err(|e| JsValue::from_str(&format!("写入 CSV 数据失败: {}", e)))?;
+                .map_err(|e| JsValue::from_str(&format!("写入 CSV 记录失败: {:?}", e)))?;
         }
 
         current_row = batch_end;
@@ -274,56 +253,8 @@ pub async fn export_table_to_csv_batch(
         return Err(JsValue::from_str("没有可导出的数据"));
     }
 
-    // 安全地创建 Blob 对象
-    let blob_property_bag = web_sys::BlobPropertyBag::new();
-    blob_property_bag.set_type("text/csv;charset=utf-8");
-
-    let array = js_sys::Array::of1(&js_sys::Uint8Array::from(&csv_data.get_ref()[..]));
-    let blob = Blob::new_with_u8_array_sequence_and_options(&array, &blob_property_bag)
-        .map_err(|e| JsValue::from_str(&format!("创建 Blob 对象失败: {:?}", e)))?;
-
-    // 安全地创建下载链接
-    let url = Url::create_object_url_with_blob(&blob)
-        .map_err(|e| JsValue::from_str(&format!("创建下载链接失败: {:?}", e)))?;
-
-    // 使用 RAII 模式确保 URL 资源释放
-    let _url_guard = UrlGuard::new(&url);
-
-    // 设置文件名（默认为 table_export.csv）
-    let final_filename = filename.unwrap_or_else(|| "table_export.csv".to_string());
-
-    // 验证文件名安全性
-    if let Err(e) = validate_filename(&final_filename) {
-        return Err(JsValue::from_str(&format!("文件名验证失败: {}", e)));
-    }
-
-    let final_filename = ensure_extension(&final_filename, "csv");
-
-    let anchor = document
-        .create_element("a")
-        .map_err(|e| JsValue::from_str(&format!("创建下载链接元素失败: {:?}", e)))?;
-    let anchor = anchor
-        .dyn_into::<HtmlAnchorElement>()
-        .map_err(|_| JsValue::from_str("创建的元素不是有效的锚点元素"))?;
-
-    anchor.set_href(&url);
-    anchor.set_download(&final_filename);
-
-    // 触发下载
-    anchor.click();
+    // 创建并下载 CSV 文件
+    create_and_download_csv(csv_data.get_ref(), filename)?;
 
     Ok(JsValue::UNDEFINED)
-}
-
-/// 让出控制权给浏览器事件循环
-///
-/// 使用 setTimeout(0) 创建一个微任务，允许浏览器处理其他事件
-async fn yield_to_browser() -> Result<(), JsValue> {
-    let promise = js_sys::Promise::new(&mut |resolve, _reject| {
-        let window = web_sys::window().expect("无法获取 window 对象");
-        let _ = window.set_timeout_with_callback_and_timeout_and_arguments_0(&resolve, 0);
-    });
-
-    JsFuture::from(promise).await?;
-    Ok(())
 }

@@ -358,12 +358,7 @@ pub(crate) fn js_value_to_string(val: &JsValue) -> String {
     } else if let Some(s) = val.as_string() {
         s
     } else if let Some(n) = val.as_f64() {
-        // 整数不带小数点
-        if n.fract() == 0.0 && n.abs() < i64::MAX as f64 {
-            format!("{}", n as i64)
-        } else {
-            format!("{}", n)
-        }
+        n.to_string()
     } else if let Some(b) = val.as_bool() {
         b.to_string()
     } else {
