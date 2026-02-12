@@ -20,7 +20,7 @@ use web_sys::{HtmlTableCellElement, HtmlTableRowElement, HtmlTableSectionElement
 ///
 /// # 参数
 /// * `table_id` - 要导出的 HTML 表格元素的 ID
-/// * `tbody_id` - 可选的数据表格体 ID（用于分离表头和数据）
+/// * `tbody_id` - 可选的数据表格体 ID（用于分离表头和数据）。**注意**：此 ID 应指向**不在** `table_id` 所指表格内部的独立 `<tbody>` 元素。如果传入的 `tbody` 在 `table` 内部，会导致该部分数据被重复导出（一次作为 table 的一部分，一次作为独立 tbody）。
 /// * `filename` - 可选的导出文件名（默认为 "table_export.xlsx"）
 /// * `batch_size` - 每批处理的行数（默认 1000）
 /// * `exclude_hidden` - 可选，是否排除隐藏的行和列（默认为 false）
@@ -189,7 +189,7 @@ fn generate_and_download_xlsx(
 struct BatchSheetConfig {
     /// 表格元素 ID
     table_id: String,
-    /// 可选的 tbody ID
+    /// 可选的 tbody ID。**注意**：此 ID 应指向**不在** `table_id` 所指表格内部的独立 `<tbody>` 元素。如果传入的 `tbody` 在 `table` 内部，会导致该部分数据被重复导出（一次作为 table 的一部分，一次作为独立 tbody）。
     tbody_id: Option<String>,
     /// 工作表名称（可选，默认为 "Sheet{idx+1}"）
     sheet_name: Option<String>,
@@ -261,7 +261,7 @@ fn parse_batch_sheet_configs(sheets: &JsValue) -> Result<Vec<BatchSheetConfig>, 
 /// 将页面上多个 HTML 表格分批异步提取后导出到同一 Excel 文件的不同工作表中
 ///
 /// # 参数
-/// * `sheets` - JS 数组，每个元素为 `{ tableId: string, tbodyId?: string, sheetName?: string, excludeHidden?: boolean }`
+/// * `sheets` - JS 数组，每个元素为 `{ tableId: string, tbodyId?: string, sheetName?: string, excludeHidden?: boolean }`。**注意**：如果有 `tbodyId`，此 ID 应指向**不在** `tableId` 所指表格内部的独立 `<tbody>` 元素。如果传入的 `tbody` 在 `table` 内部，会导致该使用部分数据被重复导出（一次作为 table 的一部分，一次作为独立 tbody）。
 /// * `filename` - 可选的导出文件名（默认为 "table_export.xlsx"）
 /// * `batch_size` - 每批处理的行数（默认 1000）
 /// * `progress_callback` - 进度回调函数，接收进度百分比 (0-100)
