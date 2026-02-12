@@ -1,6 +1,6 @@
 [package]
 name = "belobog-stellar-grid"
-version = "1.0.3"
+version = "1.0.4"
 authors = ["Kurisu <makise_kurisuu@outlook.jp>"]
 edition = "2024"
 rust-version = "1.85.0"
