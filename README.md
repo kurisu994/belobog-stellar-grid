@@ -406,9 +406,9 @@ belobog-stellar-grid/
 
 ### 文件大小
 
-- WASM 原始大小：约 117KB（优化后）
-- Gzip 压缩后：约 40KB
-- Brotli 压缩后：约 35KB
+- WASM 原始大小：约 1.3MB（优化后）
+- Gzip 压缩后：约 450KB
+- Brotli 压缩后：约 400KB
 
 ---
 
@@ -423,6 +423,12 @@ belobog-stellar-grid/
 - [x] **移除 Panic**: 将 `yield_to_browser()` 中的 `expect()` 替换为优雅的错误处理。
 - [x] **控制字符检测**: 文件名验证新增 ASCII 控制字符（0x00-0x1F）检测。
 - [x] **数组类型验证**: `parse_sheet_configs` 新增 `Array::is_array()` 验证。
+
+### 📊 功能一致性
+
+- [ ] **多表导出严格进度回调**: `export_tables_xlsx` 函数添加 `strict_progress_callback` 参数支持。
+- [ ] **批量导出严格进度回调**: 三个批量导出函数添加 `strict_progress_callback` 参数支持。
+- [ ] **Format 参数浮点数验证**: 增强 `parse_export_data_options` 中 format 参数验证，拒绝非整数输入。
 
 ### ✨ 新特性
 

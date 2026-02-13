@@ -1,3 +1,7 @@
+# 默认命令：显示帮助
+default:
+    @just --list
+
 # 启动开发模式 (构建并启动服务器)
 dev: build
     @echo "🚀 启动本地服务器..."
@@ -11,7 +15,10 @@ bump level:
     echo "🔖 升级级别: {{level}}"
     cargo set-version --bump {{level}}
     new=$(grep "^version" Cargo.toml | sed 's/version = "\(.*\)"/\1/')
-    echo "✅ 版本已更新: $current -> $new"
+    echo "✅ Cargo.toml 版本已更新: $current -> $new"
+    if sed -i '' "s/version-$current/version-$new/g" README.md; then
+    echo "✅ README.md 版本已更新: $current -> $new"
+    fi
     echo ""
     echo "请检查并提交更改后再次运行 just publish"
 
@@ -27,8 +34,23 @@ ci-release level:
         git status --short
         exit 1
     fi
-    
-    # 获取当前版本
+    echo "🧪 运行代码质量检查..."
+    echo "   1. 运行所有测试"
+    if ! cargo test --quiet; then
+        echo "❌ 测试失败，请修复后重试"
+        exit 1
+    fi
+    echo "   2. 检查代码格式化"
+    if ! cargo fmt -- --check; then
+        echo "❌ 代码格式化不符合规范，请运行 cargo fmt 修复"
+        exit 1
+    fi
+    echo "   3. 运行 Clippy 检查"
+    if ! cargo clippy -- -D warnings; then
+        echo "❌ Clippy 检查失败，请修复后重试"
+        exit 1
+    fi
+    echo "✅ 代码质量检查通过"
     current=$(grep "^version" Cargo.toml | sed 's/version = "\(.*\)"/\1/')
     echo "📌 当前版本: $current"
     echo "🔖 升级级别: {{level}}"
@@ -36,9 +58,10 @@ ci-release level:
     # 升级版本
     cargo set-version --bump {{level}}
     new=$(grep "^version" Cargo.toml | sed 's/version = "\(.*\)"/\1/')
-    echo "✅ 新版本: $new"
-    
-    # 显示变更
+    echo "✅ Cargo.toml 版本已更新: $current -> $new"
+    if sed -i '' "s/version-$current/version-$new/g" README.md; then
+        echo "✅ README.md 版本已更新: $current -> $new"
+    fi
     echo ""
     echo "📋 将要执行的操作:"
     echo "   1. git add ."
