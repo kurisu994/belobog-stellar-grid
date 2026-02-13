@@ -24,7 +24,7 @@ bump level:
 
 # 🚀 一键发布到 npm（通过 GitHub Actions）
 # 用法: just ci-release patch   # 或 minor/major
-ci-release level:
+ci-release level: check test
     #!/bin/bash
     set -e
     
@@ -34,23 +34,7 @@ ci-release level:
         git status --short
         exit 1
     fi
-    echo "🧪 运行代码质量检查..."
-    echo "   1. 运行所有测试"
-    if ! cargo test --quiet; then
-        echo "❌ 测试失败，请修复后重试"
-        exit 1
-    fi
-    echo "   2. 检查代码格式化"
-    if ! cargo fmt -- --check; then
-        echo "❌ 代码格式化不符合规范，请运行 cargo fmt 修复"
-        exit 1
-    fi
-    echo "   3. 运行 Clippy 检查"
-    if ! cargo clippy -- -D warnings; then
-        echo "❌ Clippy 检查失败，请修复后重试"
-        exit 1
-    fi
-    echo "✅ 代码质量检查通过"
+
     current=$(grep "^version" Cargo.toml | sed 's/version = "\(.*\)"/\1/')
     echo "📌 当前版本: $current"
     echo "🔖 升级级别: {{level}}"
@@ -97,6 +81,20 @@ release level:
     cargo set-version --bump {{level}}
     new=$(grep "^version" Cargo.toml | sed 's/version = "\(.*\)"/\1/')
     echo "✅ 版本已更新: $current -> $new"
+
+# 代码质量检查
+lint:
+    @echo "🔍 运行 Clippy 代码质量检查..."
+    cargo clippy -- -D warnings
+
+# 代码格式化
+fmt:
+    @echo "🎨 格式化代码..."
+    cargo fmt
+
+# 代码检查和格式化
+check: fmt lint
+    @echo "✅ 代码检查和格式化完成"
 
 # 运行测试
 test:
