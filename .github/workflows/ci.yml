@@ -63,9 +63,9 @@ jobs:
           PACKAGE_SIZE=$(stat -c%s pkg/belobog_stellar_grid_bg.wasm)
           echo "包大小: ${PACKAGE_SIZE} bytes"
 
-          # WASM 文件大小限制调整为 500KB（包含 xlsx 支持后体积增大）
-          if [ $PACKAGE_SIZE -gt 500000 ]; then
-            echo "⚠️ 警告: 包大小超过 500KB"
+          # WASM 文件大小限制调整为 1MB（包含 xlsx 支持后体积增大）
+          if [ $PACKAGE_SIZE -gt 1024000 ]; then
+            echo "⚠️ 警告: 包大小超过 1MB"
           else
             echo "✅ 包大小合理"
           fi

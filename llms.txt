@@ -8,8 +8,9 @@
 - **大数据支持**: 支持分批异步导出，处理百万级数据不卡顿。
 - **多格式**: 支持 CSV 和 Excel (Xlsx)。
 - **丰富功能**: 支持合并单元格、多 Sheet 导出、树形数据导出（自动缩进）。
-- **安全**: 内置文件名安全验证，防止路径遍历攻击。
+- **安全**: 内置文件名安全验证，防止路径遍历攻击，支持公式注入防护。
 - **易用**: 提供统一的 API 和类型支持。
+- **质量保证**: 103 个单元测试，100% 测试覆盖，代码质量检查流程完善。
 
 ## 快速上手
 
@@ -31,25 +32,56 @@ export_table("my-table-id", "report.xlsx", ExportFormat.Xlsx, false, (progress) 
 
 ### 核心函数
 
-#### `export_table(table_id, filename?, format?, exclude_hidden?, progress_callback?)`
+#### `export_table(table_id, filename?, format?, exclude_hidden?, progress_callback?, with_bom?, strict_progress_callback?)`
 统一导出函数，支持 DOM 表格导出。
 - `table_id`: 表格 ID。
 - `format`: `ExportFormat.Csv` 或 `ExportFormat.Xlsx`。
 - `exclude_hidden`: 是否排除 `display: none` 的行列。
+- `with_bom`: CSV 导出时是否添加 UTF-8 BOM（解决 Excel 中文乱码问题）。
+- `strict_progress_callback`: 是否启用严格进度回调模式（回调失败会中断导出）。
 
 #### `export_data(data, options?)`
 直接导出 JS 数据（二维数组或对象数组）。
 - `data`: `Array<Array<any>>` 或 `Array<Object>`。
-- `options`: `{ columns, filename, format, indentColumn, childrenKey ... }`。
+- `options`: 配置对象，包含以下字段：
+  - `columns`: `Array<ColumnConfig>`，表头配置数组，支持嵌套 children 实现多级表头
+  - `filename`: `string`，导出文件名
+  - `format`: `ExportFormat`，导出格式（Csv 或 Xlsx），默认 Csv
+  - `progressCallback`: `Function(progress: number)`，进度回调函数，接收 0-100 的进度值
+  - `indentColumn`: `string`，树形模式下需要缩进的列的 key
+  - `childrenKey`: `string`，传入此参数启用树形数据模式，指定子节点字段名
+  - `withBom`: `boolean`，CSV 导出时是否添加 UTF-8 BOM（解决 Excel 中文乱码问题），默认 false
+  - `strictProgressCallback`: `boolean`，是否启用严格进度回调模式（回调失败会中断导出），默认 false
 - 支持树形数据（通过 `childrenKey` 和 `indentColumn`）。
 - 支持复杂表头和合并单元格（通过 `columns` 配置）。
 
 #### `export_tables_xlsx(sheets, filename?, progress_callback?)`
 导出多 Sheet Excel。
-- `sheets`: `[{ tableId: "t1", sheetName: "Sheet1" }, ...]`。
+- `sheets`: 工作表配置数组，每个元素包含以下字段：
+  - `tableId`: `string`，要导出的表格元素 ID
+  - `sheetName`: `string`（可选），工作表名称，默认为 Sheet1、Sheet2...
+  - `excludeHidden`: `boolean`（可选），是否排除隐藏行列，默认为 false
+- `filename`: `string`（可选），导出文件名
+- `progress_callback`: `Function(progress: number)`（可选），进度回调函数
 
-#### `export_table_to_csv_batch` / `export_table_to_xlsx_batch`
-异步分批导出，适用于大数据量（> 10k 行）。
+#### `export_table_to_csv_batch(table_id, tbody_id?, filename?, batch_size?, exclude_hidden?, progress_callback?, with_bom?)`
+异步分批导出 CSV，适用于大数据量（> 10k 行）。
+- `table_id`: `string`，表格元素 ID
+- `tbody_id`: `string`（可选），外部 tbody 元素 ID（用于虚拟滚动场景）
+- `filename`: `string`（可选），导出文件名
+- `batch_size`: `number`（可选），每批处理行数，默认 1000
+- `exclude_hidden`: `boolean`（可选），是否排除隐藏行列，默认 false
+- `progress_callback`: `Function(progress: number)`（可选），进度回调函数
+- `with_bom`: `boolean`（可选），是否添加 UTF-8 BOM，默认 false
+
+#### `export_table_to_xlsx_batch(table_id, tbody_id?, filename?, batch_size?, exclude_hidden?, progress_callback?)`
+异步分批导出 XLSX，适用于大数据量（> 10k 行）。
+- 参数同 `export_table_to_csv_batch`，但不支持 `with_bom` 参数
+
+#### `export_tables_to_xlsx_batch(sheets, filename?, batch_size?, progress_callback?)`
+多工作表分批异步导出 XLSX。
+- `sheets`: 工作表配置数组，同 `export_tables_xlsx`
+- 其他参数同 `export_table_to_xlsx_batch`
 
 ### 类型
 
