@@ -102,7 +102,7 @@ release level: check test (bump-core level)
     @echo "请运行 'just publish' 将构建产物发布到 npm"
 
 # CI 自动发布 (GitHub Actions 使用)
-# 用法: just ci-release patch
+# 用法: just ci-release patch  # 或 minor/major
 ci-release level: check test
     #!/bin/bash
     set -e
