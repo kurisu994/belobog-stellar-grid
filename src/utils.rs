@@ -36,6 +36,30 @@ pub fn is_element_hidden(element: &web_sys::Element) -> bool {
     false
 }
 
+/// 统一的进度回调上报函数
+///
+/// 在默认（宽松）模式下，回调失败仅打印 `console.warn`，主流程继续执行。
+/// 在严格模式（`strict = true`）下，回调失败会中断导出并返回错误。
+pub(crate) fn report_progress(
+    callback: &js_sys::Function,
+    progress: f64,
+    strict: bool,
+) -> Result<(), wasm_bindgen::JsValue> {
+    if let Err(e) = callback.call1(
+        &wasm_bindgen::JsValue::NULL,
+        &wasm_bindgen::JsValue::from_f64(progress),
+    ) {
+        if strict {
+            return Err(wasm_bindgen::JsValue::from_str(&format!(
+                "进度回调执行失败（严格模式）: {:?}",
+                e
+            )));
+        }
+        web_sys::console::warn_1(&e);
+    }
+    Ok(())
+}
+
 /// 让出控制权给浏览器事件循环
 ///
 /// 使用 setTimeout(0) 创建一个宏任务，允许浏览器处理其他事件，
@@ -50,6 +74,27 @@ pub(crate) async fn yield_to_browser() -> Result<(), wasm_bindgen::JsValue> {
     });
 
     wasm_bindgen_futures::JsFuture::from(promise).await?;
+    Ok(())
+}
+
+/// 运行时检测 tbodyId 指向的元素是否属于目标 table 内部
+///
+/// 如果 tbody 是目标 table 的子元素，会导致数据被重复导出。
+/// 此函数在运行时强制阻止这种误用，将文档约束升级为代码强约束。
+pub(crate) fn ensure_external_tbody(
+    table: &web_sys::HtmlTableElement,
+    table_id: &str,
+    tbody_element: &web_sys::Element,
+    tbody_id: &str,
+) -> Result<(), wasm_bindgen::JsValue> {
+    // 从 tbody 向上遍历祖先元素，检查是否在 table 内部
+    if table.contains(Some(tbody_element)) {
+        return Err(wasm_bindgen::JsValue::from_str(&format!(
+            "tbodyId '{}' 指向的元素位于 tableId '{}' 所指表格内部，\
+             这会导致数据被重复导出。请传入一个不在该表格内部的独立 <tbody> 元素的 ID",
+            tbody_id, table_id
+        )));
+    }
     Ok(())
 }
 

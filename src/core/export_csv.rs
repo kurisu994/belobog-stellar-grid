@@ -2,6 +2,7 @@
 ///
 /// 提供 CSV 格式的表格导出功能
 use crate::resource::UrlGuard;
+use crate::utils::report_progress;
 use crate::validation::{ensure_extension, validate_filename};
 use csv::Writer;
 use std::io::Cursor;
@@ -14,6 +15,8 @@ use web_sys::{Blob, HtmlAnchorElement, Url};
 /// * `table_data` - 表格数据（二维字符串数组）
 /// * `filename` - 可选的导出文件名
 /// * `progress_callback` - 可选的进度回调函数
+/// * `with_bom` - 是否添加 UTF-8 BOM
+/// * `strict_progress` - 是否启用严格进度回调模式
 ///
 /// # 返回值
 /// * `Ok(())` - 导出成功
@@ -23,14 +26,13 @@ pub fn export_as_csv(
     filename: Option<String>,
     progress_callback: Option<js_sys::Function>,
     with_bom: bool,
+    strict_progress: bool,
 ) -> Result<(), JsValue> {
     let total_rows = table_data.len();
 
     // 报告初始进度
     if let Some(ref callback) = progress_callback {
-        if let Err(e) = callback.call1(&JsValue::NULL, &JsValue::from_f64(0.0)) {
-            web_sys::console::warn_1(&e);
-        }
+        report_progress(callback, 0.0, strict_progress)?;
     }
 
     // 创建一个 CSV 写入器
@@ -51,9 +53,7 @@ pub fn export_as_csv(
             && (index % 10 == 0 || index == total_rows - 1)
         {
             let progress = ((index + 1) as f64 / total_rows as f64) * 100.0;
-            if let Err(e) = callback.call1(&JsValue::NULL, &JsValue::from_f64(progress)) {
-                web_sys::console::warn_1(&e);
-            }
+            report_progress(callback, progress, strict_progress)?;
         }
     }
 

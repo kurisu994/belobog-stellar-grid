@@ -14,6 +14,10 @@
 - 🆕 **CSV BOM 支持**（CODE_REVIEW #10）
   - `export_table` 和 `export_data` 新增 `with_bom` 选项
   - 为 CSV 文件添加 UTF-8 BOM 头，彻底解决 Windows Excel 打开中文 CSV 乱码问题
+- 🆕 **严格进度回调模式** `strict_progress_callback` / `strictProgressCallback`
+  - `export_table` 新增第 7 个参数 `strict_progress_callback`
+  - `export_data` options 新增 `strictProgressCallback` 字段
+  - 启用后进度回调失败将中止导出并返回错误，适用于需要精确控制导出流程的场景
 
 ### 💥 破坏性变更
 
@@ -58,6 +62,18 @@
 - 修复浮点数转整数时的边界精度丢失风险
 - **删除 `export_data_impl` 中的死代码分支**（CODE_REVIEW #6 建议改进）
   - `parse_export_data_options` 已过滤 null/undefined 的 columns，`cols.is_null() || cols.is_undefined()` 永远不会执行
+- 🔧 **修复 `Reflect::get` 异常被静默吞掉**（CODE_REVIEW2 §4.1）
+  - `extract_data_rows()` 和 `flatten_tree_data()` 中 `Reflect::get` 的 `Err` 不再用 `unwrap_or(JsValue::NULL)` 丢弃
+  - 新增 `get_object_property()` 辅助函数，区分"字段不存在"和"getter 异常"，后者传播为错误
+- 🔧 **修复进度回调失败策略不一致**（CODE_REVIEW2 §4.2）
+  - 统一使用 `report_progress()` 处理所有进度回调，默认模式下失败仅 `console.warn`
+  - 新增 `strict_progress_callback` / `strictProgressCallback` 选项，启用后回调失败将中止导出
+- 🔧 **修复 tbodyId 误用缺少运行时防护**（CODE_REVIEW2 §4.3）
+  - 新增 `ensure_external_tbody()` 运行时校验，确保传入的 tbody 元素存在于目标 table 内部
+  - `export_table_to_csv_batch` 和 `export_table_to_xlsx_batch` 在批量导出前执行验证
+- 🔧 **修复 format 非法值静默回落**（CODE_REVIEW2 §4.4）
+  - `export_data` 的 `format` 参数不再对非 0/1 值静默回落为 CSV
+  - 非法 format 值（如 2、字符串等）现在返回明确的中文错误提示
 
 ### ⚡ 优化
 
@@ -77,11 +93,14 @@
 ### 📝 文档
 
 - 更新 `examples/README.md`：修复过时的 API 引用，补充 `multi-sheet-export.html` 示例文档
-- 更新 `README.md`：添加多工作表示例、更新测试计数、标记已完成的 TODO 项
+- 更新 `README.md`：添加多工作表示例、更新测试计数（100→103）、版本徽章（1.0.3→1.0.4）
 - 更新 `README.md`：Rust 版本要求从 1.82+ 更正为 1.85.0+（edition 2024 需要）
+- 更新 `API.md`：修正 `export_table` 签名（新增 `with_bom`、`strict_progress_callback`）、`export_data` options（新增 `withBom`、`strictProgressCallback`、format 严格验证说明）、批量导出函数签名（补全 `tbody_id`、`exclude_hidden`、`with_bom` 参数）
 - 更新 `Cargo.toml`：添加 `rust-version = "1.85.0"` 字段
 - 更新 `tests/BUILD_REPORT.md`：修正过时的 API 函数名和版本号
+- 更新 `tests/README.md`：测试数量 100→103，补充 `utils.rs` 和 `validation.rs` 内联测试说明
 - 修正 `core/mod.rs` 和 `batch_export.rs` 文档注释中过时的包名引用（`excel_exporter.js` → `belobog_stellar_grid.js`）
+- 修复 `basic-export.html` 中 `export_table` 使用字符串 `'csv'` 而非 `ExportFormat.Csv` 的问题
 - 更新 `CODE_REVIEW.md`：第三轮全面代码审查，新增 17 个发现（含 2 个严重问题）
 
 ## [1.0.3] - 2026-02-12

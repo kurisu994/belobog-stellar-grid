@@ -477,7 +477,7 @@ async function exportAll() {
 
 ## 📖 API 参考
 
-### export_table(table_id, filename?, format?, exclude_hidden?, progress_callback?)
+### export_table(table_id, filename?, format?, exclude_hidden?, progress_callback?, with_bom?, strict_progress_callback?)
 
 统一导出 HTML 表格为 CSV 或 Excel 文件。
 
@@ -489,23 +489,25 @@ async function exportAll() {
 - `exclude_hidden` (boolean, 可选): 是否排除隐藏行列，默认 false
 - `progress_callback` (function, 可选): 进度回调函数，接收 0-100 的进度值
 - `with_bom` (boolean, 可选): 是否在文件开头添加 BOM (仅 CSV)，解决 Excel 中文乱码，默认 false
+- `strict_progress_callback` (boolean, 可选): 是否启用严格进度回调模式，默认 false。启用后进度回调失败将中止导出
 
 **返回**：无（成功）或抛出异常（失败）
 
 ---
 
-### export_table_to_csv_batch(table_id, tbody_id?, filename?, batch_size?, exclude_hidden?, callback?)
+### export_table_to_csv_batch(table_id, tbody_id?, filename?, batch_size?, exclude_hidden?, callback?, with_bom?)
 
 分批异步导出表格为 CSV，适用于大数据量导出。
 
 **参数**：
 
 - `table_id` (string): 表格元素的 ID
-- `tbody_id` (string, 可选): 数据 tbody 的 ID，用于分离表头和数据
+- `tbody_id` (string, 可选): 数据 tbody 的 ID，用于分离表头和数据。会在运行时验证该 tbody 是否属于目标 table 内部
 - `filename` (string, 可选): 导出文件名
 - `batch_size` (number, 可选): 每批处理的行数，默认 1000
 - `exclude_hidden` (boolean, 可选): 是否排除隐藏行列，默认 false
 - `callback` (function, 可选): 进度回调函数
+- `with_bom` (boolean, 可选): 是否添加 UTF-8 BOM（仅 CSV），默认 false
 
 **返回**：Promise<void>
 
@@ -543,9 +545,10 @@ async function exportAll() {
 - `options` (Object, 可选): 导出配置对象
   - `columns` (Array, 可选): 表头配置数组，支持嵌套 children
   - `filename` (string, 可选): 导出文件名
-  - `format` (ExportFormat, 可选): 导出格式（Csv / Xlsx）
+  - `format` (ExportFormat, 可选): 导出格式（Csv / Xlsx）。只接受 `ExportFormat.Csv`(0) 和 `ExportFormat.Xlsx`(1)，传入其他值将报错
   - `withBom` (boolean, 可选): 是否添加 BOM（仅 CSV），默认 false
   - `progressCallback` (function, 可选): 进度回调函数
+  - `strictProgressCallback` (boolean, 可选): 是否启用严格进度回调模式，默认 false
   - `indentColumn` (string, 可选): 树形数据模式下，指定需要缩进的列的 key
   - `childrenKey` (string, 可选): 传入此参数启用树形数据模式，指定子节点字段名（如 `"children"`）
 

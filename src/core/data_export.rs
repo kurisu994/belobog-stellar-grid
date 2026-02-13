@@ -8,6 +8,16 @@ use wasm_bindgen::prelude::*;
 /// 最大递归深度限制，防止恶意构造的深层嵌套数据导致栈溢出
 const MAX_DEPTH: usize = 64;
 
+/// 安全地从 JS 对象中获取属性值
+///
+/// 与 `Reflect::get(...).unwrap_or(JsValue::NULL)` 不同，本函数会区分
+/// "字段不存在（返回 NULL）"和"读取异常（返回 Err）"两种情况，
+/// 避免 getter 异常或 Proxy 异常被静默吞掉。
+fn get_object_property(obj: &JsValue, key: &str) -> Result<JsValue, JsValue> {
+    js_sys::Reflect::get(obj, &JsValue::from_str(key))
+        .map_err(|e| JsValue::from_str(&format!("读取对象属性 '{}' 时发生异常: {:?}", key, e)))
+}
+
 /// 解析后的列节点
 struct ColumnNode {
     /// 表头标题
@@ -350,7 +360,7 @@ fn extract_data_rows(
         let mut row = Vec::with_capacity(keys.len());
 
         for (col_idx, key) in keys.iter().enumerate() {
-            let val = js_sys::Reflect::get(&item, &JsValue::from_str(key)).unwrap_or(JsValue::NULL);
+            let val = get_object_property(&item, key)?;
             let cell_info = parse_cell_value(&val);
 
             if cell_info.col_span == 0 || cell_info.row_span == 0 {
@@ -429,7 +439,7 @@ fn flatten_tree_data(
         let mut row = Vec::with_capacity(keys.len());
 
         for key in keys {
-            let val = js_sys::Reflect::get(&item, &JsValue::from_str(key)).unwrap_or(JsValue::NULL);
+            let val = get_object_property(&item, key)?;
             let mut cell_text = js_value_to_string(&val);
 
             // 对指定的缩进列添加层级缩进（每层 4 个空格）

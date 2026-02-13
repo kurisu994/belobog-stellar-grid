@@ -3,7 +3,7 @@
 /// 提供大数据量表格的分批处理功能，避免阻塞主线程
 /// 支持合并单元格（colspan/rowspan）
 use crate::core::{RowSpanTracker, create_and_download_csv, find_table_element, get_cell_span};
-use crate::utils::{is_element_hidden, yield_to_browser};
+use crate::utils::{ensure_external_tbody, is_element_hidden, report_progress, yield_to_browser};
 use csv::Writer;
 use std::io::Cursor;
 use wasm_bindgen::JsCast;
@@ -91,6 +91,9 @@ pub async fn export_table_to_csv_batch(
             .get_element_by_id(&tid)
             .ok_or_else(|| JsValue::from_str(&format!("找不到 ID 为 '{}' 的 tbody 元素", tid)))?;
 
+        // 运行时校验 tbody 不在目标 table 内部，防止数据重复导出
+        ensure_external_tbody(&table, &table_id, &tbody_element, &tid)?;
+
         // 尝试转换为 HtmlTableSectionElement (tbody)
         let tbody = tbody_element
             .dyn_into::<HtmlTableSectionElement>()
@@ -114,9 +117,7 @@ pub async fn export_table_to_csv_batch(
 
     // 报告初始进度
     if let Some(ref callback) = progress_callback {
-        if let Err(e) = callback.call1(&JsValue::NULL, &JsValue::from_f64(0.0)) {
-            web_sys::console::warn_1(&e);
-        }
+        report_progress(callback, 0.0, false)?;
     }
 
     // 用于追踪被 rowspan 占用的位置: (row, col) -> cell_text
@@ -226,9 +227,7 @@ pub async fn export_table_to_csv_batch(
         // 报告进度
         if let Some(ref callback) = progress_callback {
             let progress = (current_row as f64 / total_rows as f64) * 100.0;
-            if let Err(e) = callback.call1(&JsValue::NULL, &JsValue::from_f64(progress)) {
-                web_sys::console::warn_1(&e);
-            }
+            report_progress(callback, progress, false)?;
         }
 
         // 在批次之间让出控制权

@@ -169,7 +169,7 @@
         // 导出为 CSV（带 BOM，解决 Excel 中文乱码）
         window.exportWithBom = () => {
             // 参数: tableId, filename, format, excludeHidden, progressCallback, withBom
-            export_table('employees-table', '员工信息表_BOM.csv', 'csv', false, undefined, true);
+            export_table('employees-table', '员工信息表_BOM.csv', ExportFormat.Csv, false, undefined, true);
             console.log('✅ 导出为 CSV 完成（带 BOM）');
         };
 

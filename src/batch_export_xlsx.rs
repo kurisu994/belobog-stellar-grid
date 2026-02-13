@@ -6,7 +6,7 @@ use crate::core::{
     MergeRange, RowSpanTracker, TableData, create_and_download_xlsx, find_table_element,
     get_cell_span,
 };
-use crate::utils::{is_element_hidden, yield_to_browser};
+use crate::utils::{ensure_external_tbody, is_element_hidden, report_progress, yield_to_browser};
 use rust_xlsxwriter::{Format, Workbook};
 use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::*;
@@ -66,9 +66,7 @@ pub async fn export_table_to_xlsx_batch(
 
     // 报告初始进度
     if let Some(ref callback) = progress_callback {
-        if let Err(e) = callback.call1(&JsValue::NULL, &JsValue::from_f64(0.0)) {
-            web_sys::console::warn_1(&e);
-        }
+        report_progress(callback, 0.0, false)?;
     }
 
     // 阶段一：分批读取 DOM 数据（0% - 80% 进度）
@@ -141,9 +139,7 @@ fn generate_and_download_xlsx(
             && (i % 100 == 0 || i == total_rows - 1)
         {
             let progress = 80.0 + ((i + 1) as f64 / total_rows as f64) * 15.0;
-            if let Err(e) = callback.call1(&JsValue::NULL, &JsValue::from_f64(progress)) {
-                web_sys::console::warn_1(&e);
-            }
+            report_progress(callback, progress, false)?;
         }
     }
 
@@ -170,9 +166,7 @@ fn generate_and_download_xlsx(
 
     // 报告合并单元格完成进度
     if let Some(callback) = progress_callback {
-        if let Err(e) = callback.call1(&JsValue::NULL, &JsValue::from_f64(98.0)) {
-            web_sys::console::warn_1(&e);
-        }
+        report_progress(callback, 98.0, false)?;
     }
 
     // 将工作簿写入内存缓冲区
@@ -305,9 +299,7 @@ pub async fn export_tables_to_xlsx_batch(
 
     // 报告初始进度
     if let Some(ref callback) = progress_callback {
-        if let Err(e) = callback.call1(&JsValue::NULL, &JsValue::from_f64(0.0)) {
-            web_sys::console::warn_1(&e);
-        }
+        report_progress(callback, 0.0, false)?;
     }
 
     // 阶段一：逐个表格分批提取数据（0% - 80% 进度）
@@ -379,6 +371,9 @@ async fn extract_table_data_batch_with_offset(
         let tbody_element = document
             .get_element_by_id(tid)
             .ok_or_else(|| JsValue::from_str(&format!("找不到 ID 为 '{}' 的 tbody 元素", tid)))?;
+
+        // 运行时校验 tbody 不在目标 table 内部，防止数据重复导出
+        ensure_external_tbody(&table, table_id, &tbody_element, tid)?;
 
         let tbody = tbody_element
             .dyn_into::<HtmlTableSectionElement>()
@@ -524,9 +519,7 @@ async fn extract_table_data_batch_with_offset(
         if let Some((callback, start, range)) = progress_info {
             let local_progress = current_row as f64 / total_rows as f64;
             let progress = start + local_progress * range;
-            if let Err(e) = callback.call1(&JsValue::NULL, &JsValue::from_f64(progress)) {
-                web_sys::console::warn_1(&e);
-            }
+            report_progress(callback, progress, false)?;
         }
 
         if current_row < total_rows {
@@ -581,9 +574,7 @@ fn generate_and_download_xlsx_multi(
                 let sheet_progress_range = 15.0 / total_sheets as f64;
                 let row_progress = (i + 1) as f64 / total_rows as f64;
                 let progress = sheet_progress_start + row_progress * sheet_progress_range;
-                if let Err(e) = callback.call1(&JsValue::NULL, &JsValue::from_f64(progress)) {
-                    web_sys::console::warn_1(&e);
-                }
+                report_progress(callback, progress, false)?;
             }
         }
 
@@ -610,9 +601,7 @@ fn generate_and_download_xlsx_multi(
 
     // 报告完成进度
     if let Some(callback) = progress_callback {
-        if let Err(e) = callback.call1(&JsValue::NULL, &JsValue::from_f64(98.0)) {
-            web_sys::console::warn_1(&e);
-        }
+        report_progress(callback, 98.0, false)?;
     }
 
     let xlsx_bytes = workbook

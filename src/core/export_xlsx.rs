@@ -3,6 +3,7 @@
 /// 提供 Excel XLSX 格式的表格导出功能
 use super::table_extractor::TableData;
 use crate::resource::UrlGuard;
+use crate::utils::report_progress;
 use crate::validation::{ensure_extension, validate_filename};
 use rust_xlsxwriter::{Format, Workbook};
 use wasm_bindgen::prelude::*;
@@ -14,6 +15,7 @@ use web_sys::{Blob, HtmlAnchorElement, Url};
 /// * `table_data` - 表格数据（包含单元格数据和合并区域信息）
 /// * `filename` - 可选的导出文件名
 /// * `progress_callback` - 可选的进度回调函数
+/// * `strict_progress` - 是否启用严格进度回调模式
 ///
 /// # 返回值
 /// * `Ok(())` - 导出成功
@@ -22,14 +24,13 @@ pub fn export_as_xlsx(
     table_data: TableData,
     filename: Option<String>,
     progress_callback: Option<js_sys::Function>,
+    strict_progress: bool,
 ) -> Result<(), JsValue> {
     let total_rows = table_data.rows.len();
 
     // 报告初始进度
     if let Some(ref callback) = progress_callback {
-        if let Err(e) = callback.call1(&JsValue::NULL, &JsValue::from_f64(0.0)) {
-            web_sys::console::warn_1(&e);
-        }
+        report_progress(callback, 0.0, strict_progress)?;
     }
 
     // 创建工作簿与工作表
@@ -53,9 +54,7 @@ pub fn export_as_xlsx(
             && (i % 10 == 0 || i == total_rows - 1)
         {
             let progress = ((i + 1) as f64 / total_rows as f64) * 80.0;
-            if let Err(e) = callback.call1(&JsValue::NULL, &JsValue::from_f64(progress)) {
-                web_sys::console::warn_1(&e);
-            }
+            report_progress(callback, progress, strict_progress)?;
         }
     }
 
@@ -83,9 +82,7 @@ pub fn export_as_xlsx(
 
     // 报告合并单元格完成进度
     if let Some(ref callback) = progress_callback {
-        if let Err(e) = callback.call1(&JsValue::NULL, &JsValue::from_f64(90.0)) {
-            web_sys::console::warn_1(&e);
-        }
+        report_progress(callback, 90.0, strict_progress)?;
     }
 
     // 将工作簿写入内存缓冲区
@@ -109,10 +106,12 @@ pub fn export_as_xlsx(
 /// * `sheets_data` - 工作表数据列表，每个元素为 (工作表名称, 表格数据)
 /// * `filename` - 可选的导出文件名
 /// * `progress_callback` - 可选的进度回调函数
+/// * `strict_progress` - 是否启用严格进度回调模式
 pub fn export_as_xlsx_multi(
     sheets_data: Vec<(String, TableData)>,
     filename: Option<String>,
     progress_callback: Option<js_sys::Function>,
+    strict_progress: bool,
 ) -> Result<(), JsValue> {
     if sheets_data.is_empty() {
         return Err(JsValue::from_str("没有可导出的工作表数据"));
@@ -122,9 +121,7 @@ pub fn export_as_xlsx_multi(
 
     // 报告初始进度
     if let Some(ref callback) = progress_callback {
-        if let Err(e) = callback.call1(&JsValue::NULL, &JsValue::from_f64(0.0)) {
-            web_sys::console::warn_1(&e);
-        }
+        report_progress(callback, 0.0, strict_progress)?;
     }
 
     // 创建工作簿
@@ -162,9 +159,7 @@ pub fn export_as_xlsx_multi(
                 let sheet_progress_range = 80.0 / total_sheets as f64;
                 let row_progress = (i + 1) as f64 / total_rows as f64;
                 let progress = sheet_progress_start + row_progress * sheet_progress_range;
-                if let Err(e) = callback.call1(&JsValue::NULL, &JsValue::from_f64(progress)) {
-                    web_sys::console::warn_1(&e);
-                }
+                report_progress(callback, progress, strict_progress)?;
             }
         }
 
@@ -192,9 +187,7 @@ pub fn export_as_xlsx_multi(
 
     // 报告合并单元格完成进度
     if let Some(ref callback) = progress_callback {
-        if let Err(e) = callback.call1(&JsValue::NULL, &JsValue::from_f64(90.0)) {
-            web_sys::console::warn_1(&e);
-        }
+        report_progress(callback, 90.0, strict_progress)?;
     }
 
     // 将工作簿写入内存缓冲区

@@ -1,6 +1,6 @@
 # 测试说明
 
-本目录包含 belobog-stellar-grid 项目的所有集成测试，共 **100 个测试用例**。
+本目录包含 belobog-stellar-grid 项目的所有集成测试，共 **103 个测试用例**（`cargo test` 环境下）。
 
 ## 目录结构
 
@@ -18,12 +18,12 @@ tests/
     └── test-page.html     # 手动功能验证页面
 ```
 
-> 另有 `src/core/data_export.rs` 中的 11 个内联单元测试。
+> 另有 `src/core/data_export.rs` 中的内联单元测试（10 个在 native 环境运行，19 个仅在 wasm32 环境运行）以及 `src/utils.rs`（2 个）和 `src/validation.rs`（1 个）中的内联测试。
 
 ## 运行测试
 
 ```bash
-# 运行所有测试（100 个）
+# 运行所有测试（103 个）
 cargo test
 
 # 按文件运行
@@ -85,11 +85,15 @@ CSV 注入防护测试：`=`、`+`、`-`、`@` 等危险前缀转义。
 |----------|------|----------|
 | lib_tests.rs | 41 | CSV 生成、文件名验证、输入校验 |
 | test_data_export.rs | 33 | 纯数据导出、树形结构、嵌套表头 |
-| data_export.rs（内联） | 11 | 内部算法（表头解析、树形拍平） |
+| data_export.rs（内联） | 10 | 内部算法（表头解析、树形拍平） |
+| utils.rs（内联） | 2 | 工具函数 |
+| validation.rs（内联） | 1 | 文件名验证 |
 | test_resource.rs | 8 | UrlGuard RAII |
 | test_unified_api.rs | 4 | ExportFormat 枚举 |
 | test_security.rs | 3 | CSV 注入防护 |
-| **合计** | **100** | |
+| **合计** | **103** | |
+
+> 注：`data_export.rs` 中另有 19 个 `#[cfg(target_arch = "wasm32")]` 测试仅在 wasm32 环境运行，不计入上表。
 
 ## 命名规范
 

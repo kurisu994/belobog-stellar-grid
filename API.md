@@ -15,6 +15,8 @@ pub fn export_table(
     format: Option<ExportFormat>,
     exclude_hidden: Option<bool>,
     progress_callback: Option<js_sys::Function>,
+    with_bom: Option<bool>,
+    strict_progress_callback: Option<bool>,
 ) -> Result<(), JsValue>
 ```
 
@@ -24,6 +26,8 @@ pub fn export_table(
 - `format`: 导出格式（可选）。默认为 `ExportFormat.Csv`。
 - `exclude_hidden`: 是否排除隐藏（`display: none`）的行和列（可选）。默认为 `false`。
 - `progress_callback`: 进度回调函数（可选）。接收一个 0-100 的数字。
+- `with_bom`: CSV 导出时是否添加 UTF-8 BOM（可选）。默认为 `false`。添加 BOM 可解决 Excel 打开 CSV 中文乱码问题。
+- `strict_progress_callback`: 是否启用严格进度回调模式（可选）。默认为 `false`。启用后，进度回调失败将中止导出并返回错误；未启用时仅 `console.warn`。
 
 **返回值**
 - `Result<(), JsValue>`: 成功返回 `Ok(())`，失败返回错误信息。
@@ -56,10 +60,12 @@ pub fn export_data(data: JsValue, options: Option<JsValue>) -> Result<(), JsValu
 - `options`: 配置对象（可选）。
     - `columns`: 表头配置数组。导出对象数组时必填。支持嵌套 `children` 实现多级表头。
     - `filename`: 导出文件名。
-    - `format`: 导出格式。默认 CSV。
+    - `format`: 导出格式。默认 CSV。只接受 `ExportFormat.Csv`(0) 和 `ExportFormat.Xlsx`(1)，传入其他值将报错。
     - `progressCallback`: 进度回调函数。
     - `indentColumn`: 树形数据模式下，需要缩进的列的 key。
     - `childrenKey`: 指定子节点字段名，启用树形数据模式。
+    - `withBom`: CSV 导出时是否添加 UTF-8 BOM。默认 `false`。
+    - `strictProgressCallback`: 是否启用严格进度回调模式。默认 `false`。启用后进度回调失败将中止导出。
 
 **返回值**
 - `Result<(), JsValue>`
@@ -119,19 +125,25 @@ export_tables_xlsx([
 分批异步导出 CSV，适用于大数据量，避免阻塞 UI。
 
 ```rust
-pub fn export_table_to_csv_batch(
+pub async fn export_table_to_csv_batch(
     table_id: String,
-    filename: String,
-    batch_size: Option<usize>,
+    tbody_id: Option<String>,
+    filename: Option<String>,
+    batch_size: Option<u32>,
+    exclude_hidden: Option<bool>,
     progress_callback: Option<js_sys::Function>,
-) -> Result<Promise, JsValue>
+    with_bom: Option<bool>,
+) -> Result<JsValue, JsValue>
 ```
 
 **参数**
 - `table_id`: 表格 ID。
-- `filename`: 文件名。
+- `tbody_id`: 外部 tbody 元素 ID（可选）。用于虚拟滚动等场景，指定包含实际数据行的 tbody。会在运行时验证该 tbody 是否属于目标 table 内部。
+- `filename`: 文件名（可选）。
 - `batch_size`: 每批处理行数（可选，默认 1000）。
+- `exclude_hidden`: 是否排除隐藏行列（可选，默认 `false`）。
 - `progress_callback`: 进度回调。
+- `with_bom`: CSV 导出时是否添加 UTF-8 BOM（可选，默认 `false`）。
 
 **返回值**
 - `Promise`: 导出完成时 resolve。
@@ -143,13 +155,23 @@ pub fn export_table_to_csv_batch(
 分批异步导出 XLSX。
 
 ```rust
-pub fn export_table_to_xlsx_batch(
+pub async fn export_table_to_xlsx_batch(
     table_id: String,
-    filename: String,
-    batch_size: Option<usize>,
+    tbody_id: Option<String>,
+    filename: Option<String>,
+    batch_size: Option<u32>,
+    exclude_hidden: Option<bool>,
     progress_callback: Option<js_sys::Function>,
-) -> Result<Promise, JsValue>
+) -> Result<JsValue, JsValue>
 ```
+
+**参数**
+- `table_id`: 表格 ID。
+- `tbody_id`: 外部 tbody 元素 ID（可选）。同 `export_table_to_csv_batch`。
+- `filename`: 文件名（可选）。
+- `batch_size`: 每批处理行数（可选，默认 1000）。
+- `exclude_hidden`: 是否排除隐藏行列（可选，默认 `false`）。
+- `progress_callback`: 进度回调。
 
 ---
 
@@ -158,12 +180,12 @@ pub fn export_table_to_xlsx_batch(
 多工作表分批异步导出 XLSX。
 
 ```rust
-pub fn export_tables_to_xlsx_batch(
+pub async fn export_tables_to_xlsx_batch(
     sheets: JsValue,
-    filename: String,
-    batch_size: Option<usize>,
+    filename: Option<String>,
+    batch_size: Option<u32>,
     progress_callback: Option<js_sys::Function>,
-) -> Result<Promise, JsValue>
+) -> Result<JsValue, JsValue>
 ```
 
 ## 类型定义

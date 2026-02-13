@@ -7,7 +7,7 @@
   <p>一个安全、高效、易用的 Rust WebAssembly 库，用于将 HTML 表格导出为 CSV 和 XLSX 文件</p>
 
   <p>
-    <img src="https://img.shields.io/badge/version-1.0.3-blue.svg" alt="Version" />
+    <img src="https://img.shields.io/badge/version-1.0.4-blue.svg" alt="Version" />
     <img src="https://img.shields.io/badge/rust-edition%202024-orange.svg" alt="Rust Edition" />
     <img src="https://img.shields.io/badge/test_coverage-100%25-brightgreen.svg" alt="Test Coverage" />
     <img src="https://img.shields.io/badge/license-MIT%2FApache--2.0-green.svg" alt="License" />
@@ -30,7 +30,7 @@
 - **🚀 极致性能**：Rust 原生速度 + WebAssembly 优化
 - **🔒 企业级安全**：内置文件名验证，防止路径遍历攻击
 - **📦 轻量级**：约 117KB 的 WASM 文件（gzip 后约 40KB）
-- **✅ 100% 测试覆盖**：100 个单元测试确保代码质量
+- **✅ 100% 测试覆盖**：103 个单元测试确保代码质量
 - **🏗️ 模块化架构**：清晰的模块设计，易于维护和扩展
 - **🌍 国际化支持**：完美支持中文、日文、韩文等 Unicode 字符
 - **💾 多格式导出**：支持 CSV 和 XLSX (Excel) 两种格式
@@ -378,7 +378,7 @@ belobog-stellar-grid/
 │   ├── batch_export.rs    # 异步分批导出（CSV）
 │   ├── batch_export_xlsx.rs # 异步分批导出（XLSX）
 │   └── utils.rs           # 调试工具
-├── tests/                 # 测试目录（100 个测试）
+├── tests/                 # 测试目录（103 个测试）
 │   ├── lib_tests.rs       # 基础功能测试（41 个）
 │   ├── test_resource.rs   # RAII 资源测试（8 个）
 │   ├── test_unified_api.rs # 统一 API 测试（4 个）
