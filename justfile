@@ -2,28 +2,107 @@
 default:
     @just --list
 
+# -----------------------------------------------------------------------------
+# 环境检查
+# -----------------------------------------------------------------------------
+
+# 检查必要的开发工具
+check-tools:
+    @echo "🔍 检查开发环境依赖..."
+    @if ! command -v wasm-pack &> /dev/null; then echo "❌ 未找到 wasm-pack (请运行 cargo install wasm-pack)"; exit 1; fi
+    @if ! command -v basic-http-server &> /dev/null; then echo "❌ 未找到 basic-http-server (请运行 cargo install basic-http-server)"; exit 1; fi
+    @if ! command -v wasm-opt &> /dev/null; then echo "⚠️  未找到 wasm-opt (建议安装 binaryen 以优化构建体积)"; fi
+    @# 检查 cargo-set-version (cargo-edit 的一部分)
+    @if ! cargo set-version --version &> /dev/null; then echo "❌ 未找到 cargo-set-version (请运行 cargo install cargo-edit)"; exit 1; fi
+    @echo "✅ 开发环境检查通过"
+
+# -----------------------------------------------------------------------------
+# 开发与构建
+# -----------------------------------------------------------------------------
+
 # 启动开发模式 (构建并启动服务器)
-dev: build
+dev: check-tools build
     @echo "🚀 启动本地服务器..."
     basic-http-server .
-# 发布 npm 包
-# 升级版本 (patch/minor/major)
-bump level:
-    @#!/bin/bash
+
+# 构建 WASM
+build:
+    @echo "🔨 构建 WebAssembly..."
+    wasm-pack build --target web --out-dir pkg
+
+# 优化 WASM (需要 wasm-opt)
+optimize:
+    #!/bin/bash
+    if command -v wasm-opt &> /dev/null; then
+        echo "⚡ 优化 WASM 文件..."
+        wasm-opt -Oz pkg/belobog_stellar_grid_bg.wasm -o pkg/belobog_stellar_grid_bg.wasm
+    else
+        echo "⚠️  wasm-opt 未安装，跳过优化"
+    fi
+
+# -----------------------------------------------------------------------------
+# 代码质量
+# -----------------------------------------------------------------------------
+
+# 代码格式化
+fmt:
+    @echo "🎨 格式化代码..."
+    cargo fmt
+
+# 代码质量检查
+lint:
+    @echo "🔍 运行 Clippy 代码质量检查..."
+    cargo clippy -- -D warnings
+
+# 全面检查 (格式化 + Lint)
+check: fmt lint
+    @echo "✅ 代码检查和格式化完成"
+
+# 运行测试
+test:
+    @echo "🧪 运行测试..."
+    cargo test
+
+# -----------------------------------------------------------------------------
+# 发布流程
+# -----------------------------------------------------------------------------
+
+# 内部配方：升级版本 (逻辑核心)
+bump-core level:
+    #!/bin/bash
+    set -e
+    # 获取当前版本
     current=$(grep "^version" Cargo.toml | sed 's/version = "\(.*\)"/\1/')
     echo "📌 当前版本: $current"
     echo "🔖 升级级别: {{level}}"
+    
+    # 升级 Cargo.toml
     cargo set-version --bump {{level}}
     new=$(grep "^version" Cargo.toml | sed 's/version = "\(.*\)"/\1/')
     echo "✅ Cargo.toml 版本已更新: $current -> $new"
-    if sed -i '' "s/version-$current/version-$new/g" README.md; then
-    echo "✅ README.md 版本已更新: $current -> $new"
+    
+    # 更新 README.md
+    # 使用 perl 来处理跨平台兼容性 (macOS/Linux)
+    if perl -i -pe "s/version-$current/version-$new/g" README.md; then
+        echo "✅ README.md 版本已更新: $current -> $new"
+    else
+        echo "⚠️  README.md 版本更新失败 (可能未找到匹配版本号)"
     fi
-    echo ""
-    echo "请检查并提交更改后再次运行 just publish"
 
-# 🚀 一键发布到 npm（通过 GitHub Actions）
-# 用法: just ci-release patch   # 或 minor/major
+# 升级版本 (手动模式)
+bump level: (bump-core level)
+    @echo ""
+    @echo "✅ 版本升级完成。请检查更改并提交。"
+
+# 发布并升级版本 (本地完整流程)
+# 用法: just release patch
+release level: check test (bump-core level)
+    @echo ""
+    @echo "🎉 准备发布新版本..."
+    @echo "请运行 'just publish' 将构建产物发布到 npm"
+
+# CI 自动发布 (GitHub Actions 使用)
+# 用法: just ci-release patch
 ci-release level: check test
     #!/bin/bash
     set -e
@@ -35,17 +114,12 @@ ci-release level: check test
         exit 1
     fi
 
-    current=$(grep "^version" Cargo.toml | sed 's/version = "\(.*\)"/\1/')
-    echo "📌 当前版本: $current"
-    echo "🔖 升级级别: {{level}}"
+    # 调用核心版本升级逻辑
+    just bump-core {{level}}
     
-    # 升级版本
-    cargo set-version --bump {{level}}
+    # 获取新版本号
     new=$(grep "^version" Cargo.toml | sed 's/version = "\(.*\)"/\1/')
-    echo "✅ Cargo.toml 版本已更新: $current -> $new"
-    if sed -i '' "s/version-$current/version-$new/g" README.md; then
-        echo "✅ README.md 版本已更新: $current -> $new"
-    fi
+    
     echo ""
     echo "📋 将要执行的操作:"
     echo "   1. git add ."
@@ -53,12 +127,15 @@ ci-release level: check test
     echo "   3. git tag v$new"
     echo "   4. git push origin main --tags"
     echo ""
+    
+    # 交互式确认 (仅在非 CI 环境或显式交互时)
+    # 注意: 在 CI 环境中通常会自动同意，但在本地运行 ci-release 时需要确认
     read -p "确认发布 v$new 到 npm? (y/N) " -n 1 -r
     echo
     
     if [[ ! $REPLY =~ ^[Yy]$ ]]; then
         echo "❌ 已取消，回滚版本..."
-        git checkout Cargo.toml
+        git checkout Cargo.toml README.md
         exit 1
     fi
     
@@ -72,49 +149,9 @@ ci-release level: check test
     echo "🎉 已推送 v$new，GitHub Actions 将自动发布到 npm"
     echo "📦 查看进度: https://github.com/kurisu994/belobog-stellar-grid/actions"
 
-# 升级版本并发布
-release level:
-    @#!/bin/bash
-    current=$(grep "^version" Cargo.toml | sed 's/version = "\(.*\)"/\1/')
-    echo "📌 当前版本: $current"
-    echo "🔖 升级级别: {{level}}"
-    cargo set-version --bump {{level}}
-    new=$(grep "^version" Cargo.toml | sed 's/version = "\(.*\)"/\1/')
-    echo "✅ 版本已更新: $current -> $new"
-
-# 代码质量检查
-lint:
-    @echo "🔍 运行 Clippy 代码质量检查..."
-    cargo clippy -- -D warnings
-
-# 代码格式化
-fmt:
-    @echo "🎨 格式化代码..."
-    cargo fmt
-
-# 代码检查和格式化
-check: fmt lint
-    @echo "✅ 代码检查和格式化完成"
-
-# 运行测试
-test:
-    @echo "🧪 运行测试..."
-    cargo test
-
-# 构建 WASM
-build:
-    @echo "🔨 构建 WebAssembly..."
-    wasm-pack build --target web --out-dir pkg
-
-# 优化 WASM
-optimize:
-    #!/bin/bash
-    if command -v wasm-opt &> /dev/null; then
-        echo "⚡ 优化 WASM 文件..."
-        wasm-opt -Oz pkg/belobog_stellar_grid_bg.wasm -o pkg/belobog_stellar_grid_bg.wasm
-    else
-        echo "⚠️  wasm-opt 未安装，跳过优化"
-    fi
+# -----------------------------------------------------------------------------
+# npm 发布
+# -----------------------------------------------------------------------------
 
 # 显示发布信息
 info:
@@ -123,7 +160,7 @@ info:
     @grep "^version" Cargo.toml | sed 's/version = /   版本: /'
 
 # 发布前测试 (dry-run)
-dry-run:
+dry-run: build
     #!/bin/bash
     set -e
     echo "📤 运行发布前测试 (dry-run)..."
@@ -131,7 +168,7 @@ dry-run:
     echo "✅ dry-run 测试通过"
 
 # 发布到 npm (带 tag)
-publish tag:
+publish tag="latest": build dry-run
     #!/bin/bash
     set -e
     tag="{{tag}}"
