@@ -1,6 +1,4 @@
 {
-  "rust-analyzer.cargo.loadOutDirsFromCheck": true,
-  "rust-analyzer.checkOnSave.command": "clippy",
   "rust-analyzer.cargo.features": "all",
   "rust-analyzer.imports.granularity.enforce": true,
   "rust-analyzer.inlayHints.typeHints.enable": true,
@@ -23,5 +21,4 @@
   "editor.codeActionsOnSave": {
     "source.fixAll": "explicit"
   },
-  "rust-analyzer.rustfmt.overrideCommand": "rustfmt"
 }
