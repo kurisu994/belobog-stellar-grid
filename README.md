@@ -428,7 +428,7 @@ belobog-stellar-grid/
 
 - [ ] **多表导出严格进度回调**: `export_tables_xlsx` 函数添加 `strict_progress_callback` 参数支持。
 - [ ] **批量导出严格进度回调**: 三个批量导出函数添加 `strict_progress_callback` 参数支持。
-- [ ] **Format 参数浮点数验证**: 增强 `parse_export_data_options` 中 format 参数验证，拒绝非整数输入。
+- [x] **Format 参数浮点数验证**: 增强 `parse_export_data_options` 中 format 参数验证，拒绝非整数输入。
 
 ### ✨ 新特性
 
