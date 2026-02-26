@@ -162,7 +162,7 @@
         <!-- Worker 导出 vs 主线程导出对比 -->
         <div class="section">
             <h2>Worker 导出 vs 主线程导出</h2>
-            <p>生成 200000 行数据并导出，对比 Worker 和主线程的性能差异：</p>
+            <p>生成 300000 行数据并导出，对比 Worker 和主线程的性能差异：</p>
 
             <div class="ticker-box">
                 <div>
@@ -190,8 +190,8 @@
             </div>
 
             <div class="button-group">
-                <button class="btn-worker" id="btn-worker" onclick="workerExport()">⚡ Worker 导出 200000 行 XLSX</button>
-                <button class="btn-main" id="btn-main" onclick="mainThreadExport()">🔴 主线程导出 200000 行 XLSX</button>
+                <button class="btn-worker" id="btn-worker" onclick="workerExport()">⚡ Worker 导出 300000 行 XLSX</button>
+                <button class="btn-main" id="btn-main" onclick="mainThreadExport()">🔴 主线程导出 300000 行 XLSX</button>
             </div>
         </div>
 
@@ -262,7 +262,7 @@ worker.<span class="func">terminate</span>();</pre>
             statusEl.textContent = '⏳ 生成数据中...';
             progressFill.style.width = '0%';
 
-            const data = generateData(200000);
+            const data = generateData(300000);
             statusEl.textContent = '⏳ Worker 导出中...';
 
             const start = performance.now();
@@ -307,7 +307,7 @@ worker.<span class="func">terminate</span>();</pre>
                     const url = URL.createObjectURL(fileBlob);
                     const a = document.createElement('a');
                     a.href = url;
-                    a.download = 'worker_200000行.xlsx';
+                    a.download = 'worker_300000行.xlsx';
                     a.click();
                     setTimeout(() => URL.revokeObjectURL(url), 10000);
 
@@ -329,7 +329,7 @@ worker.<span class="func">terminate</span>();</pre>
             statusEl.textContent = '⏳ 生成数据中...';
             progressFill.style.width = '0%';
 
-            const data = generateData(200000);
+            const data = generateData(300000);
             statusEl.textContent = '🔴 主线程导出中（页面可能卡顿）...';
 
             // 使用 requestAnimationFrame 保证 UI 更新后再执行
@@ -339,7 +339,7 @@ worker.<span class="func">terminate</span>();</pre>
                     try {
                         export_data(data, {
                             columns,
-                            filename: '主线程_200000行.xlsx',
+                            filename: '主线程_300000行.xlsx',
                             format: ExportFormat.Xlsx,
                             progressCallback: (p) => {
                                 progressFill.style.width = `${p}%`;
