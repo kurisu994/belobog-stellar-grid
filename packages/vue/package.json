@@ -40,9 +40,9 @@
     "@bsg-export/types": "file:../types"
   },
   "devDependencies": {
-    "esbuild": "^0.25.0",
-    "typescript": "^5.7.0",
-    "vue": "^3.5.0",
-    "vue-tsc": "^2.2.0"
+    "esbuild": "^0.25.12",
+    "typescript": "^5.9.3",
+    "vue": "^3.5.29",
+    "vue-tsc": "^2.2.12"
   }
 }

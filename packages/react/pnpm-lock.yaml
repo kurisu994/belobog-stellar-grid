@@ -13,16 +13,16 @@ importers:
         version: file:../types
       belobog-stellar-grid:
         specifier: '>=1.0.0'
-        version: 1.0.5
+        version: 1.0.7
     devDependencies:
       '@types/react':
-        specifier: ^19.0.0
+        specifier: ^19.2.14
         version: 19.2.14
       react:
-        specifier: ^19.0.0
+        specifier: ^19.2.4
         version: 19.2.4
       typescript:
-        specifier: ^5.7.0
+        specifier: ^5.9.3
         version: 5.9.3
 
 packages:
@@ -33,8 +33,8 @@ packages:
   '@types/react@19.2.14':
     resolution: {integrity: sha512-ilcTH/UniCkMdtexkoCN0bI7pMcJDvmQFPvuPvmEaYA/NSfFTAgdUSLAoVjaRJm7+6PvcM+q1zYOwS4wTYMF9w==}
 
-  belobog-stellar-grid@1.0.5:
-    resolution: {integrity: sha512-fDDKQNV3wMrz089x6/moq0EXpMMsc93G0VNTetzabvIWZACimrDc9llK+mt11jduQrsznaRbcH6w+BwByYxyYg==}
+  belobog-stellar-grid@1.0.7:
+    resolution: {integrity: sha512-hLWj4LBSATx6IezGnNo4qIxjzyCiDxZk/CogxgQSj/d/gtl/xu5c70MCwGc7Vt4aU0GquB6sBS9PR3nxMJMM5w==}
 
   csstype@3.2.3:
     resolution: {integrity: sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ==}
@@ -56,7 +56,7 @@ snapshots:
     dependencies:
       csstype: 3.2.3
 
-  belobog-stellar-grid@1.0.5: {}
+  belobog-stellar-grid@1.0.7: {}
 
   csstype@3.2.3: {}
 

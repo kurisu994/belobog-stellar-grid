@@ -13,19 +13,19 @@ importers:
         version: file:../types
       belobog-stellar-grid:
         specifier: '>=1.0.0'
-        version: 1.0.5
+        version: 1.0.7
     devDependencies:
       esbuild:
-        specifier: ^0.25.0
+        specifier: ^0.25.12
         version: 0.25.12
       typescript:
-        specifier: ^5.7.0
+        specifier: ^5.9.3
         version: 5.9.3
       vue:
-        specifier: ^3.5.0
+        specifier: ^3.5.29
         version: 3.5.29(typescript@5.9.3)
       vue-tsc:
-        specifier: ^2.2.0
+        specifier: ^2.2.12
         version: 2.2.12(typescript@5.9.3)
 
 packages:
@@ -265,8 +265,8 @@ packages:
     resolution: {integrity: sha512-BLrgEcRTwX2o6gGxGOCNyMvGSp35YofuYzw9h1IMTRmKqttAZZVU67bdb9Pr2vUHA8+j3i2tJfjO6C6+4myGTA==}
     engines: {node: 18 || 20 || >=22}
 
-  belobog-stellar-grid@1.0.5:
-    resolution: {integrity: sha512-fDDKQNV3wMrz089x6/moq0EXpMMsc93G0VNTetzabvIWZACimrDc9llK+mt11jduQrsznaRbcH6w+BwByYxyYg==}
+  belobog-stellar-grid@1.0.7:
+    resolution: {integrity: sha512-hLWj4LBSATx6IezGnNo4qIxjzyCiDxZk/CogxgQSj/d/gtl/xu5c70MCwGc7Vt4aU0GquB6sBS9PR3nxMJMM5w==}
 
   brace-expansion@5.0.3:
     resolution: {integrity: sha512-fy6KJm2RawA5RcHkLa1z/ScpBeA762UF9KmZQxwIbDtRJrgLzM10depAiEQ+CXYcoiqW1/m96OAAoke2nE9EeA==}
@@ -530,7 +530,7 @@ snapshots:
 
   balanced-match@4.0.4: {}
 
-  belobog-stellar-grid@1.0.5: {}
+  belobog-stellar-grid@1.0.7: {}
 
   brace-expansion@5.0.3:
     dependencies:

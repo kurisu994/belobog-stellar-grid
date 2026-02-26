@@ -18,7 +18,6 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type {
-  ExportFormat,
   ExportDataOptions,
   ExportTableOptions,
   ExportTablesXlsxOptions,
