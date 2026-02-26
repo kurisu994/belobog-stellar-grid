@@ -9,6 +9,10 @@
 
 ## [Unreleased]
 
+---
+
+## [1.0.7] - 2026-02-26
+
 ### 🐛 修复
 
 - 🐛 **React / Vue 导出生命周期修复**: 将 `exportTable` 等导出动作从 `void` 变更为返回执行结果 `boolean` / `Promise<boolean>` 状态指示，确保能在完整的尝试逻辑后，且由于并未返回错误时，准确触发 `onExportSuccess` / `emit('success')` 回调。
