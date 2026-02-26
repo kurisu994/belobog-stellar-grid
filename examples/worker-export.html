@@ -111,16 +111,38 @@
         .func { color: #61afef; }
         .number { color: #d19a66; }
         .code { background: #e8f0fe; padding: 2px 8px; border-radius: 3px; font-family: 'Courier New', monospace; color: #5f6368; }
-        #animation-box {
-            width: 60px; height: 60px;
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            border-radius: 8px;
-            animation: spin 2s linear infinite;
+        .ticker-box {
+            display: flex;
+            align-items: center;
+            gap: 20px;
             margin: 15px 0;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border: 1px solid #eee;
         }
-        @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
+        .ticker-counter {
+            font-size: 32px;
+            font-weight: 700;
+            color: #2C5364;
+            font-family: 'Courier New', monospace;
+            min-width: 80px;
+        }
+        .ticker-label {
+            font-size: 12px;
+            color: #999;
+        }
+        .ticker-input {
+            padding: 8px 12px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.3s;
+            width: 200px;
+        }
+        .ticker-input:focus {
+            border-color: #667eea;
         }
     </style>
 </head>
@@ -134,16 +156,24 @@
         <div class="info-box">
             <strong>💡 核心原理：</strong>
             WASM 的 CSV/XLSX 序列化在 Worker 线程执行，生成的字节通过 Transferable 零拷贝传回主线程触发下载。
-            下方动画方块可以用来验证主线程是否阻塞 — 如果方块始终流畅旋转，说明主线程未被卡住。
+            下方的计时器和输入框都依赖主线程 — 主线程阻塞时它们会同时冻结。
         </div>
 
         <!-- Worker 导出 vs 主线程导出对比 -->
         <div class="section">
             <h2>Worker 导出 vs 主线程导出</h2>
-            <p>生成 500000 行数据并导出，对比 Worker 和主线程的性能差异：</p>
+            <p>生成 200000 行数据并导出，对比 Worker 和主线程的性能差异：</p>
 
-            <div id="animation-box"></div>
-            <p style="color: #999; font-size: 12px;">↑ 旋转动画 — 流畅 = 主线程未阻塞</p>
+            <div class="ticker-box">
+                <div>
+                    <div class="ticker-counter" id="ticker">0</div>
+                    <div class="ticker-label">JS 计时器（每 50ms +1）</div>
+                </div>
+                <div>
+                    <input class="ticker-input" id="test-input" placeholder="试试在导出时输入文字..." />
+                    <div class="ticker-label">↑ 主线程阻塞时无法输入</div>
+                </div>
+            </div>
 
             <div class="progress-bar"><div class="progress-bar-fill" id="progress-fill"></div></div>
             <div id="status">就绪</div>
@@ -160,8 +190,8 @@
             </div>
 
             <div class="button-group">
-                <button class="btn-worker" id="btn-worker" onclick="workerExport()">⚡ Worker 导出 500000 行 XLSX</button>
-                <button class="btn-main" id="btn-main" onclick="mainThreadExport()">🔴 主线程导出 500000 行 XLSX</button>
+                <button class="btn-worker" id="btn-worker" onclick="workerExport()">⚡ Worker 导出 200000 行 XLSX</button>
+                <button class="btn-main" id="btn-main" onclick="mainThreadExport()">🔴 主线程导出 200000 行 XLSX</button>
             </div>
         </div>
 
@@ -232,7 +262,7 @@ worker.<span class="func">terminate</span>();</pre>
             statusEl.textContent = '⏳ 生成数据中...';
             progressFill.style.width = '0%';
 
-            const data = generateData(500000);
+            const data = generateData(200000);
             statusEl.textContent = '⏳ Worker 导出中...';
 
             const start = performance.now();
@@ -277,7 +307,7 @@ worker.<span class="func">terminate</span>();</pre>
                     const url = URL.createObjectURL(fileBlob);
                     const a = document.createElement('a');
                     a.href = url;
-                    a.download = 'worker_500000行.xlsx';
+                    a.download = 'worker_200000行.xlsx';
                     a.click();
                     setTimeout(() => URL.revokeObjectURL(url), 10000);
 
@@ -299,7 +329,7 @@ worker.<span class="func">terminate</span>();</pre>
             statusEl.textContent = '⏳ 生成数据中...';
             progressFill.style.width = '0%';
 
-            const data = generateData(500000);
+            const data = generateData(200000);
             statusEl.textContent = '🔴 主线程导出中（页面可能卡顿）...';
 
             // 使用 requestAnimationFrame 保证 UI 更新后再执行
@@ -309,7 +339,7 @@ worker.<span class="func">terminate</span>();</pre>
                     try {
                         export_data(data, {
                             columns,
-                            filename: '主线程_500000行.xlsx',
+                            filename: '主线程_200000行.xlsx',
                             format: ExportFormat.Xlsx,
                             progressCallback: (p) => {
                                 progressFill.style.width = `${p}%`;
@@ -326,6 +356,13 @@ worker.<span class="func">terminate</span>();</pre>
                 });
             });
         };
+
+        // JS 计时器 — 依赖主线程，阻塞时会冻结
+        let tickCount = 0;
+        setInterval(() => {
+            tickCount++;
+            document.getElementById('ticker').textContent = tickCount;
+        }, 50);
 
         console.log('🚀 WebAssembly 已初始化，Worker 导出示例可用');
     </script>
