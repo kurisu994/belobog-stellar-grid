@@ -341,12 +341,21 @@ just ci-release major   # 主要版本 1.0.0 -> 2.0.0
 
 该命令会自动：
 
-1. 升级版本号
-2. 提交更改并打标签
-3. 推送到 GitHub
-4. 触发 GitHub Actions 自动发布到 npm
+1. 升级 `Cargo.toml`、`README.md`、`packages/*/package.json` 版本号
+2. 更新 `CHANGELOG.md`（将 `[Unreleased]` 替换为版本号 + 日期）
+3. 提交更改并打 Git 标签
+4. 推送到 GitHub，触发 CI 流水线
 
-> ⚠️ 需要在 GitHub 仓库设置 `NPM_TOKEN` secret
+**CI 流水线**（`.github/workflows/ci.yml`）触发后执行：
+
+1. **代码质量检查** — `cargo fmt`、`cargo clippy`、`cargo test`
+2. **WebAssembly 构建** — `wasm-pack build --target web --release`
+3. **浏览器测试** — Puppeteer 自动化验证 WASM 加载和基本功能
+4. **发布主包** — 将 `pkg/` 发布到 npm（`belobog-stellar-grid`）
+5. **发布子包** — 构建并发布 `@bsg-export/types`、`@bsg-export/react`、`@bsg-export/vue`
+6. **创建 GitHub Release** — 自动提取 CHANGELOG 生成发布说明，附带 WASM 构建产物
+
+> ⚠️ 需要在 GitHub 仓库 Settings → Secrets 中配置 `NPM_TOKEN`
 
 #### 🔧 手动发布
 
@@ -363,10 +372,24 @@ just optimize
 # 3. 发布前测试
 just dry-run
 
-# 4. 发布到 npm
+# 4. 发布主包到 npm
 just publish latest    # 发布稳定版
 just publish beta      # 发布 beta 版
+
+# 5. 构建并发布子包
+just build-packages      # 构建 types/react/vue
+just publish-packages    # 发布到 npm（默认 latest tag）
 ```
+
+#### 子包说明
+
+| 子包 | 说明 | 依赖 |
+| --- | --- | --- |
+| `@bsg-export/types` | 严格 TypeScript 类型定义 | 无 |
+| `@bsg-export/react` | React Hook + 组件封装 | `@bsg-export/types` |
+| `@bsg-export/vue` | Vue 3 Composable + 组件封装 | `@bsg-export/types` |
+
+> 子包版本号在 `just bump` 时会自动与主包同步。
 
 #### 其他命令
 
@@ -375,6 +398,7 @@ just info       # 查看当前版本
 just test       # 运行测试
 just build      # 构建 WASM
 just optimize   # 优化 WASM 文件大小
+just e2e        # 运行 E2E 测试（Playwright）
 ```
 
 ### 项目结构
@@ -436,39 +460,27 @@ belobog-stellar-grid/
 
 ## 📌 TODO / 开发路线图
 
-以下是待改进的功能点：
+### ✨ 功能增强
 
-### 🛡️ 安全与稳定性 (优先)
-
-- [x] **修复 XLSX 公式注入漏洞**: 默认禁用公式自动执行，统一使用 `write_string` 写入。
-- [x] **递归深度限制**: 树形数据和嵌套表头添加 `MAX_DEPTH=64` 限制，防止栈溢出。
-- [x] **移除 Panic**: 将 `yield_to_browser()` 中的 `expect()` 替换为优雅的错误处理。
-- [x] **控制字符检测**: 文件名验证新增 ASCII 控制字符（0x00-0x1F）检测。
-- [x] **数组类型验证**: `parse_sheet_configs` 新增 `Array::is_array()` 验证。
-
-### 📊 功能一致性
-
-- [ ] **多表导出严格进度回调**: `export_tables_xlsx` 函数添加 `strict_progress_callback` 参数支持。
-- [ ] **批量导出严格进度回调**: 三个批量导出函数添加 `strict_progress_callback` 参数支持。
-- [x] **Format 参数浮点数验证**: 增强 `parse_export_data_options` 中 format 参数验证，拒绝非整数输入。
-
-### ✨ 新特性
-
-- [ ] **Excel 样式定制**: 支持设置字体、颜色、边框、背景色等。
+- [ ] **Excel 样式定制**: 支持设置字体、颜色、边框、背景色等单元格样式。
+- [ ] **条件格式**: 支持根据数据值自动应用颜色、图标集等条件格式规则。
+- [ ] **冻结窗格**: 支持冻结表头行/列，方便大数据量 Excel 浏览。
+- [ ] **数据验证**: 支持 Excel 下拉列表、数值范围等数据验证规则。
 - [ ] **图片导出**: 支持将图片插入到 Excel 单元格中。
-- [x] **CSV BOM 支持**: 为 CSV 添加 UTF-8 BOM 头，解决 Windows Excel 乱码问题。
-- [ ] **数据选择与过滤**: 支持选择性导出特定行或列，以及数据预处理。
+- [ ] **数据选择与过滤**: 支持选择性导出特定行或列，以及数据预处理/转换。
 
-### 💻 开发体验 (DX)
+### ⚡ 性能优化
 
-- [x] **框架集成库**: 提供 `@bsg-export/react`、`@bsg-export/vue` 官方封装组件。
-- [x] **类型定义优化**: 提供更严格的 TypeScript 类型定义（`@bsg-export/types`）。
+- [ ] **Web Worker 支持**: 将导出计算移至 Worker 线程，彻底避免主线程阻塞。
+- [ ] **Streaming 导出**: 对超大文件采用流式写入，降低内存峰值占用。
+- [ ] **WASM 体积优化**: 探索 `wasm-opt` 更激进的优化策略或按功能拆分 WASM 模块。
+- [ ] **性能基准测试**: 建立自动化 Benchmark，持续追踪导出性能回归。
 
-### 🛠️ 工程化与重构
+### 🌍 生态扩展
 
-- [x] **DOM 提取逻辑重构**: 消除 DOM 遍历代码的重复逻辑。提取 `resolve_table`、`process_row_cells` 等共用函数，4 个调用方统一使用。
-- [ ] **Node.js / 服务端支持**: 探索在非浏览器环境下的运行能力。
-- [x] **E2E 测试**: 引入 Playwright 进行端到端测试，覆盖 WASM 初始化、CSV/XLSX 导出、数据导出、错误处理等 20 个测试用例。
+- [ ] **Node.js / 服务端支持**: 探索 `wasm32-wasip1` 或 `wasm32-unknown-unknown` 在非浏览器环境的运行能力。
+- [ ] **更多框架集成**: 提供 Svelte、Solid.js 等框架的官方封装。
+- [ ] **CDN 分发**: 提供 unpkg / jsDelivr 等 CDN 直接引用方式，简化非构建工具场景的接入。
 
 ---
 
