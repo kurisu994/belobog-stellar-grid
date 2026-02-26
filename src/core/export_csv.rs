@@ -131,7 +131,7 @@ pub(crate) fn create_and_download_csv(
     anchor.set_download(&final_filename);
     anchor.click();
 
-    // 延迟 60 秒后释放 Blob URL，避免 click 后立即 revoke 导致下载竞态
+    // 延迟 10 秒后释放 Blob URL，避免 click 后立即 revoke 导致下载竞态
     crate::resource::schedule_url_revoke(&window, url);
 
     Ok(())
