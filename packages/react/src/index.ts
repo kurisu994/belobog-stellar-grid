@@ -12,6 +12,11 @@ export type {
   UseExporterReturn,
 } from './use-exporter';
 
+export { useWorkerExporter } from './use-worker-exporter';
+export type {
+  UseWorkerExporterReturn,
+} from './use-worker-exporter';
+
 // 组件
 export { ExportButton } from './ExportButton';
 export type { ExportButtonProps } from './ExportButton';

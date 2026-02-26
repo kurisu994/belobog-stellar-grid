@@ -272,6 +272,36 @@ function App() {
 - `exportTableToXlsxBatch(options)` — XLSX 分批导出
 - `exportTablesToXlsxBatch(options)` — 多 Sheet 分批导出
 
+#### `useWorkerExporter(createWorker)`
+
+将导出计算移至 Worker 线程，主线程不阻塞。
+
+```tsx
+import { useWorkerExporter } from '@bsg-export/react';
+import ExportWorkerScript from '@bsg-export/worker/worker?worker';
+
+function App() {
+  const { initialized, loading, progress, exportData } = useWorkerExporter(
+    () => new ExportWorkerScript()
+  );
+
+  return (
+    <button disabled={!initialized || loading}
+            onClick={() => exportData(data, { columns, filename: '报表.xlsx', format: 1 })}>
+      {loading ? `导出中 ${Math.round(progress)}%` : 'Worker 导出'}
+    </button>
+  );
+}
+```
+
+**参数**：`createWorker: () => Worker` — Worker 工厂函数，支持 Vite / Webpack 5 等槑建工具。
+
+**返回值**：
+- `initialized / loading / progress / error` — 状态
+- `exportData(data, options?)` — Worker 中生成并触发下载
+- `generateBytes(data, options?)` — 仅生成字节
+- `terminate()` — 销毁 Worker
+
 #### `<ExportButton>`
 
 开箱即用的导出按钮，自动管理初始化和状态。
@@ -304,6 +334,28 @@ const { initialized, loading, progress, exportTable } = useExporter();
 <template>
   <button :disabled="!initialized || loading" @click="exportTable({ tableId: 'my-table' })">
     {{ loading ? `导出中 ${Math.round(progress)}%` : '导出' }}
+  </button>
+</template>
+```
+
+#### `useWorkerExporter(createWorker)`
+
+Worker 线程导出，功能同 React 版 `useWorkerExporter`，使用 Vue 3 响应式状态。
+
+```vue
+<script setup>
+import { useWorkerExporter } from '@bsg-export/vue';
+import ExportWorkerScript from '@bsg-export/worker/worker?worker';
+
+const { initialized, loading, progress, exportData } = useWorkerExporter(
+  () => new ExportWorkerScript()
+);
+</script>
+
+<template>
+  <button :disabled="!initialized || loading"
+          @click="exportData(data, { columns, filename: '报表.xlsx', format: 1 })">
+    {{ loading ? `导出中 ${Math.round(progress)}%` : 'Worker 导出' }}
   </button>
 </template>
 ```

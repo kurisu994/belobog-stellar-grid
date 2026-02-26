@@ -1,0 +1,41 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      '@bsg-export/types':
+        specifier: file:../types
+        version: file:../types
+      belobog-stellar-grid:
+        specifier: '>=1.0.0'
+        version: 1.0.7
+    devDependencies:
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+packages:
+
+  '@bsg-export/types@file:../types':
+    resolution: {directory: ../types, type: directory}
+
+  belobog-stellar-grid@1.0.7:
+    resolution: {integrity: sha512-hLWj4LBSATx6IezGnNo4qIxjzyCiDxZk/CogxgQSj/d/gtl/xu5c70MCwGc7Vt4aU0GquB6sBS9PR3nxMJMM5w==}
+
+  typescript@5.9.3:
+    resolution: {integrity: sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==}
+    engines: {node: '>=14.17'}
+    hasBin: true
+
+snapshots:
+
+  '@bsg-export/types@file:../types': {}
+
+  belobog-stellar-grid@1.0.7: {}
+
+  typescript@5.9.3: {}

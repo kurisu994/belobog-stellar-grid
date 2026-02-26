@@ -15,7 +15,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "vue-tsc --declaration --emitDeclarationOnly --outDir dist && esbuild src/index.ts src/use-exporter.ts --outdir=dist --format=esm --bundle=false",
+    "build": "vue-tsc --declaration --emitDeclarationOnly --outDir dist && esbuild src/index.ts src/use-exporter.ts src/use-worker-exporter.ts --outdir=dist --format=esm --bundle=false",
     "typecheck": "vue-tsc --noEmit"
   },
   "keywords": [

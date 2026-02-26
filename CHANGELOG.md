@@ -15,6 +15,9 @@
   - 新增 `generate_data_bytes` WASM 函数：生成 CSV/XLSX 文件字节（不触发下载），专为 Worker 场景设计
   - `ExportWorker` 类：管理 Worker 生命周期、消息协议和文件下载触发
   - 支持 Transferable 零拷贝字节传输和进度回调
+- 🧩 **框架 Worker 集成**: `@bsg-export/react` 和 `@bsg-export/vue` 新增 `useWorkerExporter` Hook/Composable
+  - 接受 Worker 工厂函数，自动管理 Worker 生命周期和 WASM 初始化
+  - 提供 `exportData`（生成并下载）和 `generateBytes`（仅生成字节）方法
 
 ### ♻️ 重构
 

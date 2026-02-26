@@ -8,7 +8,7 @@
 
 // Composable
 export { useExporter } from './use-exporter';
-
+export { useWorkerExporter } from './use-worker-exporter';
 
 // 组件
 export { default as ExportButton } from './ExportButton.vue';
