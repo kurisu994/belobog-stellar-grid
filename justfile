@@ -185,7 +185,7 @@ build-packages:
     for pkg in packages/types packages/react packages/vue; do
         if [ -d "$pkg" ]; then
             echo "📦 构建 $pkg..."
-            cd "$pkg" && npm install && npm run build && cd ../.. 
+            cd "$pkg" && pnpm install && pnpm run build && cd ../.. 
             echo "✅ $pkg 构建完成"
         fi
     done
