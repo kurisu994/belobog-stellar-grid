@@ -6,7 +6,7 @@
 
 ## 简介
 
-提供 `useExporter` Composable 和 `ExportButton` 组件，自动管理 WASM 初始化、导出状态和进度追踪。
+提供 `useExporter` Composable、`useWorkerExporter` Composable 和 `ExportButton` 组件，自动管理 WASM 初始化、导出状态和进度追踪。`useWorkerExporter` 支持将导出计算移至 Worker 线程。
 
 ## 安装
 
@@ -77,6 +77,31 @@ import { ExportButton, ExportFormat } from '@bsg-export/vue';
 | `exportCsvBatch` | `(options) => Promise` | CSV 分批导出 |
 | `exportXlsxBatch` | `(options) => Promise` | XLSX 分批导出 |
 | `exportTablesBatch` | `(options) => Promise` | 多 Sheet 分批导出 |
+
+### `useWorkerExporter(createWorker)` 返回值
+
+将导出计算移至 Worker 线程，主线程不阻塞。需要传入 Worker 工厂函数。
+
+```vue
+<script setup lang="ts">
+import { useWorkerExporter } from '@bsg-export/vue';
+import ExportWorkerScript from '@bsg-export/worker/worker?worker';
+
+const { initialized, loading, progress, exportData } = useWorkerExporter(
+  () => new ExportWorkerScript()
+);
+</script>
+```
+
+| 属性/方法 | 类型 | 说明 |
+|-----------|------|------|
+| `initialized` | `Ref<boolean>` | Worker 中 WASM 是否初始化完成 |
+| `loading` | `Ref<boolean>` | 是否正在导出 |
+| `progress` | `Ref<number>` | 导出进度 (0-100) |
+| `error` | `Ref<Error \| null>` | 错误信息 |
+| `exportData` | `(data, opts?) => Promise<boolean>` | Worker 生成并下载 |
+| `generateBytes` | `(data, opts?) => Promise<Uint8Array>` | 仅生成字节 |
+| `terminate` | `() => void` | 销毁 Worker |
 
 ### `<ExportButton>` Props
 

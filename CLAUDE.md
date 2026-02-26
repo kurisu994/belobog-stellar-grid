@@ -41,7 +41,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### 子包管理
 
-- **构建子包**: `just build-packages` (构建 @bsg-export/types、react、vue)
+- **构建子包**: `just build-packages` (构建 @bsg-export/types、react、vue、worker)
 - **发布子包**: `just publish-packages [tag]` (发布到 npm)
 - **版本同步**: `just bump-core` 自动同步子包版本
 
@@ -104,7 +104,8 @@ src/
 packages/
 ├── types/              # @bsg-export/types — 严格 TypeScript 类型定义（零运行时）
 ├── react/              # @bsg-export/react — React Hook + 组件
-└── vue/                # @bsg-export/vue  — Vue 3 Composable + 组件
+├── vue/                # @bsg-export/vue  — Vue 3 Composable + 组件
+└── worker/             # @bsg-export/worker — Web Worker 导出封装
 ```
 
 ### 关键模块职责
@@ -113,6 +114,7 @@ packages/
 - **export_table**: DOM 导出，支持 CSV/XLSX、进度回调、隐藏行列排除
 - **export_data**: 纯数据导出，支持二维数组、对象数组、树形数据、复杂表头
 - **export_tables_xlsx**: 多工作表导出，将多个表格导出到同一个 Excel 文件的不同 Sheet
+- **generate_data_bytes**: 与 export_data 相同，但返回文件字节（Uint8Array）而不触发下载，专为 Worker 场景设计
 
 #### 核心算法 (src/core/data_export.rs)
 - **嵌套表头解析**: 支持配置嵌套的 children 实现多级表头

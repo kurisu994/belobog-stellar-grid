@@ -11,6 +11,7 @@
 - **安全**: 内置文件名安全验证，防止路径遍历攻击，支持公式注入防护。
 - **易用**: 提供统一的 API 和类型支持。
 - **框架集成**: 提供 `@bsg-export/react` 和 `@bsg-export/vue` 官方封装组件。
+- **Web Worker 支持**: `@bsg-export/worker` 将导出计算移至 Worker 线程，主线程不阻塞。
 - **类型安全**: `@bsg-export/types` 提供严格的 TypeScript 类型定义。
 - **质量保证**: 103 个单元测试，100% 测试覆盖，代码质量检查流程完善。
 
@@ -85,6 +86,11 @@ export_table("my-table-id", "report.xlsx", ExportFormat.Xlsx, false, (progress) 
 - `sheets`: 工作表配置数组，同 `export_tables_xlsx`
 - 其他参数同 `export_table_to_xlsx_batch`
 
+#### `generate_data_bytes(data, options?)`
+与 `export_data` 功能相同，但返回文件字节（`Uint8Array`）而不触发下载。专为 Web Worker 场景设计。
+- 参数同 `export_data`。
+- 返回 `Uint8Array`。
+
 ### 类型
 
 #### `ExportFormat`
@@ -123,6 +129,20 @@ exportTable({ tableId: 'my-table', filename: '报表.xlsx', format: ExportFormat
 import { useExporter, ExportFormat } from '@bsg-export/vue';
 const { initialized, loading, progress, exportTable } = useExporter();
 </script>
+```
+
+### `@bsg-export/worker` — Web Worker 导出封装
+
+- `ExportWorker` 类：管理 Worker 生命周期、消息协议和文件下载
+- React: `useWorkerExporter()` Hook
+- Vue: `useWorkerExporter()` Composable
+
+```typescript
+import { ExportWorker } from '@bsg-export/worker';
+const worker = new ExportWorker(myWorkerInstance);
+await worker.init();
+await worker.exportData(data, { columns, filename: '报表.xlsx', format: 1 });
+worker.terminate();
 ```
 
 ## 开发指南
