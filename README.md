@@ -29,8 +29,8 @@
 - **🎯 零配置**：开箱即用，无需复杂的设置
 - **🚀 极致性能**：Rust 原生速度 + WebAssembly 优化
 - **🔒 企业级安全**：内置文件名验证，防止路径遍历攻击
-- **📦 轻量级**：约 117KB 的 WASM 文件（gzip 后约 40KB）
-- **✅ 100% 测试覆盖**：103 个单元测试 + 20 个 E2E 测试确保代码质量
+- **📦 轻量级**：约 1.3MB 的 WASM 文件（Gzip 压缩后约 450KB）
+- **✅ 100% 测试覆盖**：121 个单元测试 + 33 个 E2E 测试确保代码质量
 - **🏗️ 模块化架构**：清晰的模块设计，易于维护和扩展
 - **🌍 国际化支持**：完美支持中文、日文、韩文等 Unicode 字符
 - **💾 多格式导出**：支持 CSV 和 XLSX (Excel) 两种格式
@@ -62,6 +62,8 @@
 - **树形数据支持**：自动处理树形结构数据，实现层级缩进
 - **智能过滤**：自动检测并排除隐藏的行/列 (`display: none`)
 - **容器查找**：自动在容器元素中查找表格
+- **Web Worker 支持**：将导出计算移至 Worker 线程，避免主线程阻塞
+- **字节生成模式**：`generate_data_bytes` 支持仅生成文件字节而不触发下载，适用于 Worker 场景
 
 ## 🚀 快速开始
 
@@ -235,6 +237,7 @@ try {
 | array-export.html      | ![进阶](https://img.shields.io/badge/难度-进阶-orange) | 数组导出（嵌套表头 + 数据合并）示例 |
 | tree-export.html       | ![进阶](https://img.shields.io/badge/难度-进阶-orange) | 树形数据导出（递归拍平 + 层级缩进）示例 |
 | multi-sheet-export.html | ![进阶](https://img.shields.io/badge/难度-进阶-orange) | 多工作表导出示例 |
+| worker-export.html     | ![高级](https://img.shields.io/badge/难度-高级-red)   | Web Worker 导出（避免主线程阻塞）示例 |
 | virtual-scroll-export.html | ![高级](https://img.shields.io/badge/难度-高级-red) | 虚拟滚动导出（百万级数据）示例 |
 
 **运行示例**：
@@ -260,9 +263,11 @@ basic-http-server .
 
 - **`export_table`**：统一导出函数（推荐）。
 - **`export_data`**：JS 数据直接导出，支持树形和复杂表头。
+- **`generate_data_bytes`**：生成 CSV/XLSX 文件字节（不触发下载），专为 Web Worker 场景设计。
 - **`export_tables_xlsx`**：导出多 Sheet Excel。
 - **`export_table_to_csv_batch`**：CSV 异步分批导出。
 - **`export_table_to_xlsx_batch`**：XLSX 异步分批导出。
+- **`export_tables_to_xlsx_batch`**：多工作表分批异步 XLSX 导出。
 
 更多细节请查阅 [API.md](./API.md)。
 
@@ -411,33 +416,47 @@ just e2e        # 运行 E2E 测试（Playwright）
 belobog-stellar-grid/
 ├── src/                    # 源代码
 │   ├── lib.rs             # 主入口
-│   ├── validation.rs      # 文件名验证
+│   ├── validation.rs      # 文件名验证（含 1 个内联测试）
 │   ├── resource.rs        # RAII 资源管理
 │   ├── core/              # 核心导出模块组
 │   │   ├── mod.rs         # 统一 API 和协调
 │   │   ├── table_extractor.rs  # 表格数据提取
-│   │   ├── data_export.rs # 数据导出（columns + dataSource，支持嵌套表头、数据合并、树形数据）
+│   │   ├── data_export.rs # 数据导出（columns + dataSource，支持嵌套表头、数据合并、树形数据，含 29 个内联测试）
 │   │   ├── export_csv.rs  # CSV 导出
 │   │   └── export_xlsx.rs # XLSX 导出
 │   ├── batch_export.rs    # 异步分批导出（CSV）
 │   ├── batch_export_xlsx.rs # 异步分批导出（XLSX）
-│   └── utils.rs           # 调试工具
-├── tests/                 # 单元测试目录（103 个测试）
+│   └── utils.rs           # 调试工具（含 2 个内联测试）
+├── tests/                 # 单元测试目录（89 个测试）
 │   ├── lib_tests.rs       # 基础功能测试（41 个）
 │   ├── test_resource.rs   # RAII 资源测试（8 个）
 │   ├── test_unified_api.rs # 统一 API 测试（4 个）
 │   ├── test_data_export.rs # 数据导出测试（33 个）
-│   └── test_security.rs   # 安全/CSV注入测试（3 个）
-├── e2e/                   # E2E 测试目录（Playwright，20 个测试）
+│   ├── test_security.rs   # 安全/CSV注入测试（3 个）
+│   ├── fixtures/          # 测试夹具
+│   └── browser/           # 浏览器测试辅助
+├── e2e/                   # E2E 测试目录（Playwright，33 个测试）
 │   ├── playwright.config.ts # Playwright 配置
 │   └── tests/             # E2E 测试用例
-│       ├── e2e-test-page.html   # 测试页面
-│       ├── basic-export.spec.ts # 基础导出测试（10 个）
-│       └── data-export.spec.ts  # 数据导出测试（10 个）
+│       ├── basic-export.spec.ts      # 基础导出测试（6 个）
+│       ├── array-export.spec.ts      # 数组导出测试（9 个）
+│       ├── container-export.spec.ts  # 容器导出测试（5 个）
+│       ├── multi-sheet-export.spec.ts # 多工作表测试（3 个）
+│       ├── tree-export.spec.ts       # 树形数据测试（7 个）
+│       └── wasm-init.spec.ts         # WASM 初始化测试（3 个）
 ├── examples/              # 示例目录
+├── packages/              # 框架集成子包
+│   ├── types/             # @bsg-export/types - 严格 TypeScript 类型定义
+│   ├── react/             # @bsg-export/react - React Hook + 组件封装
+│   ├── vue/               # @bsg-export/vue - Vue 3 Composable + 组件封装
+│   └── worker/            # @bsg-export/worker - Web Worker 导出封装
 ├── pkg/                   # WASM 包输出
 ├── API.md                 # API 详细文档
+├── CHANGELOG.md           # 更新日志
+├── CODE_REVIEW_REPORT.md  # 代码审查报告
+├── CLAUDE.md              # AI 辅助开发指南
 ├── llms.txt               # LLM 上下文文档
+├── justfile               # Just 命令配置
 └── README.md             # 项目文档
 ```
 
@@ -476,6 +495,9 @@ belobog-stellar-grid/
 ### ⚡ 性能优化
 
 - [x] **Web Worker 支持**: 将导出计算移至 Worker 线程，彻底避免主线程阻塞。 ✅
+- [x] **E2E 测试体系**: 引入 Playwright 进行端到端测试，覆盖 33 个测试场景。 ✅
+- [x] **框架集成库**: 提供 React (`@bsg-export/react`) 和 Vue 3 (`@bsg-export/vue`) 官方封装组件。 ✅
+- [x] **严格 TypeScript 类型**: `@bsg-export/types` 提供完整类型安全定义。 ✅
 - [ ] **Streaming 导出**: 对超大文件采用流式写入，降低内存峰值占用。
 - [ ] **WASM 体积优化**: 探索 `wasm-opt` 更激进的优化策略或按功能拆分 WASM 模块。
 - [ ] **性能基准测试**: 建立自动化 Benchmark，持续追踪导出性能回归。
@@ -519,8 +541,8 @@ belobog-stellar-grid/
 
 本项目采用双重许可证：
 
-- **[MIT License](LICENSE-MIT)** - 简单宽松
-- **[Apache License 2.0](LICENSE-APACHE)** - 更多法律保护
+- **[MIT License](LICENSE_MIT)** - 简单宽松
+- **[Apache License 2.0](LICENSE_APACHE)** - 更多法律保护
 
 ---
 
@@ -532,6 +554,8 @@ belobog-stellar-grid/
 - [WebAssembly](https://webassembly.org/) - 革命性的 Web 技术
 - [wasm-bindgen](https://github.com/rustwasm/wasm-bindgen) - Rust 与 JS 的桥梁
 - [csv](https://github.com/BurntSushi/rust-csv) - 优秀的 CSV 处理库
+- [rust_xlsxwriter](https://github.com/jmcnamara/rust_xlsxwriter) - 高性能的 Excel 写入库
+- [Playwright](https://playwright.dev/) - 可靠的端到端测试框架
 - 所有贡献者和使用者 ❤️
 
 ---
