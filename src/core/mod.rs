@@ -568,8 +568,7 @@ pub fn generate_data_bytes(
     let (table_data, format, with_bom) = if let Some(cols) = opts.columns {
         if let Some(ck) = opts.children_key {
             // 树形数据模式
-            let td =
-                build_table_data_from_tree(&cols, &data, opts.indent_column.as_deref(), &ck)?;
+            let td = build_table_data_from_tree(&cols, &data, opts.indent_column.as_deref(), &ck)?;
             (td, opts.format, opts.with_bom)
         } else {
             // 对象数组 + columns 配置
@@ -594,11 +593,9 @@ pub fn generate_data_bytes(
             sp,
             with_bom,
         )?,
-        ExportFormat::Xlsx => generate_xlsx_bytes(
-            &table_data,
-            opts.progress_callback.as_ref(),
-            sp,
-        )?,
+        ExportFormat::Xlsx => {
+            generate_xlsx_bytes(&table_data, opts.progress_callback.as_ref(), sp)?
+        }
     };
 
     Ok(js_sys::Uint8Array::from(bytes.as_slice()))

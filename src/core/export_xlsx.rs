@@ -113,11 +113,7 @@ pub fn export_as_xlsx(
     progress_callback: Option<js_sys::Function>,
     strict_progress: bool,
 ) -> Result<(), JsValue> {
-    let xlsx_bytes = generate_xlsx_bytes(
-        &table_data,
-        progress_callback.as_ref(),
-        strict_progress,
-    )?;
+    let xlsx_bytes = generate_xlsx_bytes(&table_data, progress_callback.as_ref(), strict_progress)?;
 
     // 创建并下载文件
     create_and_download_xlsx(&xlsx_bytes, filename)
@@ -240,11 +236,8 @@ pub fn export_as_xlsx_multi(
     progress_callback: Option<js_sys::Function>,
     strict_progress: bool,
 ) -> Result<(), JsValue> {
-    let xlsx_bytes = generate_xlsx_multi_bytes(
-        &sheets_data,
-        progress_callback.as_ref(),
-        strict_progress,
-    )?;
+    let xlsx_bytes =
+        generate_xlsx_multi_bytes(&sheets_data, progress_callback.as_ref(), strict_progress)?;
 
     // 创建并下载文件
     create_and_download_xlsx(&xlsx_bytes, filename)
