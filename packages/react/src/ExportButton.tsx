@@ -79,7 +79,7 @@ export function ExportButton({
       buttonProps.onClick?.(e);
       if (e.defaultPrevented) return;
 
-      exportTable({
+      const success = exportTable({
         tableId,
         filename,
         format,
@@ -87,12 +87,12 @@ export function ExportButton({
         withBom,
       });
 
-      // 导出成功回调（同步导出完成后立即触发）
-      if (onExportSuccess && !error) {
+      // 导出成功回调（同步导出完成后检查返回值）
+      if (success && onExportSuccess) {
         onExportSuccess();
       }
     },
-    [tableId, filename, format, excludeHidden, withBom, exportTable, onExportSuccess, error, buttonProps],
+    [tableId, filename, format, excludeHidden, withBom, exportTable, onExportSuccess, buttonProps],
   );
 
   /** 渲染按钮文本 */

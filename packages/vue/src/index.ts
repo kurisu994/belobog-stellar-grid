@@ -8,13 +8,7 @@
 
 // Composable
 export { useExporter } from './use-exporter';
-export type {
-  ExportTableOptions,
-  ExportTablesXlsxOptions,
-  ExportCsvBatchOptions,
-  ExportXlsxBatchOptions,
-  ExportTablesBatchOptions,
-} from './use-exporter';
+
 
 // 组件
 export { default as ExportButton } from './ExportButton.vue';
@@ -30,6 +24,11 @@ export type {
   SheetConfig,
   BatchSheetConfig,
   ProgressCallback,
+  ExportTableOptions,
+  ExportTablesXlsxOptions,
+  ExportCsvBatchOptions,
+  ExportXlsxBatchOptions,
+  ExportTablesBatchOptions,
 } from '@bsg-export/types';
 
 export { ExportFormat } from '@bsg-export/types';

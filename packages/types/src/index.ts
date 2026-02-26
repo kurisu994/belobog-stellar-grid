@@ -104,6 +104,74 @@ export interface ExportDataOptions {
 }
 
 // =============================================================================
+// Hook / Composable 配置接口 (React/Vue 公用)
+// =============================================================================
+
+/** export_table 的参数配置 */
+export interface ExportTableOptions {
+  /** 要导出的 HTML 表格元素的 ID */
+  tableId: string;
+  /** 导出文件名 */
+  filename?: string;
+  /** 导出格式 */
+  format?: ExportFormat;
+  /** 是否排除隐藏行/列 */
+  excludeHidden?: boolean;
+  /** 是否添加 UTF-8 BOM（仅 CSV 有效） */
+  withBom?: boolean;
+  /** 回调失败是否中断导出 */
+  strictProgressCallback?: boolean;
+}
+
+/** 多工作表导出的参数配置 */
+export interface ExportTablesXlsxOptions {
+  /** Sheet 配置数组 */
+  sheets: SheetConfig[];
+  /** 导出文件名 */
+  filename?: string;
+}
+
+/** 分批导出 CSV 的参数配置 */
+export interface ExportCsvBatchOptions {
+  /** 要导出的 HTML 表格元素的 ID */
+  tableId: string;
+  /** 可选的独立 tbody ID */
+  tbodyId?: string;
+  /** 导出文件名 */
+  filename?: string;
+  /** 每批处理行数 */
+  batchSize?: number;
+  /** 是否排除隐藏行/列 */
+  excludeHidden?: boolean;
+  /** 是否添加 UTF-8 BOM */
+  withBom?: boolean;
+}
+
+/** 分批导出 XLSX 的参数配置 */
+export interface ExportXlsxBatchOptions {
+  /** 要导出的 HTML 表格元素的 ID */
+  tableId: string;
+  /** 可选的独立 tbody ID */
+  tbodyId?: string;
+  /** 导出文件名 */
+  filename?: string;
+  /** 每批处理行数 */
+  batchSize?: number;
+  /** 是否排除隐藏行/列 */
+  excludeHidden?: boolean;
+}
+
+/** 多工作表分批导出的参数配置 */
+export interface ExportTablesBatchOptions {
+  /** Sheet 配置数组 */
+  sheets: BatchSheetConfig[];
+  /** 导出文件名 */
+  filename?: string;
+  /** 每批处理行数 */
+  batchSize?: number;
+}
+
+// =============================================================================
 // Sheet 配置（多工作表导出）
 // =============================================================================
 

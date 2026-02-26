@@ -375,10 +375,9 @@ fn extract_data_rows(
                     let first_row = (i as usize + header_row_count) as u32;
                     let first_col = col_idx as u16;
 
-                    // 再次确保 span 至少为 1 (虽然 parse_cell_value 已处理，但防御性编程)
-                    // 使用 saturating_sub 避免 panic，尽管 max(1.0) 应该保证了不会溢出
-                    let last_row = first_row + cell_info.row_span.max(1) - 1;
-                    let last_col = first_col + (cell_info.col_span.max(1) as u16) - 1;
+                    // parse_cell_value 已确保 row_span 和 col_span 至少为 1
+                    let last_row = first_row + cell_info.row_span - 1;
+                    let last_col = first_col + (cell_info.col_span as u16) - 1;
 
                     merge_ranges.push(MergeRange::new(first_row, first_col, last_row, last_col));
                 }

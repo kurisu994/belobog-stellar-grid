@@ -10,11 +10,6 @@
 export { useExporter } from './use-exporter';
 export type {
   UseExporterReturn,
-  ExportTableOptions,
-  ExportTablesXlsxOptions,
-  ExportCsvBatchOptions,
-  ExportXlsxBatchOptions,
-  ExportTablesBatchOptions,
 } from './use-exporter';
 
 // 组件
@@ -32,6 +27,11 @@ export type {
   SheetConfig,
   BatchSheetConfig,
   ProgressCallback,
+  ExportTableOptions,
+  ExportTablesXlsxOptions,
+  ExportCsvBatchOptions,
+  ExportXlsxBatchOptions,
+  ExportTablesBatchOptions,
 } from '@bsg-export/types';
 
 export { ExportFormat } from '@bsg-export/types';

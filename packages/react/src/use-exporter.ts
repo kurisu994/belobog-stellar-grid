@@ -20,75 +20,16 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import type {
   ExportFormat,
   ExportDataOptions,
-  SheetConfig,
-  BatchSheetConfig,
+  ExportTableOptions,
+  ExportTablesXlsxOptions,
+  ExportCsvBatchOptions,
+  ExportXlsxBatchOptions,
+  ExportTablesBatchOptions,
   ProgressCallback,
   DataRow,
 } from '@bsg-export/types';
 
-/** export_table 的参数配置 */
-export interface ExportTableOptions {
-  /** 要导出的 HTML 表格元素的 ID */
-  tableId: string;
-  /** 导出文件名 */
-  filename?: string;
-  /** 导出格式 */
-  format?: ExportFormat;
-  /** 是否排除隐藏行/列 */
-  excludeHidden?: boolean;
-  /** 是否添加 UTF-8 BOM（仅 CSV 有效） */
-  withBom?: boolean;
-  /** 回调失败是否中断导出 */
-  strictProgressCallback?: boolean;
-}
 
-/** 多工作表导出的参数配置 */
-export interface ExportTablesXlsxOptions {
-  /** Sheet 配置数组 */
-  sheets: SheetConfig[];
-  /** 导出文件名 */
-  filename?: string;
-}
-
-/** 分批导出 CSV 的参数配置 */
-export interface ExportCsvBatchOptions {
-  /** 要导出的 HTML 表格元素的 ID */
-  tableId: string;
-  /** 可选的独立 tbody ID */
-  tbodyId?: string;
-  /** 导出文件名 */
-  filename?: string;
-  /** 每批处理行数 */
-  batchSize?: number;
-  /** 是否排除隐藏行/列 */
-  excludeHidden?: boolean;
-  /** 是否添加 UTF-8 BOM */
-  withBom?: boolean;
-}
-
-/** 分批导出 XLSX 的参数配置 */
-export interface ExportXlsxBatchOptions {
-  /** 要导出的 HTML 表格元素的 ID */
-  tableId: string;
-  /** 可选的独立 tbody ID */
-  tbodyId?: string;
-  /** 导出文件名 */
-  filename?: string;
-  /** 每批处理行数 */
-  batchSize?: number;
-  /** 是否排除隐藏行/列 */
-  excludeHidden?: boolean;
-}
-
-/** 多工作表分批导出的参数配置 */
-export interface ExportTablesBatchOptions {
-  /** Sheet 配置数组 */
-  sheets: BatchSheetConfig[];
-  /** 导出文件名 */
-  filename?: string;
-  /** 每批处理行数 */
-  batchSize?: number;
-}
 
 /** useExporter Hook 的返回值 */
 export interface UseExporterReturn {
@@ -101,17 +42,17 @@ export interface UseExporterReturn {
   /** 错误信息 */
   error: Error | null;
   /** 导出 HTML 表格 */
-  exportTable: (options: ExportTableOptions) => void;
+  exportTable: (options: ExportTableOptions) => boolean;
   /** 从 JS 数组直接导出 */
-  exportData: (data: DataRow[], options?: ExportDataOptions) => void;
+  exportData: (data: DataRow[], options?: ExportDataOptions) => boolean;
   /** 多工作表同步导出 */
-  exportTablesXlsx: (options: ExportTablesXlsxOptions) => void;
+  exportTablesXlsx: (options: ExportTablesXlsxOptions) => boolean;
   /** 分批异步导出 CSV */
-  exportCsvBatch: (options: ExportCsvBatchOptions) => Promise<void>;
+  exportCsvBatch: (options: ExportCsvBatchOptions) => Promise<boolean>;
   /** 分批异步导出 XLSX */
-  exportXlsxBatch: (options: ExportXlsxBatchOptions) => Promise<void>;
+  exportXlsxBatch: (options: ExportXlsxBatchOptions) => Promise<boolean>;
   /** 多工作表分批异步导出 */
-  exportTablesBatch: (options: ExportTablesBatchOptions) => Promise<void>;
+  exportTablesBatch: (options: ExportTablesBatchOptions) => Promise<boolean>;
 }
 
 /** WASM 模块缓存 */
@@ -172,16 +113,18 @@ export function useExporter(): UseExporterReturn {
 
   /** 包装同步导出操作 */
   const wrapSync = useCallback(
-    (fn: () => void) => {
-      if (!initialized || !wasmModule) return;
+    (fn: () => void): boolean => {
+      if (!initialized || !wasmModule) return false;
       setLoading(true);
       setProgress(0);
       setError(null);
       try {
         fn();
         if (mountedRef.current) setProgress(100);
+        return true;
       } catch (err) {
         if (mountedRef.current) setError(err instanceof Error ? err : new Error(String(err)));
+        return false;
       } finally {
         if (mountedRef.current) setLoading(false);
       }
@@ -191,16 +134,18 @@ export function useExporter(): UseExporterReturn {
 
   /** 包装异步导出操作 */
   const wrapAsync = useCallback(
-    async (fn: () => Promise<void>) => {
-      if (!initialized || !wasmModule) return;
+    async (fn: () => Promise<void>): Promise<boolean> => {
+      if (!initialized || !wasmModule) return false;
       setLoading(true);
       setProgress(0);
       setError(null);
       try {
         await fn();
         if (mountedRef.current) setProgress(100);
+        return true;
       } catch (err) {
         if (mountedRef.current) setError(err instanceof Error ? err : new Error(String(err)));
+        return false;
       } finally {
         if (mountedRef.current) setLoading(false);
       }
@@ -210,7 +155,7 @@ export function useExporter(): UseExporterReturn {
 
   const exportTable = useCallback(
     (options: ExportTableOptions) => {
-      wrapSync(() => {
+      return wrapSync(() => {
         wasmModule!.export_table(
           options.tableId,
           options.filename,
@@ -227,7 +172,7 @@ export function useExporter(): UseExporterReturn {
 
   const exportData = useCallback(
     (data: DataRow[], options?: ExportDataOptions) => {
-      wrapSync(() => {
+      return wrapSync(() => {
         const opts = options
           ? { ...options, progressCallback: options.progressCallback ?? createProgressCallback() }
           : { progressCallback: createProgressCallback() };
@@ -239,7 +184,7 @@ export function useExporter(): UseExporterReturn {
 
   const exportTablesXlsx = useCallback(
     (options: ExportTablesXlsxOptions) => {
-      wrapSync(() => {
+      return wrapSync(() => {
         wasmModule!.export_tables_xlsx(
           options.sheets,
           options.filename,
@@ -252,7 +197,7 @@ export function useExporter(): UseExporterReturn {
 
   const exportCsvBatch = useCallback(
     async (options: ExportCsvBatchOptions) => {
-      await wrapAsync(async () => {
+      return await wrapAsync(async () => {
         await wasmModule!.export_table_to_csv_batch(
           options.tableId,
           options.tbodyId,
@@ -269,7 +214,7 @@ export function useExporter(): UseExporterReturn {
 
   const exportXlsxBatch = useCallback(
     async (options: ExportXlsxBatchOptions) => {
-      await wrapAsync(async () => {
+      return await wrapAsync(async () => {
         await wasmModule!.export_table_to_xlsx_batch(
           options.tableId,
           options.tbodyId,
@@ -285,7 +230,7 @@ export function useExporter(): UseExporterReturn {
 
   const exportTablesBatch = useCallback(
     async (options: ExportTablesBatchOptions) => {
-      await wrapAsync(async () => {
+      return await wrapAsync(async () => {
         await wasmModule!.export_tables_to_xlsx_batch(
           options.sheets,
           options.filename,

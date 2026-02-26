@@ -297,6 +297,7 @@ fn parse_js_array_data(data: &JsValue) -> Result<Vec<Vec<String>>, JsValue> {
 ///   - `indentColumn`: 树形模式下需要缩进的列的 key
 ///   - `childrenKey`: 传入此参数启用树形数据模式，指定子节点字段名
 ///   - `withBom`: 是否添加 UTF-8 BOM（仅 CSV 有效）
+///   - `strictProgressCallback`: 回调失败是否立刻中断导出（默认 false）
 ///
 /// # 返回值
 /// * `Ok(())` - 导出成功
