@@ -7,6 +7,30 @@
 
 ---
 
+## [Unreleased]
+
+### 🛠️ 重构
+
+- 🔧 **DOM 提取逻辑重构**: 消除 DOM 遍历代码的重复逻辑
+  - 提取 `resolve_table()` 函数：封装 window → document → getElementById → find_table_element 流程
+  - 提取 `get_table_row()` 辅助函数：封装行元素获取和类型转换
+  - 提取 `process_row_cells()` 函数：封装完整的单元格迭代循环（tracker pop、隐藏检测、span 处理、colspan 填充）
+  - 新增 `RowProcessResult` 结构体：统一返回行数据和单元格合并信息
+  - 新增 `compute_merge_ranges()` 辅助函数：XLSX 合并区域计算
+  - 新增 `count_visible_rows()` 辅助函数：rowspan 可见行计数
+  - 重构 `extract_table_data`：从 ~80 行减少到 ~20 行
+  - 重构 `extract_table_data_with_merge`：从 ~120 行减少到 ~30 行
+  - 重构 `batch_export.rs`：移除 ~70 行重复 DOM 遍历代码
+  - 重构 `batch_export_xlsx.rs`：移除 ~80 行重复代码，新增 `count_visible_rows_cross_source` 跨数据源辅助函数
+
+### ✅ 测试
+
+- 🧪 **E2E 测试**: 引入 Playwright 进行端到端测试
+  - 新增 `e2e/` 目录，包含 Playwright 配置和测试用例
+  - 基础导出测试（10 个）：WASM 初始化、CSV 基础/自动扩展名/默认文件名/BOM、XLSX 基础/合并单元格、容器支持、隐藏行排除
+  - 数据导出测试（10 个）：二维数组 CSV/XLSX、对象数组 columns 配置、嵌套表头、树形数据、错误处理（5 种场景）、进度回调
+  - 测试页面拦截下载，通过 DOM 捕获导出结果验证
+
 ## [1.0.5] - 2026-02-13
 
 ### 📝 文档优化

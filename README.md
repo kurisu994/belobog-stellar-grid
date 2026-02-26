@@ -30,7 +30,7 @@
 - **🚀 极致性能**：Rust 原生速度 + WebAssembly 优化
 - **🔒 企业级安全**：内置文件名验证，防止路径遍历攻击
 - **📦 轻量级**：约 117KB 的 WASM 文件（gzip 后约 40KB）
-- **✅ 100% 测试覆盖**：103 个单元测试确保代码质量
+- **✅ 100% 测试覆盖**：103 个单元测试 + 20 个 E2E 测试确保代码质量
 - **🏗️ 模块化架构**：清晰的模块设计，易于维护和扩展
 - **🌍 国际化支持**：完美支持中文、日文、韩文等 Unicode 字符
 - **💾 多格式导出**：支持 CSV 和 XLSX (Excel) 两种格式
@@ -286,8 +286,11 @@ cargo install wasm-pack
 # 构建项目
 wasm-pack build --target web
 
-# 运行测试
+# 运行单元测试
 cargo test
+
+# 运行 E2E 测试（需先构建 WASM）
+cd e2e && npm install && npx playwright install chromium && npx playwright test
 
 # 代码检查
 cargo check
@@ -378,12 +381,18 @@ belobog-stellar-grid/
 │   ├── batch_export.rs    # 异步分批导出（CSV）
 │   ├── batch_export_xlsx.rs # 异步分批导出（XLSX）
 │   └── utils.rs           # 调试工具
-├── tests/                 # 测试目录（103 个测试）
+├── tests/                 # 单元测试目录（103 个测试）
 │   ├── lib_tests.rs       # 基础功能测试（41 个）
 │   ├── test_resource.rs   # RAII 资源测试（8 个）
 │   ├── test_unified_api.rs # 统一 API 测试（4 个）
 │   ├── test_data_export.rs # 数据导出测试（33 个）
 │   └── test_security.rs   # 安全/CSV注入测试（3 个）
+├── e2e/                   # E2E 测试目录（Playwright，20 个测试）
+│   ├── playwright.config.ts # Playwright 配置
+│   └── tests/             # E2E 测试用例
+│       ├── e2e-test-page.html   # 测试页面
+│       ├── basic-export.spec.ts # 基础导出测试（10 个）
+│       └── data-export.spec.ts  # 数据导出测试（10 个）
 ├── examples/              # 示例目录
 ├── pkg/                   # WASM 包输出
 ├── API.md                 # API 详细文档
@@ -444,9 +453,9 @@ belobog-stellar-grid/
 
 ### 🛠️ 工程化与重构
 
-- [ ] **DOM 提取逻辑重构**: 消除 DOM 遍历代码的重复逻辑。
+- [x] **DOM 提取逻辑重构**: 消除 DOM 遍历代码的重复逻辑。提取 `resolve_table`、`process_row_cells` 等共用函数，4 个调用方统一使用。
 - [ ] **Node.js / 服务端支持**: 探索在非浏览器环境下的运行能力。
-- [ ] **E2E 测试**: 引入 Playwright 进行端到端测试。
+- [x] **E2E 测试**: 引入 Playwright 进行端到端测试，覆盖 WASM 初始化、CSV/XLSX 导出、数据导出、错误处理等 20 个测试用例。
 
 ---
 

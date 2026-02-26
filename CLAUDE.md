@@ -19,7 +19,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### 测试 (Tests)
 
-- **运行所有测试**: `cargo test` (103 个单元测试)
+- **运行所有测试**: `cargo test` (103 个单元测试) + `cd e2e && npx playwright test` (20 个 E2E 测试)
 - **运行特定测试文件**:
   - `cargo test --test lib_tests`: DOM 基础功能
   - `cargo test --test test_data_export`: 纯数据/树形/合并/表头
@@ -233,7 +233,8 @@ pub fn example_function(param: &str) -> Result<(), JsValue> {
 | test_unified_api.rs    | 统一 API 接口                | 4    |
 | test_data_export.rs    | 纯数据/树形/合并/表头         | 33   |
 | test_security.rs       | 安全测试 (CSV 注入等)         | 3    |
-| **总计**               | **103 个单元测试**           | **103**|
+| **单元测试总计**        | **103 个单元测试**           | **103**|
+| **E2E 测试**           | **Playwright 端到端测试**    | **20** |
 
 ### 测试覆盖重点
 
@@ -270,10 +271,11 @@ fn test_data_export_flatten_tree_basic() {
 ### 测试命令
 
 ```bash
-cargo test                            # 运行所有测试 (103 个)
+cargo test                            # 运行所有单元测试 (103 个)
 cargo test --test lib_tests           # 运行 DOM 基础功能测试
 cargo test --test test_data_export    # 运行数据导出核心测试
 cargo test -- test_flatten_tree       # 按名称过滤单个测试
+cd e2e && npx playwright test         # 运行 E2E 测试 (20 个，需先构建 WASM)
 ```
 
 ### 完整开发流程

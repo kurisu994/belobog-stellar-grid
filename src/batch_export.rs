@@ -2,13 +2,15 @@
 ///
 /// 提供大数据量表格的分批处理功能，避免阻塞主线程
 /// 支持合并单元格（colspan/rowspan）
-use crate::core::{RowSpanTracker, create_and_download_csv, find_table_element, get_cell_span};
+use crate::core::{
+    RowSpanTracker, create_and_download_csv, get_table_row, process_row_cells, resolve_table,
+};
 use crate::utils::{ensure_external_tbody, is_element_hidden, report_progress, yield_to_browser};
 use csv::Writer;
 use std::io::Cursor;
 use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::*;
-use web_sys::{HtmlTableCellElement, HtmlTableRowElement, HtmlTableSectionElement};
+use web_sys::HtmlTableSectionElement;
 
 /// 分批异步导出 HTML 表格到 CSV 文件
 ///
@@ -66,17 +68,8 @@ pub async fn export_table_to_csv_batch(
         return Err(JsValue::from_str("批次大小必须大于 0"));
     }
 
-    // 安全地获取全局的 window 和 document 对象
-    let window = web_sys::window().ok_or_else(|| JsValue::from_str("无法获取 window 对象"))?;
-    let document = window
-        .document()
-        .ok_or_else(|| JsValue::from_str("无法获取 document 对象"))?;
-
     // 1. 获取主表格（支持直接的 table 或包含 table 的容器）
-    let table_element = document
-        .get_element_by_id(&table_id)
-        .ok_or_else(|| JsValue::from_str(&format!("找不到 ID 为 '{}' 的元素", table_id)))?;
-    let table = find_table_element(table_element, &table_id)?;
+    let table = resolve_table(&table_id)?;
     let table_rows = table.rows();
     let table_row_count = table_rows.length() as usize;
 
@@ -87,6 +80,11 @@ pub async fn export_table_to_csv_batch(
     if let Some(tid) = tbody_id
         && !tid.is_empty()
     {
+        let window = web_sys::window().ok_or_else(|| JsValue::from_str("无法获取 window 对象"))?;
+        let document = window
+            .document()
+            .ok_or_else(|| JsValue::from_str("无法获取 document 对象"))?;
+
         let tbody_element = document
             .get_element_by_id(&tid)
             .ok_or_else(|| JsValue::from_str(&format!("找不到 ID 为 '{}' 的 tbody 元素", tid)))?;
@@ -130,95 +128,30 @@ pub async fn export_table_to_csv_batch(
 
         // 处理当前批次
         for i in current_row..batch_end {
-            let row_element = if i < table_row_count {
-                // 从主表格读取
-                table_rows.get_with_index(i as u32)
+            let row = if i < table_row_count {
+                get_table_row(&table_rows, i as u32)?
+            } else if let Some(ref rows) = tbody_rows_collection {
+                get_table_row(rows, (i - table_row_count) as u32)?
             } else {
-                // 从 tbody 读取
-                if let Some(ref rows) = tbody_rows_collection {
-                    rows.get_with_index((i - table_row_count) as u32)
-                } else {
-                    None
-                }
+                return Err(JsValue::from_str(&format!("无法获取第 {} 行数据", i + 1)));
             };
-
-            let row = row_element
-                .ok_or_else(|| JsValue::from_str(&format!("无法获取第 {} 行数据", i + 1)))?;
-
-            let row = row
-                .dyn_into::<HtmlTableRowElement>()
-                .map_err(|_| JsValue::from_str(&format!("第 {} 行不是有效的表格行", i + 1)))?;
 
             // 如果需要排除隐藏行
             if exclude_hidden && is_element_hidden(&row) {
                 continue;
             }
 
-            let mut row_data = Vec::new();
-            let cells = row.cells();
-            let cell_count = cells.length();
+            let proc_result = process_row_cells(&row, i as u32, &mut tracker, exclude_hidden)?;
 
-            // col_idx: 实际输出列位置（考虑 colspan/rowspan 后的逻辑位置）
-            let mut col_idx: usize = 0;
-            let u_row_idx = i as u32;
-
-            for cell_idx in 0..cell_count {
-                // 处理被上方 rowspan 占用的列
-                while let Some(text) = tracker.pop(u_row_idx, col_idx) {
-                    let safe_text = crate::utils::escape_csv_injection(&text);
-                    row_data.push(safe_text.into_owned());
-                    col_idx += 1;
-                }
-
-                let cell = cells.get_with_index(cell_idx).ok_or_else(|| {
-                    JsValue::from_str(&format!(
-                        "无法获取第 {} 行第 {} 列单元格",
-                        i + 1,
-                        cell_idx + 1
-                    ))
-                })?;
-
-                let cell = cell.dyn_into::<HtmlTableCellElement>().map_err(|_| {
-                    JsValue::from_str(&format!(
-                        "第 {} 行第 {} 列不是有效的表格单元格",
-                        i + 1,
-                        cell_idx + 1
-                    ))
-                })?;
-
-                // 如果需要排除隐藏列
-                if exclude_hidden && is_element_hidden(&cell) {
-                    continue;
-                }
-
-                let span = get_cell_span(&cell);
-
-                // 处理 rowspan: 将当前单元格内容预填到后续行的对应位置
-                tracker.add(u_row_idx, col_idx, &span);
-
-                // 处理当前单元格内容
-                let safe_text = crate::utils::escape_csv_injection(&span.text);
-                row_data.push(safe_text.into_owned());
-
-                // 处理 colspan
-                if span.colspan > 1 {
-                    for _ in 1..span.colspan {
-                        row_data.push(String::new());
-                    }
-                }
-
-                col_idx += span.colspan as usize;
-            }
-
-            // 处理行尾残留的 rowspan 占位
-            while let Some(text) = tracker.pop(u_row_idx, col_idx) {
-                let safe_text = crate::utils::escape_csv_injection(&text);
-                row_data.push(safe_text.into_owned());
-                col_idx += 1;
-            }
+            // CSV 需要转义注入字符
+            let safe_row: Vec<_> = proc_result
+                .row_data
+                .iter()
+                .map(|cell| crate::utils::escape_csv_injection(cell))
+                .collect();
 
             // 写入 CSV 记录
-            wtr.write_record(&row_data)
+            wtr.write_record(safe_row.iter().map(|s| s.as_ref()))
                 .map_err(|e| JsValue::from_str(&format!("写入 CSV 记录失败: {:?}", e)))?;
         }
 

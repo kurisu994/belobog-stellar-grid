@@ -30,3 +30,7 @@ docs/generated/
 # 测试覆盖率报告
 tarpaulin-report.html
 cobertura.xml
+e2e/test-results
+e2e/node_modules
+e2e/playwright-report
+e2e/playwright-video

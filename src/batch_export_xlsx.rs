@@ -3,14 +3,14 @@
 /// 提供大数据量表格的分批处理功能，避免阻塞主线程
 /// 采用两阶段策略：分批读取 DOM 数据 + 同步生成 XLSX
 use crate::core::{
-    MergeRange, RowSpanTracker, TableData, create_and_download_xlsx, find_table_element,
-    get_cell_span,
+    MergeRange, RowSpanTracker, TableData, create_and_download_xlsx, get_table_row,
+    process_row_cells, resolve_table,
 };
 use crate::utils::{ensure_external_tbody, is_element_hidden, report_progress, yield_to_browser};
 use rust_xlsxwriter::{Format, Workbook};
 use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::*;
-use web_sys::{HtmlTableCellElement, HtmlTableRowElement, HtmlTableSectionElement};
+use web_sys::HtmlTableSectionElement;
 
 /// 分批异步导出 HTML 表格到 XLSX 文件
 ///
@@ -348,16 +348,8 @@ async fn extract_table_data_batch_with_offset(
     exclude_hidden: bool,
     progress_info: &Option<(js_sys::Function, f64, f64)>,
 ) -> Result<TableData, JsValue> {
-    let window = web_sys::window().ok_or_else(|| JsValue::from_str("无法获取 window 对象"))?;
-    let document = window
-        .document()
-        .ok_or_else(|| JsValue::from_str("无法获取 document 对象"))?;
-
     // 获取主表格（支持直接的 table 或包含 table 的容器）
-    let table_element = document
-        .get_element_by_id(table_id)
-        .ok_or_else(|| JsValue::from_str(&format!("找不到 ID 为 '{}' 的元素", table_id)))?;
-    let table = find_table_element(table_element, table_id)?;
+    let table = resolve_table(table_id)?;
     let table_rows = table.rows();
     let table_row_count = table_rows.length() as usize;
 
@@ -368,6 +360,11 @@ async fn extract_table_data_batch_with_offset(
     if let Some(tid) = tbody_id
         && !tid.is_empty()
     {
+        let window = web_sys::window().ok_or_else(|| JsValue::from_str("无法获取 window 对象"))?;
+        let document = window
+            .document()
+            .ok_or_else(|| JsValue::from_str("无法获取 document 对象"))?;
+
         let tbody_element = document
             .get_element_by_id(tid)
             .ok_or_else(|| JsValue::from_str(&format!("找不到 ID 为 '{}' 的 tbody 元素", tid)))?;
@@ -401,115 +398,50 @@ async fn extract_table_data_batch_with_offset(
         let batch_end = std::cmp::min(current_row + batch_size, total_rows);
 
         for i in current_row..batch_end {
-            let row_element = if i < table_row_count {
-                table_rows.get_with_index(i as u32)
+            let row = if i < table_row_count {
+                get_table_row(&table_rows, i as u32)?
             } else if let Some(ref rows) = tbody_rows_collection {
-                rows.get_with_index((i - table_row_count) as u32)
+                get_table_row(rows, (i - table_row_count) as u32)?
             } else {
-                None
+                return Err(JsValue::from_str(&format!("无法获取第 {} 行数据", i + 1)));
             };
-
-            let row = row_element
-                .ok_or_else(|| JsValue::from_str(&format!("无法获取第 {} 行数据", i + 1)))?;
-
-            let row = row
-                .dyn_into::<HtmlTableRowElement>()
-                .map_err(|_| JsValue::from_str(&format!("第 {} 行不是有效的表格行", i + 1)))?;
 
             if exclude_hidden && is_element_hidden(&row) {
                 continue;
             }
 
-            let mut row_data = Vec::new();
-            let cells = row.cells();
-            let cell_count = cells.length();
-            let mut col_idx: usize = 0;
-            let u_row_idx = i as u32;
+            let proc_result = process_row_cells(&row, i as u32, &mut tracker, exclude_hidden)?;
 
-            for cell_idx in 0..cell_count {
-                while let Some(text) = tracker.pop(u_row_idx, col_idx) {
-                    row_data.push(text);
-                    col_idx += 1;
-                }
-
-                let cell = cells.get_with_index(cell_idx).ok_or_else(|| {
-                    JsValue::from_str(&format!(
-                        "无法获取第 {} 行第 {} 列单元格",
-                        i + 1,
-                        cell_idx + 1
-                    ))
-                })?;
-
-                let cell = cell.dyn_into::<HtmlTableCellElement>().map_err(|_| {
-                    JsValue::from_str(&format!(
-                        "第 {} 行第 {} 列不是有效的表格单元格",
-                        i + 1,
-                        cell_idx + 1
-                    ))
-                })?;
-
-                if exclude_hidden && is_element_hidden(&cell) {
-                    continue;
-                }
-
-                let span = get_cell_span(&cell);
-
-                // 计算实际覆盖的可见行数 (effective_rowspan)
-                let mut visible_rows_covered = 0;
-                if span.rowspan > 1 {
-                    for r in 1..span.rowspan as usize {
-                        let next_row_idx = i + r;
-                        let next_row = if next_row_idx < table_row_count {
-                            table_rows.get_with_index(next_row_idx as u32)
-                        } else if let Some(ref rows) = tbody_rows_collection {
-                            rows.get_with_index((next_row_idx - table_row_count) as u32)
-                        } else {
-                            None
-                        };
-
-                        if let Some(next_row) = next_row {
-                            #[allow(clippy::collapsible_if)]
-                            if let Ok(next_row_el) = next_row.dyn_into::<HtmlTableRowElement>() {
-                                if !exclude_hidden || !is_element_hidden(&next_row_el) {
-                                    visible_rows_covered += 1;
-                                }
-                            }
-                        }
-                    }
-                }
+            // 根据 cell_spans 计算合并区域，使用跨源行集合检查可见性
+            for (col_idx, span) in &proc_result.cell_spans {
+                // 计算实际覆盖的可见行数（需要跨表格和 tbody 检查）
+                let visible_rows_covered = count_visible_rows_cross_source(
+                    span.rowspan,
+                    i,
+                    table_row_count,
+                    exclude_hidden,
+                    &table_rows,
+                    &tbody_rows_collection,
+                );
 
                 let last_row = output_row_idx + visible_rows_covered;
-                let last_col = (col_idx + span.colspan as usize - 1) as u16;
+                let last_col = (*col_idx + span.colspan as usize - 1) as u16;
                 if last_col > 16383 {
                     return Err(JsValue::from_str("列数超过 Excel 限制 (16384)"));
                 }
 
                 // 记录合并区域（仅当范围覆盖多个单元格时）
-                if last_row > output_row_idx || last_col as usize > col_idx {
+                if last_row > output_row_idx || last_col as usize > *col_idx {
                     table_data.merge_ranges.push(MergeRange::new(
                         output_row_idx,
-                        col_idx as u16,
+                        *col_idx as u16,
                         last_row,
                         last_col,
                     ));
                 }
-
-                tracker.add(u_row_idx, col_idx, &span);
-
-                row_data.push(span.text);
-                for _ in 1..span.colspan {
-                    row_data.push(String::new());
-                }
-
-                col_idx += span.colspan as usize;
             }
 
-            while let Some(text) = tracker.pop(u_row_idx, col_idx) {
-                row_data.push(text);
-                col_idx += 1;
-            }
-
-            table_data.rows.push(row_data);
+            table_data.rows.push(proc_result.row_data);
             output_row_idx += 1;
         }
 
@@ -528,6 +460,42 @@ async fn extract_table_data_batch_with_offset(
     }
 
     Ok(table_data)
+}
+
+/// 跨表格和 tbody 源计算 rowspan 覆盖的可见行数
+fn count_visible_rows_cross_source(
+    rowspan: u32,
+    current_row: usize,
+    table_row_count: usize,
+    exclude_hidden: bool,
+    table_rows: &web_sys::HtmlCollection,
+    tbody_rows: &Option<web_sys::HtmlCollection>,
+) -> u32 {
+    if rowspan <= 1 {
+        return 0;
+    }
+
+    let mut visible_rows_covered = 0;
+    for r in 1..rowspan as usize {
+        let next_row_idx = current_row + r;
+        let next_row = if next_row_idx < table_row_count {
+            table_rows.get_with_index(next_row_idx as u32)
+        } else if let Some(rows) = tbody_rows {
+            rows.get_with_index((next_row_idx - table_row_count) as u32)
+        } else {
+            None
+        };
+
+        if let Some(next_row) = next_row {
+            #[allow(clippy::collapsible_if)]
+            if let Ok(next_row_el) = next_row.dyn_into::<web_sys::HtmlTableRowElement>() {
+                if !exclude_hidden || !is_element_hidden(&next_row_el) {
+                    visible_rows_covered += 1;
+                }
+            }
+        }
+    }
+    visible_rows_covered
 }
 
 /// 同步生成多工作表 XLSX 文件并触发下载

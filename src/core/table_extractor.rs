@@ -112,7 +112,144 @@ impl Default for TableData {
     }
 }
 
+/// 从文档中根据 ID 获取 table 元素
+///
+/// 封装 window → document → getElementById → find_table_element 的完整流程，
+/// 消除各模块重复的 DOM 查找代码。
+///
+/// # 参数
+/// * `table_id` - HTML 表格元素或容器元素的 ID
+///
+/// # 返回值
+/// * `Ok(HtmlTableElement)` - 找到的表格元素
+/// * `Err(JsValue)` - 获取失败
+pub fn resolve_table(table_id: &str) -> Result<HtmlTableElement, JsValue> {
+    let window = web_sys::window().ok_or_else(|| JsValue::from_str("无法获取 window 对象"))?;
+    let document = window
+        .document()
+        .ok_or_else(|| JsValue::from_str("无法获取 document 对象"))?;
+
+    let element = document
+        .get_element_by_id(table_id)
+        .ok_or_else(|| JsValue::from_str(&format!("找不到 ID 为 '{}' 的元素", table_id)))?;
+
+    find_table_element(element, table_id)
+}
+
+/// 从行集合中获取并转换行元素
+///
+/// # 参数
+/// * `rows` - HTML 表格行集合
+/// * `row_idx` - 行索引
+///
+/// # 返回值
+/// * `Ok(HtmlTableRowElement)` - 转换成功的行元素
+/// * `Err(JsValue)` - 获取或转换失败
+pub fn get_table_row(
+    rows: &web_sys::HtmlCollection,
+    row_idx: u32,
+) -> Result<HtmlTableRowElement, JsValue> {
+    let row = rows
+        .get_with_index(row_idx)
+        .ok_or_else(|| JsValue::from_str(&format!("无法获取第 {} 行数据", row_idx + 1)))?;
+
+    row.dyn_into::<HtmlTableRowElement>()
+        .map_err(|_| JsValue::from_str(&format!("第 {} 行不是有效的表格行", row_idx + 1)))
+}
+
+/// 单行处理结果
+pub struct RowProcessResult {
+    /// 行数据（单元格文本列表）
+    pub row_data: Vec<String>,
+    /// 每个非隐藏单元格的位置和跨度信息，用于计算合并区域
+    /// 格式：(起始列索引, CellSpan)
+    pub cell_spans: Vec<(usize, CellSpan)>,
+}
+
+/// 处理一行表格的所有单元格
+///
+/// 封装单元格遍历、rowspan/colspan 处理、隐藏列检测等核心逻辑，
+/// 消除 4 个 DOM 遍历函数中的重复代码。
+///
+/// # 参数
+/// * `row` - 表格行元素
+/// * `row_idx` - 当前行在原始表格中的索引（用于 tracker 和错误信息）
+/// * `tracker` - rowspan 追踪器
+/// * `exclude_hidden` - 是否排除隐藏的列
+///
+/// # 返回值
+/// * `Ok(RowProcessResult)` - 包含行数据和单元格跨度信息
+/// * `Err(JsValue)` - 处理失败
+pub fn process_row_cells(
+    row: &HtmlTableRowElement,
+    row_idx: u32,
+    tracker: &mut RowSpanTracker,
+    exclude_hidden: bool,
+) -> Result<RowProcessResult, JsValue> {
+    let mut row_data = Vec::new();
+    let mut cell_spans = Vec::new();
+    let cells = row.cells();
+    let cell_count = cells.length();
+    let mut col_idx: usize = 0;
+
+    for cell_idx in 0..cell_count {
+        // 处理被上方 rowspan 占用的列
+        while let Some(text) = tracker.pop(row_idx, col_idx) {
+            row_data.push(text);
+            col_idx += 1;
+        }
+
+        let cell = cells.get_with_index(cell_idx).ok_or_else(|| {
+            JsValue::from_str(&format!(
+                "无法获取第 {} 行第 {} 列单元格",
+                row_idx + 1,
+                cell_idx + 1
+            ))
+        })?;
+
+        let cell = cell.dyn_into::<HtmlTableCellElement>().map_err(|_| {
+            JsValue::from_str(&format!(
+                "第 {} 行第 {} 列不是有效的表格单元格",
+                row_idx + 1,
+                cell_idx + 1
+            ))
+        })?;
+
+        if exclude_hidden && is_element_hidden(&cell) {
+            continue;
+        }
+
+        let span = get_cell_span(&cell);
+
+        // 记录单元格位置和跨度信息（供调用方计算合并区域）
+        cell_spans.push((col_idx, span.clone()));
+
+        // 处理 rowspan: 将当前单元格内容预填到后续行的对应位置
+        tracker.add(row_idx, col_idx, &span);
+
+        // 处理 colspan: 当前单元格内容 + 空白填充
+        row_data.push(span.text);
+        for _ in 1..span.colspan {
+            row_data.push(String::new());
+        }
+
+        col_idx += span.colspan as usize;
+    }
+
+    // 处理行尾残留的 rowspan 占位
+    while let Some(text) = tracker.pop(row_idx, col_idx) {
+        row_data.push(text);
+        col_idx += 1;
+    }
+
+    Ok(RowProcessResult {
+        row_data,
+        cell_spans,
+    })
+}
+
 /// 单元格跨度信息
+#[derive(Clone)]
 pub(crate) struct CellSpan {
     /// 单元格文本内容
     pub text: String,
@@ -198,18 +335,7 @@ pub fn extract_table_data(
     table_id: &str,
     exclude_hidden: bool,
 ) -> Result<Vec<Vec<String>>, JsValue> {
-    // 安全地获取全局的 window 和 document 对象
-    let window = web_sys::window().ok_or_else(|| JsValue::from_str("无法获取 window 对象"))?;
-    let document = window
-        .document()
-        .ok_or_else(|| JsValue::from_str("无法获取 document 对象"))?;
-
-    let element = document
-        .get_element_by_id(table_id)
-        .ok_or_else(|| JsValue::from_str(&format!("找不到 ID 为 '{}' 的元素", table_id)))?;
-
-    let table = find_table_element(element, table_id)?;
-
+    let table = resolve_table(table_id)?;
     let rows = table.rows();
     let row_count = rows.length();
 
@@ -218,78 +344,17 @@ pub fn extract_table_data(
     }
 
     let mut result: Vec<Vec<String>> = Vec::new();
-
-    // 用于追踪被 rowspan 占用的位置: (row, col) -> cell_text
     let mut tracker = RowSpanTracker::new();
 
     for row_idx in 0..row_count {
-        // ... (省略部分代码，需要保留 row 获取逻辑) ...
-        let row = rows
-            .get_with_index(row_idx)
-            .ok_or_else(|| JsValue::from_str(&format!("无法获取第 {} 行数据", row_idx + 1)))?;
-
-        let row = row
-            .dyn_into::<HtmlTableRowElement>()
-            .map_err(|_| JsValue::from_str(&format!("第 {} 行不是有效的表格行", row_idx + 1)))?;
+        let row = get_table_row(&rows, row_idx)?;
 
         if exclude_hidden && is_element_hidden(&row) {
             continue;
         }
 
-        let mut row_data = Vec::new();
-        let cells = row.cells();
-        let cell_count = cells.length();
-        let mut col_idx: usize = 0;
-        let u_row_idx = row_idx;
-
-        for cell_idx in 0..cell_count {
-            // 处理被上方 rowspan 占用的列
-            while let Some(text) = tracker.pop(u_row_idx, col_idx) {
-                row_data.push(text);
-                col_idx += 1;
-            }
-
-            let cell = cells.get_with_index(cell_idx).ok_or_else(|| {
-                JsValue::from_str(&format!(
-                    "无法获取第 {} 行第 {} 列单元格",
-                    row_idx + 1,
-                    cell_idx + 1
-                ))
-            })?;
-
-            let cell = cell.dyn_into::<HtmlTableCellElement>().map_err(|_| {
-                JsValue::from_str(&format!(
-                    "第 {} 行第 {} 列不是有效的表格单元格",
-                    row_idx + 1,
-                    cell_idx + 1
-                ))
-            })?;
-
-            if exclude_hidden && is_element_hidden(&cell) {
-                continue;
-            }
-
-            let span = get_cell_span(&cell);
-
-            // 处理 rowspan: 将当前单元格内容预填到后续行的对应位置
-            tracker.add(u_row_idx, col_idx, &span);
-
-            // 处理 colspan: 当前单元格内容 + 空白填充
-            row_data.push(span.text);
-            for _ in 1..span.colspan {
-                row_data.push(String::new());
-            }
-
-            col_idx += span.colspan as usize;
-        }
-
-        // 处理行尾残留的 rowspan 占位
-        while let Some(text) = tracker.pop(u_row_idx, col_idx) {
-            row_data.push(text);
-            col_idx += 1;
-        }
-
-        result.push(row_data);
+        let proc_result = process_row_cells(&row, row_idx, &mut tracker, exclude_hidden)?;
+        result.push(proc_result.row_data);
     }
 
     Ok(result)
@@ -310,20 +375,7 @@ pub fn extract_table_data_with_merge(
     table_id: &str,
     exclude_hidden: bool,
 ) -> Result<TableData, JsValue> {
-    // 安全地获取全局的 window 和 document 对象
-    let window = web_sys::window().ok_or_else(|| JsValue::from_str("无法获取 window 对象"))?;
-    let document = window
-        .document()
-        .ok_or_else(|| JsValue::from_str("无法获取 document 对象"))?;
-
-    // 根据 table_id 获取元素，支持直接的 table 或包含 table 的容器
-    let element = document
-        .get_element_by_id(table_id)
-        .ok_or_else(|| JsValue::from_str(&format!("找不到 ID 为 '{}' 的元素", table_id)))?;
-
-    let table = find_table_element(element, table_id)?;
-
-    // 遍历 table 中的每一行
+    let table = resolve_table(table_id)?;
     let rows = table.rows();
     let row_count = rows.length();
 
@@ -332,119 +384,102 @@ pub fn extract_table_data_with_merge(
     }
 
     let mut result = TableData::new();
-
-    // 用于追踪被 rowspan 占用的位置: (row, col) -> cell_text
-    // 当某个单元格有 rowspan > 1 时，预先将其内容填入后续行的对应列位置
     let mut tracker = RowSpanTracker::new();
-
-    // 跟踪实际输出的行索引（因为隐藏行可能被跳过）
     let mut output_row_idx: u32 = 0;
 
     for row_idx in 0..row_count {
-        let row = rows
-            .get_with_index(row_idx)
-            .ok_or_else(|| JsValue::from_str(&format!("无法获取第 {} 行数据", row_idx + 1)))?;
+        let row = get_table_row(&rows, row_idx)?;
 
-        let row = row
-            .dyn_into::<HtmlTableRowElement>()
-            .map_err(|_| JsValue::from_str(&format!("第 {} 行不是有效的表格行", row_idx + 1)))?;
-
-        // 如果需要排除隐藏行，检查 display 属性
         if exclude_hidden && is_element_hidden(&row) {
             continue;
         }
 
-        let mut row_data = Vec::new();
-        let cells = row.cells();
-        let cell_count = cells.length();
+        let proc_result = process_row_cells(&row, row_idx, &mut tracker, exclude_hidden)?;
 
-        // col_idx: 实际输出列位置（考虑 colspan/rowspan 后的逻辑位置）
-        let mut col_idx: usize = 0;
-        let u_row_idx = row_idx;
+        // 根据 cell_spans 计算合并区域
+        compute_merge_ranges(
+            &proc_result.cell_spans,
+            row_idx,
+            output_row_idx,
+            exclude_hidden,
+            &rows,
+            &mut result.merge_ranges,
+        );
 
-        for cell_idx in 0..cell_count {
-            // 处理被上方 rowspan 占用的列：从 tracker 中取出预填的值
-            while let Some(text) = tracker.pop(u_row_idx, col_idx) {
-                row_data.push(text);
-                col_idx += 1;
-            }
-
-            let cell = cells.get_with_index(cell_idx).ok_or_else(|| {
-                JsValue::from_str(&format!(
-                    "无法获取第 {} 行第 {} 列单元格",
-                    row_idx + 1,
-                    cell_idx + 1
-                ))
-            })?;
-
-            let cell = cell.dyn_into::<HtmlTableCellElement>().map_err(|_| {
-                JsValue::from_str(&format!(
-                    "第 {} 行第 {} 列不是有效的表格单元格",
-                    row_idx + 1,
-                    cell_idx + 1
-                ))
-            })?;
-
-            // 如果需要排除隐藏列，检查 display 属性
-            if exclude_hidden && is_element_hidden(&cell) {
-                continue;
-            }
-
-            let span = get_cell_span(&cell);
-
-            // 计算实际覆盖的可见行数 (effective_rowspan)
-            let mut visible_rows_covered = 0;
-            if span.rowspan > 1 {
-                for r in 1..span.rowspan {
-                    let next_row_idx = row_idx + r;
-                    // 安全获取下一行
-                    if let Some(next_row) = rows.get_with_index(next_row_idx) {
-                        // 检查是否可见
-                        #[allow(clippy::collapsible_if)]
-                        if let Ok(next_row_el) = next_row.dyn_into::<HtmlTableRowElement>() {
-                            if !exclude_hidden || !is_element_hidden(&next_row_el) {
-                                visible_rows_covered += 1;
-                            }
-                        }
-                    }
-                }
-            }
-
-            let last_row = output_row_idx + visible_rows_covered;
-            // 此时 col_idx 是当前单元格的起始列
-            let last_col = (col_idx + span.colspan as usize - 1) as u16;
-
-            // 记录合并区域（仅当范围覆盖多个单元格时）
-            if last_row > output_row_idx || last_col as usize > col_idx {
-                result.merge_ranges.push(MergeRange::new(
-                    output_row_idx,
-                    col_idx as u16,
-                    last_row,
-                    last_col,
-                ));
-            }
-
-            // 处理 rowspan: 将当前单元格内容预填到后续行的对应位置
-            tracker.add(u_row_idx, col_idx, &span);
-
-            // 处理 colspan: 当前单元格内容 + 空白填充
-            row_data.push(span.text);
-            for _ in 1..span.colspan {
-                row_data.push(String::new());
-            }
-
-            col_idx += span.colspan as usize;
-        }
-
-        // 处理行尾残留的 rowspan 占位（当最右边的列有 rowspan 时）
-        while let Some(text) = tracker.pop(u_row_idx, col_idx) {
-            row_data.push(text);
-            col_idx += 1;
-        }
-
-        result.rows.push(row_data);
+        result.rows.push(proc_result.row_data);
         output_row_idx += 1;
     }
 
     Ok(result)
+}
+
+/// 根据单元格跨度信息计算合并区域
+///
+/// # 参数
+/// * `cell_spans` - 单元格位置和跨度信息
+/// * `row_idx` - 原始表格中的行索引
+/// * `output_row_idx` - 输出行索引（排除隐藏行后的索引）
+/// * `exclude_hidden` - 是否排除隐藏行
+/// * `rows` - 表格行集合（用于检测后续行的可见性）
+/// * `merge_ranges` - 合并区域列表（输出）
+fn compute_merge_ranges(
+    cell_spans: &[(usize, CellSpan)],
+    row_idx: u32,
+    output_row_idx: u32,
+    exclude_hidden: bool,
+    rows: &web_sys::HtmlCollection,
+    merge_ranges: &mut Vec<MergeRange>,
+) {
+    for (col_idx, span) in cell_spans {
+        // 计算实际覆盖的可见行数
+        let visible_rows_covered = count_visible_rows(span.rowspan, row_idx, exclude_hidden, rows);
+
+        let last_row = output_row_idx + visible_rows_covered;
+        let last_col = (*col_idx + span.colspan as usize - 1) as u16;
+
+        // 记录合并区域（仅当范围覆盖多个单元格时）
+        if last_row > output_row_idx || last_col as usize > *col_idx {
+            merge_ranges.push(MergeRange::new(
+                output_row_idx,
+                *col_idx as u16,
+                last_row,
+                last_col,
+            ));
+        }
+    }
+}
+
+/// 计算 rowspan 覆盖的可见行数
+///
+/// # 参数
+/// * `rowspan` - 原始 rowspan 值
+/// * `row_idx` - 当前行索引
+/// * `exclude_hidden` - 是否排除隐藏行
+/// * `rows` - 表格行集合
+///
+/// # 返回值
+/// 可见行数（不含当前行）
+pub(crate) fn count_visible_rows(
+    rowspan: u32,
+    row_idx: u32,
+    exclude_hidden: bool,
+    rows: &web_sys::HtmlCollection,
+) -> u32 {
+    if rowspan <= 1 {
+        return 0;
+    }
+
+    let mut visible_rows_covered = 0;
+    for r in 1..rowspan {
+        let next_row_idx = row_idx + r;
+        if let Some(next_row) = rows.get_with_index(next_row_idx) {
+            #[allow(clippy::collapsible_if)]
+            if let Ok(next_row_el) = next_row.dyn_into::<HtmlTableRowElement>() {
+                if !exclude_hidden || !is_element_hidden(&next_row_el) {
+                    visible_rows_covered += 1;
+                }
+            }
+        }
+    }
+    visible_rows_covered
 }
