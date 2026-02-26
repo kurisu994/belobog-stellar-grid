@@ -100,6 +100,7 @@ pub fn export_tables_xlsx(
     sheets: JsValue,
     filename: Option<String>,
     progress_callback: Option<js_sys::Function>,
+    strict_progress_callback: Option<bool>,
 ) -> Result<(), JsValue>
 ```
 
@@ -107,6 +108,7 @@ pub fn export_tables_xlsx(
 - `sheets`: 配置数组。每个元素包含 `{ tableId: string, sheetName?: string, excludeHidden?: boolean }`。
 - `filename`: 导出文件名（可选）。
 - `progress_callback`: 进度回调函数（可选）。
+- `strict_progress_callback`: 是否启用严格进度回调模式（可选）。默认为 `false`。
 
 **示例**
 ```javascript
@@ -133,6 +135,7 @@ pub async fn export_table_to_csv_batch(
     exclude_hidden: Option<bool>,
     progress_callback: Option<js_sys::Function>,
     with_bom: Option<bool>,
+    strict_progress_callback: Option<bool>,
 ) -> Result<JsValue, JsValue>
 ```
 
@@ -144,6 +147,7 @@ pub async fn export_table_to_csv_batch(
 - `exclude_hidden`: 是否排除隐藏行列（可选，默认 `false`）。
 - `progress_callback`: 进度回调。
 - `with_bom`: CSV 导出时是否添加 UTF-8 BOM（可选，默认 `false`）。
+- `strict_progress_callback`: 是否启用严格进度回调模式（可选）。默认为 `false`。
 
 **返回值**
 - `Promise`: 导出完成时 resolve。
@@ -162,6 +166,7 @@ pub async fn export_table_to_xlsx_batch(
     batch_size: Option<u32>,
     exclude_hidden: Option<bool>,
     progress_callback: Option<js_sys::Function>,
+    strict_progress_callback: Option<bool>,
 ) -> Result<JsValue, JsValue>
 ```
 
@@ -172,6 +177,7 @@ pub async fn export_table_to_xlsx_batch(
 - `batch_size`: 每批处理行数（可选，默认 1000）。
 - `exclude_hidden`: 是否排除隐藏行列（可选，默认 `false`）。
 - `progress_callback`: 进度回调。
+- `strict_progress_callback`: 是否启用严格进度回调模式（可选）。默认为 `false`。
 
 ---
 
@@ -185,8 +191,16 @@ pub async fn export_tables_to_xlsx_batch(
     filename: Option<String>,
     batch_size: Option<u32>,
     progress_callback: Option<js_sys::Function>,
+    strict_progress_callback: Option<bool>,
 ) -> Result<JsValue, JsValue>
 ```
+
+**参数**
+- `sheets`: 配置数组。每个元素包含 `{ tableId: string, sheetName?: string, excludeHidden?: boolean, tbodyId?: string }`。
+- `filename`: 导出文件名（可选）。
+- `batch_size`: 每批处理行数（可选，默认 1000）。
+- `progress_callback`: 进度回调函数（可选）。
+- `strict_progress_callback`: 是否启用严格进度回调模式（可选）。默认为 `false`。
 
 ## 类型定义
 

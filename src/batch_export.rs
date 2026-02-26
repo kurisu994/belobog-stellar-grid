@@ -47,6 +47,7 @@ use web_sys::HtmlTableSectionElement;
 /// );
 /// ```
 #[wasm_bindgen]
+#[allow(clippy::too_many_arguments)]
 pub async fn export_table_to_csv_batch(
     table_id: String,
     tbody_id: Option<String>,
@@ -55,6 +56,7 @@ pub async fn export_table_to_csv_batch(
     exclude_hidden: Option<bool>,
     progress_callback: Option<js_sys::Function>,
     with_bom: Option<bool>,
+    strict_progress_callback: Option<bool>,
 ) -> Result<JsValue, JsValue> {
     // 输入验证
     if table_id.is_empty() {
@@ -64,6 +66,7 @@ pub async fn export_table_to_csv_batch(
     let batch_size = batch_size.unwrap_or(1000) as usize;
     let exclude_hidden = exclude_hidden.unwrap_or(false);
     let with_bom = with_bom.unwrap_or(false);
+    let strict = strict_progress_callback.unwrap_or(false);
     if batch_size == 0 {
         return Err(JsValue::from_str("批次大小必须大于 0"));
     }
@@ -115,7 +118,7 @@ pub async fn export_table_to_csv_batch(
 
     // 报告初始进度
     if let Some(ref callback) = progress_callback {
-        report_progress(callback, 0.0, false)?;
+        report_progress(callback, 0.0, strict)?;
     }
 
     // 用于追踪被 rowspan 占用的位置: (row, col) -> cell_text
@@ -160,7 +163,7 @@ pub async fn export_table_to_csv_batch(
         // 报告进度
         if let Some(ref callback) = progress_callback {
             let progress = (current_row as f64 / total_rows as f64) * 100.0;
-            report_progress(callback, progress, false)?;
+            report_progress(callback, progress, strict)?;
         }
 
         // 在批次之间让出控制权

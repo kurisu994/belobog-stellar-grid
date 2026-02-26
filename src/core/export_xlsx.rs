@@ -2,7 +2,6 @@
 ///
 /// 提供 Excel XLSX 格式的表格导出功能
 use super::table_extractor::TableData;
-use crate::resource::UrlGuard;
 use crate::utils::report_progress;
 use crate::validation::{ensure_extension, validate_filename};
 use rust_xlsxwriter::{Format, Workbook};
@@ -229,9 +228,6 @@ pub(crate) fn create_and_download_xlsx(
     let url = Url::create_object_url_with_blob(&blob)
         .map_err(|e| JsValue::from_str(&format!("创建下载链接失败: {:?}", e)))?;
 
-    // 使用 RAII 模式确保 URL 资源释放
-    let _url_guard = UrlGuard::new(&url);
-
     // 设置文件名
     let final_filename = filename.unwrap_or_else(|| "table_export.xlsx".to_string());
 
@@ -253,6 +249,9 @@ pub(crate) fn create_and_download_xlsx(
     anchor.set_href(&url);
     anchor.set_download(&final_filename);
     anchor.click();
+
+    // 延迟 60 秒后释放 Blob URL，避免 click 后立即 revoke 导致下载竞态
+    crate::resource::schedule_url_revoke(&window, url);
 
     Ok(())
 }

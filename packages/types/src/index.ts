@@ -101,6 +101,8 @@ export interface ExportDataOptions {
   childrenKey?: string;
   /** 是否添加 UTF-8 BOM 头（仅 CSV 有效，解决 Excel 中文乱码） */
   withBom?: boolean;
+  /** 回调失败是否中断导出（默认 false） */
+  strictProgressCallback?: boolean;
 }
 
 // =============================================================================
@@ -129,6 +131,8 @@ export interface ExportTablesXlsxOptions {
   sheets: SheetConfig[];
   /** 导出文件名 */
   filename?: string;
+  /** 回调失败是否中断导出 */
+  strictProgressCallback?: boolean;
 }
 
 /** 分批导出 CSV 的参数配置 */
@@ -145,6 +149,8 @@ export interface ExportCsvBatchOptions {
   excludeHidden?: boolean;
   /** 是否添加 UTF-8 BOM */
   withBom?: boolean;
+  /** 回调失败是否中断导出 */
+  strictProgressCallback?: boolean;
 }
 
 /** 分批导出 XLSX 的参数配置 */
@@ -159,6 +165,8 @@ export interface ExportXlsxBatchOptions {
   batchSize?: number;
   /** 是否排除隐藏行/列 */
   excludeHidden?: boolean;
+  /** 回调失败是否中断导出 */
+  strictProgressCallback?: boolean;
 }
 
 /** 多工作表分批导出的参数配置 */
@@ -169,6 +177,8 @@ export interface ExportTablesBatchOptions {
   filename?: string;
   /** 每批处理行数 */
   batchSize?: number;
+  /** 回调失败是否中断导出 */
+  strictProgressCallback?: boolean;
 }
 
 // =============================================================================
@@ -256,6 +266,7 @@ export declare function export_tables_xlsx(
   sheets: SheetConfig[],
   filename?: string | null,
   progressCallback?: ProgressCallback | null,
+  strictProgressCallback?: boolean | null,
 ): void;
 
 /**
@@ -277,6 +288,7 @@ export declare function export_table_to_csv_batch(
   excludeHidden?: boolean | null,
   progressCallback?: ProgressCallback | null,
   withBom?: boolean | null,
+  strictProgressCallback?: boolean | null,
 ): Promise<void>;
 
 /**
@@ -296,6 +308,7 @@ export declare function export_table_to_xlsx_batch(
   batchSize?: number | null,
   excludeHidden?: boolean | null,
   progressCallback?: ProgressCallback | null,
+  strictProgressCallback?: boolean | null,
 ): Promise<void>;
 
 /**
@@ -311,4 +324,5 @@ export declare function export_tables_to_xlsx_batch(
   filename?: string | null,
   batchSize?: number | null,
   progressCallback?: ProgressCallback | null,
+  strictProgressCallback?: boolean | null,
 ): Promise<void>;

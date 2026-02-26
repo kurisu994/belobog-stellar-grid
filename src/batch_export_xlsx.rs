@@ -52,6 +52,7 @@ pub async fn export_table_to_xlsx_batch(
     batch_size: Option<u32>,
     exclude_hidden: Option<bool>,
     progress_callback: Option<js_sys::Function>,
+    strict_progress_callback: Option<bool>,
 ) -> Result<JsValue, JsValue> {
     // 输入验证
     if table_id.is_empty() {
@@ -60,13 +61,14 @@ pub async fn export_table_to_xlsx_batch(
 
     let batch_size = batch_size.unwrap_or(1000) as usize;
     let exclude_hidden = exclude_hidden.unwrap_or(false);
+    let strict = strict_progress_callback.unwrap_or(false);
     if batch_size == 0 {
         return Err(JsValue::from_str("批次大小必须大于 0"));
     }
 
     // 报告初始进度
     if let Some(ref callback) = progress_callback {
-        report_progress(callback, 0.0, false)?;
+        report_progress(callback, 0.0, strict)?;
     }
 
     // 阶段一：分批读取 DOM 数据（0% - 80% 进度）
@@ -76,11 +78,12 @@ pub async fn export_table_to_xlsx_batch(
         batch_size,
         exclude_hidden,
         &progress_callback,
+        strict,
     )
     .await?;
 
     // 阶段二：同步生成 XLSX 文件（80% - 100% 进度）
-    generate_and_download_xlsx(table_data, filename, &progress_callback)?;
+    generate_and_download_xlsx(table_data, filename, &progress_callback, strict)?;
 
     Ok(JsValue::UNDEFINED)
 }
@@ -94,6 +97,7 @@ async fn extract_table_data_batch(
     batch_size: usize,
     exclude_hidden: bool,
     progress_callback: &Option<js_sys::Function>,
+    strict: bool,
 ) -> Result<TableData, JsValue> {
     // 复用 extract_table_data_batch_with_offset
     // 默认进度范围为 0.0 - 80.0 (DOM 读取阶段)
@@ -105,6 +109,7 @@ async fn extract_table_data_batch(
         batch_size,
         exclude_hidden,
         &progress_info,
+        strict,
     )
     .await
 }
@@ -116,6 +121,7 @@ fn generate_and_download_xlsx(
     table_data: TableData,
     filename: Option<String>,
     progress_callback: &Option<js_sys::Function>,
+    strict: bool,
 ) -> Result<(), JsValue> {
     let total_rows = table_data.rows.len();
 
@@ -139,7 +145,7 @@ fn generate_and_download_xlsx(
             && (i % 100 == 0 || i == total_rows - 1)
         {
             let progress = 80.0 + ((i + 1) as f64 / total_rows as f64) * 15.0;
-            report_progress(callback, progress, false)?;
+            report_progress(callback, progress, strict)?;
         }
     }
 
@@ -166,7 +172,7 @@ fn generate_and_download_xlsx(
 
     // 报告合并单元格完成进度
     if let Some(callback) = progress_callback {
-        report_progress(callback, 98.0, false)?;
+        report_progress(callback, 98.0, strict)?;
     }
 
     // 将工作簿写入内存缓冲区
@@ -286,11 +292,13 @@ pub async fn export_tables_to_xlsx_batch(
     filename: Option<String>,
     batch_size: Option<u32>,
     progress_callback: Option<js_sys::Function>,
+    strict_progress_callback: Option<bool>,
 ) -> Result<JsValue, JsValue> {
     // 解析工作表配置
     let configs = parse_batch_sheet_configs(&sheets)?;
 
     let batch_size = batch_size.unwrap_or(1000) as usize;
+    let strict = strict_progress_callback.unwrap_or(false);
     if batch_size == 0 {
         return Err(JsValue::from_str("批次大小必须大于 0"));
     }
@@ -299,7 +307,7 @@ pub async fn export_tables_to_xlsx_batch(
 
     // 报告初始进度
     if let Some(ref callback) = progress_callback {
-        report_progress(callback, 0.0, false)?;
+        report_progress(callback, 0.0, strict)?;
     }
 
     // 阶段一：逐个表格分批提取数据（0% - 80% 进度）
@@ -321,6 +329,7 @@ pub async fn export_tables_to_xlsx_batch(
             batch_size,
             config.exclude_hidden,
             &sheet_callback,
+            strict,
         )
         .await?;
 
@@ -333,7 +342,7 @@ pub async fn export_tables_to_xlsx_batch(
     }
 
     // 阶段二：同步生成多工作表 XLSX 文件（80% - 100% 进度）
-    generate_and_download_xlsx_multi(all_sheets_data, filename, &progress_callback)?;
+    generate_and_download_xlsx_multi(all_sheets_data, filename, &progress_callback, strict)?;
 
     Ok(JsValue::UNDEFINED)
 }
@@ -347,6 +356,7 @@ async fn extract_table_data_batch_with_offset(
     batch_size: usize,
     exclude_hidden: bool,
     progress_info: &Option<(js_sys::Function, f64, f64)>,
+    strict: bool,
 ) -> Result<TableData, JsValue> {
     // 获取主表格（支持直接的 table 或包含 table 的容器）
     let table = resolve_table(table_id)?;
@@ -451,7 +461,7 @@ async fn extract_table_data_batch_with_offset(
         if let Some((callback, start, range)) = progress_info {
             let local_progress = current_row as f64 / total_rows as f64;
             let progress = start + local_progress * range;
-            report_progress(callback, progress, false)?;
+            report_progress(callback, progress, strict)?;
         }
 
         if current_row < total_rows {
@@ -503,6 +513,7 @@ fn generate_and_download_xlsx_multi(
     all_sheets_data: Vec<(String, TableData)>,
     filename: Option<String>,
     progress_callback: &Option<js_sys::Function>,
+    strict: bool,
 ) -> Result<(), JsValue> {
     if all_sheets_data.is_empty() {
         return Err(JsValue::from_str("没有可导出的工作表数据"));
@@ -542,7 +553,7 @@ fn generate_and_download_xlsx_multi(
                 let sheet_progress_range = 15.0 / total_sheets as f64;
                 let row_progress = (i + 1) as f64 / total_rows as f64;
                 let progress = sheet_progress_start + row_progress * sheet_progress_range;
-                report_progress(callback, progress, false)?;
+                report_progress(callback, progress, strict)?;
             }
         }
 
@@ -569,7 +580,7 @@ fn generate_and_download_xlsx_multi(
 
     // 报告完成进度
     if let Some(callback) = progress_callback {
-        report_progress(callback, 98.0, false)?;
+        report_progress(callback, 98.0, strict)?;
     }
 
     let xlsx_bytes = workbook

@@ -13,8 +13,19 @@
 
 - 🐛 **React / Vue 导出生命周期修复**: 将 `exportTable` 等导出动作从 `void` 变更为返回执行结果 `boolean` / `Promise<boolean>` 状态指示，确保能在完整的尝试逻辑后，且由于并未返回错误时，准确触发 `onExportSuccess` / `emit('success')` 回调。
 - 🐛 **Vue 组件事件补充**: 修复 Vue `<ExportButton>` 中并未正确对外暴露进度信息的疏漏，新增对内部 `progress` 的监听映射并派发 `progress` 事件。
+- 🐛 **WASM 初始化失败不可重试**: 修复 React/Vue `initWasm()` 中 WASM 加载失败后 `wasmInitPromise` 永久持有 rejected Promise 的问题。失败时重置 Promise 缓存，允许后续调用重新触发初始化。
+- 🐛 **Blob URL 下载竞态**: 移除 `UrlGuard` RAII 即时释放策略，改用 `schedule_url_revoke` 通过 `setTimeout(60s)` 延迟释放 Blob URL，避免 `anchor.click()` 后立即 revoke 导致下载失败。
 - 🔧 **类型接口聚合与唯一化**: 清理重构并移除了 `@bsg-export/react` 及 `@bsg-export/vue` 中的重复入口参数选项接口（如 `ExportTableOptions`），并悉数汇总于 `@bsg-export/types` 内部，完美解决跨包定义引用的问题。
 - 📝 **Rust 内部细节优化**: 追加补齐了 `export_data` 对 `strictProgressCallback` 设置项的 JSDoc 注释，在计算单元格合并坐标时优化去除了无必要的防御性溢出判断。
+
+### ✨ 新增
+
+- 🆕 **`strict_progress_callback` 参数完善**: 为以下 4 个 API 新增 `strict_progress_callback` 可选参数，与 `export_table` 保持 API 一致性：
+  - `export_tables_xlsx` — 多工作表同步导出
+  - `export_table_to_csv_batch` — 分批异步 CSV 导出
+  - `export_table_to_xlsx_batch` — 分批异步 XLSX 导出
+  - `export_tables_to_xlsx_batch` — 多工作表分批异步导出
+- 🆕 **TS 类型补全**: 为 `ExportDataOptions`、`ExportTablesXlsxOptions`、`ExportCsvBatchOptions`、`ExportXlsxBatchOptions`、`ExportTablesBatchOptions` 接口和对应函数签名添加 `strictProgressCallback` 字段
 
 ---
 

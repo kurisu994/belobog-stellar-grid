@@ -50,3 +50,36 @@ impl Drop for UrlGuard {
         }
     }
 }
+
+/// 延迟释放 Blob URL
+///
+/// 通过 `setTimeout(60000)` 延迟调用 `Url::revoke_object_url`，
+/// 确保浏览器有足够时间完成下载后再释放 URL 资源。
+///
+/// # 参数
+/// * `window` - 浏览器 window 对象
+/// * `url` - 需要释放的 Blob URL
+#[cfg(target_arch = "wasm32")]
+pub(crate) fn schedule_url_revoke(window: &web_sys::Window, url: String) {
+    use wasm_bindgen::closure::Closure;
+    use wasm_bindgen::JsCast;
+    let callback = Closure::once(move || {
+        let _ = Url::revoke_object_url(&url);
+    });
+
+    // 60 秒后释放 URL，足以让浏览器完成下载初始化
+    let _ = window.set_timeout_with_callback_and_timeout_and_arguments_0(
+        callback.as_ref().unchecked_ref(),
+        60_000,
+    );
+
+    // 泄漏闭包以保持其存活直到 setTimeout 触发
+    callback.forget();
+}
+
+/// 非 WASM 环境占位（测试用）
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn schedule_url_revoke(_window: &web_sys::Window, _url: String) {
+    // 测试环境：无需释放 URL
+}
+

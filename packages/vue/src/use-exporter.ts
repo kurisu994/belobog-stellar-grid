@@ -45,11 +45,17 @@ async function initWasm(): Promise<typeof import('belobog-stellar-grid')> {
   if (wasmModule) return wasmModule;
 
   if (!wasmInitPromise) {
-    wasmInitPromise = import('belobog-stellar-grid').then(async (mod) => {
-      await mod.default();
-      wasmModule = mod;
-      return mod;
-    });
+    wasmInitPromise = import('belobog-stellar-grid')
+      .then(async (mod) => {
+        await mod.default();
+        wasmModule = mod;
+        return mod;
+      })
+      .catch((err) => {
+        // 初始化失败时重置 Promise，允许后续调用重试
+        wasmInitPromise = null;
+        throw err;
+      });
   }
 
   return wasmInitPromise;
@@ -158,6 +164,7 @@ export function useExporter() {
         options.sheets,
         options.filename,
         createProgressCallback(),
+        options.strictProgressCallback,
       );
     });
   };
@@ -173,6 +180,7 @@ export function useExporter() {
         options.excludeHidden,
         createProgressCallback(),
         options.withBom,
+        options.strictProgressCallback,
       );
     });
   };
@@ -187,6 +195,7 @@ export function useExporter() {
         options.batchSize,
         options.excludeHidden,
         createProgressCallback(),
+        options.strictProgressCallback,
       );
     });
   };
@@ -199,6 +208,7 @@ export function useExporter() {
         options.filename,
         options.batchSize,
         createProgressCallback(),
+        options.strictProgressCallback,
       );
     });
   };

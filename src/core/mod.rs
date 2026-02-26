@@ -199,7 +199,10 @@ pub fn export_tables_xlsx(
     sheets: JsValue,
     filename: Option<String>,
     progress_callback: Option<js_sys::Function>,
+    strict_progress_callback: Option<bool>,
 ) -> Result<(), JsValue> {
+    let strict_progress = strict_progress_callback.unwrap_or(false);
+
     // 解析配置
     let configs = parse_sheet_configs(&sheets)?;
 
@@ -219,7 +222,7 @@ pub fn export_tables_xlsx(
     }
 
     // 调用多工作表导出
-    export_as_xlsx_multi(sheets_data, filename, progress_callback, false)
+    export_as_xlsx_multi(sheets_data, filename, progress_callback, strict_progress)
 }
 
 /// 从 JS 二维数组解析为 Rust 二维字符串数组
