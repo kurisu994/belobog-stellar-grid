@@ -203,3 +203,109 @@ import { ExportFormat } from 'belobog-stellar-grid';
 console.log(ExportFormat.Csv); // 0
 console.log(ExportFormat.Xlsx); // 1
 ```
+
+---
+
+## 框架集成包
+
+### `@bsg-export/types`
+
+严格 TypeScript 类型定义（零运行时），替代 wasm-bindgen 自动生成的 `any` 类型。
+
+**核心接口**：`Column`、`ExportDataOptions`、`SheetConfig`、`BatchSheetConfig`、`MergeCellValue`、`ProgressCallback`
+
+```typescript
+import type { Column, ExportDataOptions } from '@bsg-export/types';
+import { ExportFormat } from '@bsg-export/types';
+```
+
+---
+
+### `@bsg-export/react`
+
+React 封装，提供 Hook 和组件。
+
+#### `useExporter(wasmUrl?)`
+
+自动管理 WASM 初始化，返回状态和类型安全的导出方法。
+
+```tsx
+import { useExporter, ExportFormat } from '@bsg-export/react';
+
+function App() {
+  const { initialized, loading, progress, error, exportTable, exportData } = useExporter();
+
+  return (
+    <button
+      disabled={!initialized || loading}
+      onClick={() => exportTable({ tableId: 'my-table', filename: '报表.xlsx', format: ExportFormat.Xlsx })}
+    >
+      {loading ? `导出中 ${Math.round(progress)}%` : '导出'}
+    </button>
+  );
+}
+```
+
+**返回值**：
+- `initialized: boolean` — WASM 是否初始化完成
+- `loading: boolean` — 是否正在导出
+- `progress: number` — 导出进度 (0-100)
+- `error: Error | null` — 错误信息
+- `exportTable(options)` — DOM 表格导出
+- `exportData(options)` — 纯数据导出
+- `exportTablesXlsx(options)` — 多 Sheet 导出
+- `exportTableToCsvBatch(options)` — CSV 分批导出
+- `exportTableToXlsxBatch(options)` — XLSX 分批导出
+- `exportTablesToXlsxBatch(options)` — 多 Sheet 分批导出
+
+#### `<ExportButton>`
+
+开箱即用的导出按钮，自动管理初始化和状态。
+
+```tsx
+import { ExportButton, ExportFormat } from '@bsg-export/react';
+
+<ExportButton tableId="my-table" filename="报表.xlsx" format={ExportFormat.Xlsx}>
+  导出 Excel
+</ExportButton>
+```
+
+---
+
+### `@bsg-export/vue`
+
+Vue 3 封装，提供 Composable 和组件。
+
+#### `useExporter(wasmUrl?)`
+
+功能同 React 版本，使用 Vue 3 的 `ref` 响应式状态。
+
+```vue
+<script setup>
+import { useExporter, ExportFormat } from '@bsg-export/vue';
+
+const { initialized, loading, progress, exportTable } = useExporter();
+</script>
+
+<template>
+  <button :disabled="!initialized || loading" @click="exportTable({ tableId: 'my-table' })">
+    {{ loading ? `导出中 ${Math.round(progress)}%` : '导出' }}
+  </button>
+</template>
+```
+
+#### `<ExportButton>`
+
+Vue 组件，支持插槽和事件。
+
+```vue
+<script setup>
+import { ExportButton, ExportFormat } from '@bsg-export/vue';
+</script>
+
+<template>
+  <ExportButton table-id="my-table" filename="报表.xlsx" :format="ExportFormat.Xlsx">
+    导出 Excel
+  </ExportButton>
+</template>
+```

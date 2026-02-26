@@ -20,6 +20,11 @@ src/
 ├── batch_export.rs     # CSV 异步分批处理
 ├── batch_export_xlsx.rs # XLSX 异步分批处理
 └── utils.rs            # 辅助工具函数
+
+packages/
+├── types/              # @bsg-export/types — 严格 TypeScript 类型定义
+├── react/              # @bsg-export/react — React Hook + 组件
+└── vue/                # @bsg-export/vue  — Vue 3 Composable + 组件
 ```
 
 ## 核心约束
@@ -35,10 +40,12 @@ src/
 ## 发布流程
 
 ```bash
-just ci-release patch/minor/major  # CI 自动发布 (推荐)
+just ci-release patch/minor/major  # CI 自动发布 (推荐，含子包)
 just bump patch/minor/major        # 手动升级版本
 just dry-run                        # 发布前测试
 just publish latest/beta/next      # 手动发布到 npm
+just build-packages                 # 构建子包 (types/react/vue)
+just publish-packages               # 发布子包到 npm
 ```
 
 ## 测试
@@ -62,6 +69,9 @@ cargo test -- test_flatten_tree     # 按名称过滤单个测试
 - **XLSX 导出**: `src/core/export_xlsx.rs` - Excel 生成
 - **分批处理**: `src/batch_export.rs` 和 `src/batch_export_xlsx.rs`
 - **辅助工具**: `src/utils.rs` - 调试和辅助
+- **类型定义**: `packages/types/src/index.ts` - 严格 TS 类型
+- **React 封装**: `packages/react/src/` - useExporter + ExportButton
+- **Vue 封装**: `packages/vue/src/` - useExporter + ExportButton
 
 ## 测试文件分布
 
