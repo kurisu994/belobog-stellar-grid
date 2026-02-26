@@ -61,8 +61,8 @@ impl Drop for UrlGuard {
 /// * `url` - 需要释放的 Blob URL
 #[cfg(target_arch = "wasm32")]
 pub(crate) fn schedule_url_revoke(window: &web_sys::Window, url: String) {
-    use wasm_bindgen::closure::Closure;
     use wasm_bindgen::JsCast;
+    use wasm_bindgen::closure::Closure;
     let callback = Closure::once(move || {
         let _ = Url::revoke_object_url(&url);
     });
@@ -82,4 +82,3 @@ pub(crate) fn schedule_url_revoke(window: &web_sys::Window, url: String) {
 pub(crate) fn schedule_url_revoke(_window: &web_sys::Window, _url: String) {
     // 测试环境：无需释放 URL
 }
-
