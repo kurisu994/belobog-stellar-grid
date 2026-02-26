@@ -9,7 +9,20 @@
 
 ## [Unreleased]
 
----
+### ✨ 新增
+
+- 🚀 **Web Worker 导出支持**: 新增 `@bsg-export/worker` 子包，将导出计算移至 Worker 线程，彻底避免大数据量导出时主线程阻塞。
+  - 新增 `generate_data_bytes` WASM 函数：生成 CSV/XLSX 文件字节（不触发下载），专为 Worker 场景设计
+  - `ExportWorker` 类：管理 Worker 生命周期、消息协议和文件下载触发
+  - 支持 Transferable 零拷贝字节传输和进度回调
+
+### ♻️ 重构
+
+- ♻️ **导出核心拆分**: 将 CSV/XLSX 的"文件生成"与"触发下载"解耦：
+  - `export_csv.rs`: 提取 `generate_csv_bytes()` 纯字节生成函数，BOM 处理内聚
+  - `export_xlsx.rs`: 提取 `generate_xlsx_bytes()` / `generate_xlsx_multi_bytes()` 纯字节生成函数
+  - 原 `export_as_csv()` / `export_as_xlsx()` 复用新函数后触发下载，行为不变
+
 
 ## [1.0.7] - 2026-02-26
 

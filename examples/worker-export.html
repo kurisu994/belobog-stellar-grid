@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Worker 导出示例 - belobog-stellar-grid</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            padding: 40px 20px;
+            background: linear-gradient(135deg, #0F2027 0%, #203A43 50%, #2C5364 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 { color: #333; margin-bottom: 10px; font-size: 32px; }
+        .subtitle { color: #666; margin-bottom: 30px; font-size: 14px; }
+        .section { margin-bottom: 40px; }
+        .section h2 { color: #444; margin-bottom: 15px; font-size: 20px; border-left: 4px solid #2C5364; padding-left: 12px; }
+        .section p { color: #666; margin-bottom: 15px; line-height: 1.6; }
+        .button-group {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin: 20px 0;
+        }
+        button {
+            padding: 12px 24px;
+            font-size: 14px;
+            font-weight: 600;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            min-width: 160px;
+        }
+        .btn-worker {
+            background: linear-gradient(135deg, #0F2027 0%, #2C5364 100%);
+            color: white;
+        }
+        .btn-worker:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(44,83,100,0.4);
+        }
+        .btn-main {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .btn-main:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102,126,234,0.4);
+        }
+        button:active { transform: translateY(0); }
+        button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        .info-box {
+            background: #e6f7ff;
+            border: 1px solid #91d5ff;
+            border-radius: 8px;
+            padding: 15px 20px;
+            margin-bottom: 20px;
+            color: #0050b3;
+            font-size: 14px;
+        }
+        .info-box strong { color: #003a8c; }
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #eee;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        .progress-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #0F2027, #2C5364);
+            border-radius: 4px;
+            transition: width 0.1s;
+            width: 0%;
+        }
+        #status { color: #666; font-size: 14px; margin-top: 8px; min-height: 20px; }
+        .comparison { display: flex; gap: 20px; margin-top: 15px; }
+        .comparison .col { flex: 1; }
+        .comparison .col h3 { font-size: 14px; color: #999; margin-bottom: 8px; }
+        .comparison .result {
+            font-size: 24px;
+            font-weight: 700;
+            color: #333;
+            min-height: 36px;
+        }
+        pre {
+            background: #282c34;
+            color: #abb2bf;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-size: 13px;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+        .keyword { color: #c678dd; }
+        .string { color: #98c379; }
+        .comment { color: #5c6370; font-style: italic; }
+        .func { color: #61afef; }
+        .number { color: #d19a66; }
+        .code { background: #e8f0fe; padding: 2px 8px; border-radius: 3px; font-family: 'Courier New', monospace; color: #5f6368; }
+        #animation-box {
+            width: 60px; height: 60px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-radius: 8px;
+            animation: spin 2s linear infinite;
+            margin: 15px 0;
+        }
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>⚡ Web Worker 导出</h1>
+        <p class="subtitle">
+            使用 <span class="code">generate_data_bytes()</span> 在 Worker 线程中生成文件，主线程始终保持响应。
+        </p>
+
+        <div class="info-box">
+            <strong>💡 核心原理：</strong>
+            WASM 的 CSV/XLSX 序列化在 Worker 线程执行，生成的字节通过 Transferable 零拷贝传回主线程触发下载。
+            下方动画方块可以用来验证主线程是否阻塞 — 如果方块始终流畅旋转，说明主线程未被卡住。
+        </div>
+
+        <!-- Worker 导出 vs 主线程导出对比 -->
+        <div class="section">
+            <h2>Worker 导出 vs 主线程导出</h2>
+            <p>生成 500000 行数据并导出，对比 Worker 和主线程的性能差异：</p>
+
+            <div id="animation-box"></div>
+            <p style="color: #999; font-size: 12px;">↑ 旋转动画 — 流畅 = 主线程未阻塞</p>
+
+            <div class="progress-bar"><div class="progress-bar-fill" id="progress-fill"></div></div>
+            <div id="status">就绪</div>
+
+            <div class="comparison">
+                <div class="col">
+                    <h3>🧵 Worker 线程</h3>
+                    <div class="result" id="worker-time">-</div>
+                </div>
+                <div class="col">
+                    <h3>🔴 主线程</h3>
+                    <div class="result" id="main-time">-</div>
+                </div>
+            </div>
+
+            <div class="button-group">
+                <button class="btn-worker" id="btn-worker" onclick="workerExport()">⚡ Worker 导出 500000 行 XLSX</button>
+                <button class="btn-main" id="btn-main" onclick="mainThreadExport()">🔴 主线程导出 500000 行 XLSX</button>
+            </div>
+        </div>
+
+        <!-- 代码示例 -->
+        <div class="section">
+            <h2>💡 使用方式</h2>
+<pre><span class="comment">// 1. 低层 API：直接在 Worker 中使用 generate_data_bytes()</span>
+<span class="comment">// worker.js:</span>
+<span class="keyword">import</span> init, { generate_data_bytes, ExportFormat } <span class="keyword">from</span> <span class="string">'belobog-stellar-grid'</span>;
+<span class="keyword">await</span> <span class="func">init</span>();
+
+self.<span class="func">addEventListener</span>(<span class="string">'message'</span>, (e) => {
+    <span class="keyword">const</span> bytes = <span class="func">generate_data_bytes</span>(e.data.data, e.data.options);
+    self.<span class="func">postMessage</span>({ bytes: bytes.buffer }, [bytes.buffer]);
+});
+
+<span class="comment">// 2. 高层 API：使用 @bsg-export/worker 的 ExportWorker 类</span>
+<span class="keyword">import</span> { ExportWorker } <span class="keyword">from</span> <span class="string">'@bsg-export/worker'</span>;
+<span class="keyword">import</span> MyWorker <span class="keyword">from</span> <span class="string">'@bsg-export/worker/worker?worker'</span>;
+
+<span class="keyword">const</span> worker = <span class="keyword">new</span> <span class="func">ExportWorker</span>(<span class="keyword">new</span> <span class="func">MyWorker</span>());
+<span class="keyword">await</span> worker.<span class="func">init</span>();
+<span class="keyword">await</span> worker.<span class="func">exportData</span>(data, { columns, filename: <span class="string">'报表.xlsx'</span>, format: <span class="number">1</span> });
+worker.<span class="func">terminate</span>();</pre>
+        </div>
+    </div>
+
+    <script type="module">
+        import init, { export_data, generate_data_bytes, ExportFormat } from '../pkg/belobog_stellar_grid.js';
+
+        await init();
+
+        const statusEl = document.getElementById('status');
+        const progressFill = document.getElementById('progress-fill');
+        const workerTimeEl = document.getElementById('worker-time');
+        const mainTimeEl = document.getElementById('main-time');
+
+        // 生成测试数据
+        function generateData(count) {
+            const depts = ['技术部', '产品部', '设计部', '市场部', '人力资源部', '财务部'];
+            const data = [];
+            for (let i = 1; i <= count; i++) {
+                data.push({
+                    id: i,
+                    name: `用户_${i}`,
+                    email: `user${i}@example.com`,
+                    dept: depts[i % depts.length],
+                    salary: Math.floor(Math.random() * 30000) + 10000,
+                    date: `2024-${String((i % 12) + 1).padStart(2, '0')}-${String((i % 28) + 1).padStart(2, '0')}`,
+                });
+            }
+            return data;
+        }
+
+        const columns = [
+            { title: '序号', key: 'id' },
+            { title: '用户名', key: 'name' },
+            { title: '邮箱', key: 'email' },
+            { title: '部门', key: 'dept' },
+            { title: '薪资', key: 'salary' },
+            { title: '入职日期', key: 'date' },
+        ];
+
+        // Worker 导出
+        window.workerExport = async () => {
+            const btn = document.getElementById('btn-worker');
+            btn.disabled = true;
+            statusEl.textContent = '⏳ 生成数据中...';
+            progressFill.style.width = '0%';
+
+            const data = generateData(500000);
+            statusEl.textContent = '⏳ Worker 导出中...';
+
+            const start = performance.now();
+
+            // 使用内联 Worker（实际项目中应使用独立文件）
+            const workerCode = `
+                import init, { generate_data_bytes } from '${new URL('../pkg/belobog_stellar_grid.js', location.href).href}';
+                await init();
+                self.addEventListener('message', (e) => {
+                    try {
+                        const bytes = generate_data_bytes(e.data.data, e.data.options);
+                        self.postMessage({ type: 'result', bytes: bytes.buffer }, [bytes.buffer]);
+                    } catch (err) {
+                        self.postMessage({ type: 'error', message: String(err) });
+                    }
+                });
+                self.postMessage({ type: 'ready' });
+            `;
+            const blob = new Blob([workerCode], { type: 'application/javascript' });
+            const workerUrl = URL.createObjectURL(blob);
+            const worker = new Worker(workerUrl, { type: 'module' });
+
+            worker.addEventListener('message', (e) => {
+                if (e.data.type === 'ready') {
+                    worker.postMessage({
+                        data,
+                        options: {
+                            columns,
+                            format: 1, // ExportFormat.Xlsx
+                        },
+                    });
+                } else if (e.data.type === 'result') {
+                    const elapsed = (performance.now() - start).toFixed(0);
+                    workerTimeEl.textContent = `${elapsed}ms`;
+                    progressFill.style.width = '100%';
+                    statusEl.textContent = `✅ Worker 导出完成 (${elapsed}ms)`;
+
+                    // 触发下载
+                    const fileBlob = new Blob([e.data.bytes], {
+                        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                    });
+                    const url = URL.createObjectURL(fileBlob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'worker_500000行.xlsx';
+                    a.click();
+                    setTimeout(() => URL.revokeObjectURL(url), 10000);
+
+                    worker.terminate();
+                    URL.revokeObjectURL(workerUrl);
+                    btn.disabled = false;
+                } else if (e.data.type === 'error') {
+                    statusEl.textContent = `❌ 错误: ${e.data.message}`;
+                    worker.terminate();
+                    btn.disabled = false;
+                }
+            });
+        };
+
+        // 主线程导出
+        window.mainThreadExport = () => {
+            const btn = document.getElementById('btn-main');
+            btn.disabled = true;
+            statusEl.textContent = '⏳ 生成数据中...';
+            progressFill.style.width = '0%';
+
+            const data = generateData(500000);
+            statusEl.textContent = '🔴 主线程导出中（页面可能卡顿）...';
+
+            // 使用 requestAnimationFrame 保证 UI 更新后再执行
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    const start = performance.now();
+                    try {
+                        export_data(data, {
+                            columns,
+                            filename: '主线程_500000行.xlsx',
+                            format: ExportFormat.Xlsx,
+                            progressCallback: (p) => {
+                                progressFill.style.width = `${p}%`;
+                            },
+                        });
+                        const elapsed = (performance.now() - start).toFixed(0);
+                        mainTimeEl.textContent = `${elapsed}ms`;
+                        progressFill.style.width = '100%';
+                        statusEl.textContent = `✅ 主线程导出完成 (${elapsed}ms) — 注意动画是否卡顿`;
+                    } catch (e) {
+                        statusEl.textContent = `❌ 错误: ${e}`;
+                    }
+                    btn.disabled = false;
+                });
+            });
+        };
+
+        console.log('🚀 WebAssembly 已初始化，Worker 导出示例可用');
+    </script>
+</body>
+</html>

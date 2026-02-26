@@ -100,7 +100,7 @@ bump-core level:
     fi
     
     # 同步子包版本
-    for pkg in packages/types packages/react packages/vue; do
+    for pkg in packages/types packages/react packages/vue packages/worker; do
         if [ -f "$pkg/package.json" ]; then
             perl -i -pe "s/\"version\": \".*?\"/\"version\": \"$new\"/" "$pkg/package.json"
             echo "✅ $pkg/package.json 版本已更新: -> $new"
@@ -182,7 +182,7 @@ ci-release level: check test
 build-packages:
     #!/bin/bash
     set -e
-    for pkg in packages/types packages/react packages/vue; do
+    for pkg in packages/types packages/react packages/vue packages/worker; do
         if [ -d "$pkg" ]; then
             echo "📦 构建 $pkg..."
             cd "$pkg" && pnpm install && pnpm run build && cd ../.. 
@@ -195,7 +195,7 @@ publish-packages tag="latest":
     #!/bin/bash
     set -e
     tag="{{tag}}"
-    for pkg in packages/types packages/react packages/vue; do
+    for pkg in packages/types packages/react packages/vue packages/worker; do
         if [ -d "$pkg" ]; then
             echo "📤 发布 $pkg (tag: $tag)..."
             cd "$pkg" && npm publish --access public --tag "$tag" && cd ../.. 

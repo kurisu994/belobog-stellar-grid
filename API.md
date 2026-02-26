@@ -323,3 +323,74 @@ import { ExportButton, ExportFormat } from '@bsg-export/vue';
   </ExportButton>
 </template>
 ```
+
+---
+
+### `@bsg-export/worker`
+
+Web Worker 导出封装，将 CPU 密集的文件生成移至 Worker 线程，彻底避免主线程阻塞。
+
+#### `generate_data_bytes(data, options?)`
+
+WASM 底层函数。与 `export_data` 功能相同，但不创建 Blob 和下载链接，直接返回文件字节（`Uint8Array`）。
+
+```rust
+pub fn generate_data_bytes(
+    data: JsValue,
+    options: Option<JsValue>,
+) -> Result<js_sys::Uint8Array, JsValue>
+```
+
+**参数**：同 `export_data`。
+
+**返回值**：`Uint8Array` — 生成的 CSV 或 XLSX 文件字节。
+
+**使用场景**：在 Web Worker 中调用，通过 `postMessage` + Transferable 将字节传回主线程触发下载。
+
+---
+
+#### `ExportWorker` 类
+
+管理 Worker 生命周期的高层封装。
+
+```typescript
+import { ExportWorker } from '@bsg-export/worker';
+
+// 1. 创建 Worker（根据构建工具选择方式）
+// Vite:
+import MyWorker from '@bsg-export/worker/worker?worker';
+const worker = new ExportWorker(new MyWorker());
+
+// Webpack 5:
+const w = new Worker(new URL('@bsg-export/worker/worker', import.meta.url));
+const worker = new ExportWorker(w);
+
+// 2. 初始化 WASM
+await worker.init();
+
+// 3. 导出数据（Worker 生成 → 主线程下载）
+await worker.exportData(
+  [{ name: '张三', age: 28 }],
+  {
+    columns: [{ title: '姓名', key: 'name' }, { title: '年龄', key: 'age' }],
+    filename: '用户.xlsx',
+    format: 1, // ExportFormat.Xlsx
+  },
+  { onProgress: (p) => console.log(`${p}%`) }
+);
+
+// 4. 仅生成字节（不触发下载）
+const bytes = await worker.generateBytes(data, options);
+
+// 5. 销毁 Worker
+worker.terminate();
+```
+
+**方法**：
+- `init()` — 初始化 Worker 中的 WASM 模块
+- `exportData(data, options?, workerOptions?)` — 生成文件并触发下载
+- `generateBytes(data, options?, workerOptions?)` — 仅生成文件字节
+- `terminate()` — 销毁 Worker
+
+**属性**：
+- `initialized: boolean` — WASM 是否初始化完成

@@ -133,6 +133,9 @@ pnpm add @bsg-export/react
 # Vue 3 封装
 pnpm add @bsg-export/vue
 
+# Web Worker 支持（大数据量场景推荐）
+pnpm add @bsg-export/worker
+
 # 仅类型定义
 pnpm add -D @bsg-export/types
 ```
@@ -352,7 +355,7 @@ just ci-release major   # 主要版本 1.0.0 -> 2.0.0
 2. **WebAssembly 构建** — `wasm-pack build --target web --release`
 3. **浏览器测试** — Puppeteer 自动化验证 WASM 加载和基本功能
 4. **发布主包** — 将 `pkg/` 发布到 npm（`belobog-stellar-grid`）
-5. **发布子包** — 构建并发布 `@bsg-export/types`、`@bsg-export/react`、`@bsg-export/vue`
+5. **发布子包** — 构建并发布 `@bsg-export/types`、`@bsg-export/react`、`@bsg-export/vue`、`@bsg-export/worker`
 6. **创建 GitHub Release** — 自动提取 CHANGELOG 生成发布说明，附带 WASM 构建产物
 
 > ⚠️ 需要在 GitHub 仓库 Settings → Secrets 中配置 `NPM_TOKEN`
@@ -388,6 +391,7 @@ just publish-packages    # 发布到 npm（默认 latest tag）
 | `@bsg-export/types` | 严格 TypeScript 类型定义 | 无 |
 | `@bsg-export/react` | React Hook + 组件封装 | `@bsg-export/types` |
 | `@bsg-export/vue` | Vue 3 Composable + 组件封装 | `@bsg-export/types` |
+| `@bsg-export/worker` | Web Worker 导出封装 | `@bsg-export/types` |
 
 > 子包版本号在 `just bump` 时会自动与主包同步。
 
@@ -471,7 +475,7 @@ belobog-stellar-grid/
 
 ### ⚡ 性能优化
 
-- [ ] **Web Worker 支持**: 将导出计算移至 Worker 线程，彻底避免主线程阻塞。
+- [x] **Web Worker 支持**: 将导出计算移至 Worker 线程，彻底避免主线程阻塞。 ✅
 - [ ] **Streaming 导出**: 对超大文件采用流式写入，降低内存峰值占用。
 - [ ] **WASM 体积优化**: 探索 `wasm-opt` 更激进的优化策略或按功能拆分 WASM 模块。
 - [ ] **性能基准测试**: 建立自动化 Benchmark，持续追踪导出性能回归。

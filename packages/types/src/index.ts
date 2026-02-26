@@ -326,3 +326,32 @@ export declare function export_tables_to_xlsx_batch(
   progressCallback?: ProgressCallback | null,
   strictProgressCallback?: boolean | null,
 ): Promise<void>;
+
+/**
+ * 从 JavaScript 数组生成文件字节（不触发下载，供 Web Worker 使用）
+ *
+ * 与 `export_data` 功能相同，但不创建 Blob 和下载链接，
+ * 而是直接返回生成的文件字节（CSV 或 XLSX）。
+ * 适用于 Web Worker 场景：Worker 中生成字节，主线程触发下载。
+ *
+ * @param data - 二维数组 `CellValue[][]` 或对象数组 `Record<string, MergeableCellValue>[]`
+ * @param options - 配置选项（同 ExportDataOptions）
+ * @returns 生成的文件字节
+ * @throws 生成失败时抛出错误
+ *
+ * @example
+ * ```typescript
+ * // 在 Web Worker 中：
+ * const bytes = generate_data_bytes(
+ *   [['姓名', '年龄'], ['张三', 28]],
+ *   { format: ExportFormat.Xlsx }
+ * );
+ * self.postMessage({ bytes: bytes.buffer }, [bytes.buffer]);
+ * ```
+ */
+export declare function generate_data_bytes(
+  data: DataRow[],
+  options?: ExportDataOptions,
+): Uint8Array;
+
+

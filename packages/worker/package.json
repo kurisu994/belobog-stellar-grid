@@ -1,0 +1,49 @@
+{
+  "name": "@bsg-export/worker",
+  "version": "1.0.7",
+  "description": "belobog-stellar-grid 的 Web Worker 封装，将导出计算移至 Worker 线程",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./worker": {
+      "types": "./dist/worker.d.ts",
+      "import": "./dist/worker.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "belobog",
+    "stellar-grid",
+    "worker",
+    "web-worker",
+    "export",
+    "table"
+  ],
+  "author": "Kurisu <makise_kurisuu@outlook.jp>",
+  "license": "MIT OR Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kurisu994/belobog-stellar-grid",
+    "directory": "packages/worker"
+  },
+  "peerDependencies": {
+    "belobog-stellar-grid": ">=1.0.0"
+  },
+  "dependencies": {
+    "@bsg-export/types": "file:../types"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}

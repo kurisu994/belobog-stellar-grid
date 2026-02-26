@@ -260,7 +260,7 @@ jobs:
 
       - name: 构建并发布子包
         run: |
-          for pkg in packages/types packages/react packages/vue; do
+          for pkg in packages/types packages/react packages/vue packages/worker; do
             if [ -d "$pkg" ]; then
               echo "📦 构建 $pkg..."
               cd "$pkg" && npm install && npm run build

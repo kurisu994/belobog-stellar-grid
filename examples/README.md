@@ -352,6 +352,50 @@ await export_tables_to_xlsx_batch(
 );
 ```
 
+---
+
+### 9. worker-export.html - Web Worker 导出示例 ⚡
+
+**功能**：
+
+- ✅ 将导出计算移至 Worker 线程，主线程不阻塞
+- ✅ Worker vs 主线程导出性能对比（50000 行）
+- ✅ 旋转动画检测主线程阻塞
+- ✅ Transferable 零拷贝字节传输
+
+**适用场景**：
+
+- 大数据量导出（10000+ 行）时需要保持 UI 响应
+- 对导出性能有较高要求的场景
+- 主线程有复杂动画/交互不能被阻塞
+
+**关键代码**：
+
+```javascript
+import init, { generate_data_bytes, ExportFormat } from "../pkg/belobog_stellar_grid.js";
+
+// 在 Worker 中：
+await init();
+const bytes = generate_data_bytes(data, {
+  columns,
+  format: ExportFormat.Xlsx,
+});
+// 通过 Transferable 传回主线程
+self.postMessage({ bytes: bytes.buffer }, [bytes.buffer]);
+
+// 主线程接收并触发下载：
+worker.onmessage = (e) => {
+  const blob = new Blob([e.data.bytes], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "报表.xlsx";
+  a.click();
+};
+```
+
 ## 🎯 使用指南
 
 ### 基本使用流程
@@ -582,6 +626,27 @@ async function exportAll() {
 - `progress_callback` (function, 可选): 进度回调函数
 
 **返回**：Promise<void>
+
+---
+
+### generate_data_bytes(data, options?)
+
+与 `export_data` 功能相同，但不创建 Blob 和下载链接，直接返回文件字节。专为 Web Worker 场景设计。
+
+**参数**：同 `export_data`。
+
+**返回**：`Uint8Array` — 生成的 CSV 或 XLSX 文件字节。
+
+**示例**：
+
+```javascript
+// 在 Web Worker 中：
+const bytes = generate_data_bytes(data, {
+  columns,
+  format: ExportFormat.Xlsx,
+});
+self.postMessage({ bytes: bytes.buffer }, [bytes.buffer]);
+```
 
 ## 🌐 浏览器兼容性
 

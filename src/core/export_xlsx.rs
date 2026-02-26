@@ -8,27 +8,27 @@ use rust_xlsxwriter::{Format, Workbook};
 use wasm_bindgen::prelude::*;
 use web_sys::{Blob, HtmlAnchorElement, Url};
 
-/// 导出为 Excel XLSX 格式
+/// 生成 XLSX 文件字节（不触发下载）
+///
+/// 仅生成 Excel 格式的字节数据，供 Worker 等场景使用。
 ///
 /// # 参数
 /// * `table_data` - 表格数据（包含单元格数据和合并区域信息）
-/// * `filename` - 可选的导出文件名
 /// * `progress_callback` - 可选的进度回调函数
 /// * `strict_progress` - 是否启用严格进度回调模式
 ///
 /// # 返回值
-/// * `Ok(())` - 导出成功
-/// * `Err(JsValue)` - 导出失败，包含错误信息
-pub fn export_as_xlsx(
-    table_data: TableData,
-    filename: Option<String>,
-    progress_callback: Option<js_sys::Function>,
+/// * `Ok(Vec<u8>)` - 生成的 XLSX 字节
+/// * `Err(JsValue)` - 生成失败
+pub fn generate_xlsx_bytes(
+    table_data: &TableData,
+    progress_callback: Option<&js_sys::Function>,
     strict_progress: bool,
-) -> Result<(), JsValue> {
+) -> Result<Vec<u8>, JsValue> {
     let total_rows = table_data.rows.len();
 
     // 报告初始进度
-    if let Some(ref callback) = progress_callback {
+    if let Some(callback) = progress_callback {
         report_progress(callback, 0.0, strict_progress)?;
     }
 
@@ -49,7 +49,7 @@ pub fn export_as_xlsx(
         }
 
         // 定期报告进度（每10行或最后一行）（数据写入阶段占 0% - 80%）
-        if let Some(ref callback) = progress_callback
+        if let Some(callback) = progress_callback
             && (i % 10 == 0 || i == total_rows - 1)
         {
             let progress = ((i + 1) as f64 / total_rows as f64) * 80.0;
@@ -80,7 +80,7 @@ pub fn export_as_xlsx(
     }
 
     // 报告合并单元格完成进度
-    if let Some(ref callback) = progress_callback {
+    if let Some(callback) = progress_callback {
         report_progress(callback, 90.0, strict_progress)?;
     }
 
@@ -93,25 +93,51 @@ pub fn export_as_xlsx(
         return Err(JsValue::from_str("没有可导出的数据"));
     }
 
-    // 创建并下载文件
-    create_and_download_xlsx(&xlsx_bytes, filename)
+    Ok(xlsx_bytes)
 }
 
-/// 多工作表导出为 Excel XLSX 格式
-///
-/// 将多个表格数据写入同一个 Excel 文件的不同工作表中
+/// 导出为 Excel XLSX 格式（生成文件并触发下载）
 ///
 /// # 参数
-/// * `sheets_data` - 工作表数据列表，每个元素为 (工作表名称, 表格数据)
+/// * `table_data` - 表格数据（包含单元格数据和合并区域信息）
 /// * `filename` - 可选的导出文件名
 /// * `progress_callback` - 可选的进度回调函数
 /// * `strict_progress` - 是否启用严格进度回调模式
-pub fn export_as_xlsx_multi(
-    sheets_data: Vec<(String, TableData)>,
+///
+/// # 返回值
+/// * `Ok(())` - 导出成功
+/// * `Err(JsValue)` - 导出失败，包含错误信息
+pub fn export_as_xlsx(
+    table_data: TableData,
     filename: Option<String>,
     progress_callback: Option<js_sys::Function>,
     strict_progress: bool,
 ) -> Result<(), JsValue> {
+    let xlsx_bytes = generate_xlsx_bytes(
+        &table_data,
+        progress_callback.as_ref(),
+        strict_progress,
+    )?;
+
+    // 创建并下载文件
+    create_and_download_xlsx(&xlsx_bytes, filename)
+}
+
+/// 生成多工作表 XLSX 文件字节（不触发下载）
+///
+/// # 参数
+/// * `sheets_data` - 工作表数据列表，每个元素为 (工作表名称, 表格数据)
+/// * `progress_callback` - 可选的进度回调函数
+/// * `strict_progress` - 是否启用严格进度回调模式
+///
+/// # 返回值
+/// * `Ok(Vec<u8>)` - 生成的 XLSX 字节
+/// * `Err(JsValue)` - 生成失败
+pub fn generate_xlsx_multi_bytes(
+    sheets_data: &[(String, TableData)],
+    progress_callback: Option<&js_sys::Function>,
+    strict_progress: bool,
+) -> Result<Vec<u8>, JsValue> {
     if sheets_data.is_empty() {
         return Err(JsValue::from_str("没有可导出的工作表数据"));
     }
@@ -119,7 +145,7 @@ pub fn export_as_xlsx_multi(
     let total_sheets = sheets_data.len();
 
     // 报告初始进度
-    if let Some(ref callback) = progress_callback {
+    if let Some(callback) = progress_callback {
         report_progress(callback, 0.0, strict_progress)?;
     }
 
@@ -150,7 +176,7 @@ pub fn export_as_xlsx_multi(
             }
 
             // 报告进度（数据写入阶段占 0% - 80%，按 sheet 均分）
-            if let Some(ref callback) = progress_callback
+            if let Some(callback) = progress_callback
                 && total_rows > 0
                 && (i % 10 == 0 || i == total_rows - 1)
             {
@@ -185,7 +211,7 @@ pub fn export_as_xlsx_multi(
     }
 
     // 报告合并单元格完成进度
-    if let Some(ref callback) = progress_callback {
+    if let Some(callback) = progress_callback {
         report_progress(callback, 90.0, strict_progress)?;
     }
 
@@ -197,6 +223,28 @@ pub fn export_as_xlsx_multi(
     if xlsx_bytes.is_empty() {
         return Err(JsValue::from_str("没有可导出的数据"));
     }
+
+    Ok(xlsx_bytes)
+}
+
+/// 多工作表导出为 Excel XLSX 格式（生成文件并触发下载）
+///
+/// # 参数
+/// * `sheets_data` - 工作表数据列表，每个元素为 (工作表名称, 表格数据)
+/// * `filename` - 可选的导出文件名
+/// * `progress_callback` - 可选的进度回调函数
+/// * `strict_progress` - 是否启用严格进度回调模式
+pub fn export_as_xlsx_multi(
+    sheets_data: Vec<(String, TableData)>,
+    filename: Option<String>,
+    progress_callback: Option<js_sys::Function>,
+    strict_progress: bool,
+) -> Result<(), JsValue> {
+    let xlsx_bytes = generate_xlsx_multi_bytes(
+        &sheets_data,
+        progress_callback.as_ref(),
+        strict_progress,
+    )?;
 
     // 创建并下载文件
     create_and_download_xlsx(&xlsx_bytes, filename)

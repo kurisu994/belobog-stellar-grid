@@ -8,9 +8,9 @@ mod table_extractor;
 
 use data_export::{build_table_data_from_array, build_table_data_from_tree};
 pub(crate) use export_csv::create_and_download_csv;
-use export_csv::export_as_csv;
+use export_csv::{export_as_csv, generate_csv_bytes};
 pub(crate) use export_xlsx::create_and_download_xlsx;
-use export_xlsx::{export_as_xlsx, export_as_xlsx_multi};
+use export_xlsx::{export_as_xlsx, export_as_xlsx_multi, generate_xlsx_bytes};
 use table_extractor::extract_table_data;
 pub(crate) use table_extractor::{
     MergeRange, RowSpanTracker, TableData, extract_table_data_with_merge, get_table_row,
@@ -527,4 +527,79 @@ fn export_data_impl(data: JsValue, opts: ExportDataOptions) -> Result<(), JsValu
             export_as_xlsx(table_data, opts.filename, opts.progress_callback, sp)
         }
     }
+}
+
+/// 从 JavaScript 数组生成文件字节（不触发下载，供 Web Worker 使用）
+///
+/// 与 `export_data` 功能相同，但不创建 Blob 和下载链接，
+/// 而是直接返回生成的文件字节（CSV 或 XLSX），
+/// 适用于 Web Worker 场景：Worker 中生成字节，主线程触发下载。
+///
+/// # 参数
+/// * `data` - JS 数组 (二维数组或对象数组)
+/// * `options` - 可选的配置对象（同 export_data，但进度回调在 Worker 中可能不可用）
+///
+/// # 返回值
+/// * `Ok(Uint8Array)` - 生成的文件字节
+/// * `Err(JsValue)` - 生成失败
+///
+/// # 示例
+/// ```javascript
+/// // 在 Web Worker 中：
+/// import init, { generate_data_bytes, ExportFormat } from 'belobog-stellar-grid';
+/// await init();
+///
+/// const bytes = generate_data_bytes(
+///   [['姓名', '年龄'], ['张三', 28]],
+///   { format: ExportFormat.Xlsx }
+/// );
+/// // 通过 postMessage 将 bytes 传回主线程
+/// self.postMessage({ type: 'result', bytes: bytes.buffer }, [bytes.buffer]);
+/// ```
+#[wasm_bindgen]
+pub fn generate_data_bytes(
+    data: JsValue,
+    options: Option<JsValue>,
+) -> Result<js_sys::Uint8Array, JsValue> {
+    let opts = parse_export_data_options(options)?;
+    let sp = opts.strict_progress;
+
+    // 根据是否提供 columns 决定处理方式
+    let (table_data, format, with_bom) = if let Some(cols) = opts.columns {
+        if let Some(ck) = opts.children_key {
+            // 树形数据模式
+            let td =
+                build_table_data_from_tree(&cols, &data, opts.indent_column.as_deref(), &ck)?;
+            (td, opts.format, opts.with_bom)
+        } else {
+            // 对象数组 + columns 配置
+            let td = build_table_data_from_array(&cols, &data)?;
+            (td, opts.format, opts.with_bom)
+        }
+    } else {
+        // 二维数组模式
+        let rows = parse_js_array_data(&data)?;
+        let td = table_extractor::TableData {
+            rows,
+            merge_ranges: Vec::new(),
+        };
+        (td, opts.format, opts.with_bom)
+    };
+
+    // 根据格式生成字节
+    let bytes = match format {
+        ExportFormat::Csv => generate_csv_bytes(
+            table_data.rows,
+            opts.progress_callback.as_ref(),
+            sp,
+            with_bom,
+        )?,
+        ExportFormat::Xlsx => generate_xlsx_bytes(
+            &table_data,
+            opts.progress_callback.as_ref(),
+            sp,
+        )?,
+    };
+
+    Ok(js_sys::Uint8Array::from(bytes.as_slice()))
 }

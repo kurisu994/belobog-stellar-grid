@@ -185,8 +185,19 @@ pub async fn export_table_to_csv_batch(
         return Err(JsValue::from_str("没有可导出的数据"));
     }
 
+    // 如果需要 BOM，拼接到头部后再下载
+    let final_data = if with_bom {
+        let raw = csv_data.get_ref();
+        let mut result = Vec::with_capacity(3 + raw.len());
+        result.extend_from_slice(&[0xEF, 0xBB, 0xBF]);
+        result.extend_from_slice(raw);
+        result
+    } else {
+        csv_data.into_inner()
+    };
+
     // 创建并下载 CSV 文件
-    create_and_download_csv(csv_data.get_ref(), filename, with_bom)?;
+    create_and_download_csv(&final_data, filename)?;
 
     Ok(JsValue::UNDEFINED)
 }
