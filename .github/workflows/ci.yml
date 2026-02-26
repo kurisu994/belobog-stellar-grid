@@ -258,6 +258,20 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+      - name: 构建并发布子包
+        run: |
+          for pkg in packages/types packages/react packages/vue; do
+            if [ -d "$pkg" ]; then
+              echo "📦 构建 $pkg..."
+              cd "$pkg" && npm install && npm run build
+              echo "📤 发布 $pkg..."
+              npm publish --access public
+              cd $GITHUB_WORKSPACE
+            fi
+          done
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
       - name: 发布成功通知
         run: |
           VERSION=$(echo ${{ github.ref }} | sed 's/refs\/tags\/v//')

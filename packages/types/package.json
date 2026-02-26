@@ -1,0 +1,37 @@
+{
+  "name": "@bsg-export/types",
+  "version": "1.0.5",
+  "description": "belobog-stellar-grid 的严格 TypeScript 类型定义",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "belobog",
+    "stellar-grid",
+    "types",
+    "typescript"
+  ],
+  "author": "Kurisu <makise_kurisuu@outlook.jp>",
+  "license": "MIT OR Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kurisu994/belobog-stellar-grid",
+    "directory": "packages/types"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  }
+}

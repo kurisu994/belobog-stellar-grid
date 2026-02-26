@@ -39,6 +39,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 发布版本前先更新`CHANGELOG.md`文件，记录本次版本的新增功能、修复的 bug、性能优化等重要变更信息。确保每个变更都清晰描述，并按照 Keep a Changelog 的格式进行分类和排序。未发布的改动通常是在[unreleased]部分记录，发布新版本时将其移动到对应的版本标题下，并添加发布日期。
 
+### 子包管理
+
+- **构建子包**: `just build-packages` (构建 @bsg-export/types、react、vue)
+- **发布子包**: `just publish-packages [tag]` (发布到 npm)
+- **版本同步**: `just bump-core` 自动同步子包版本
+
 ### 快速参考
 
 ```bash
@@ -49,9 +55,11 @@ just test         # 测试
 just dev          # 启动开发服务器
 
 # 发布流程
-just ci-release patch  # CI 自动发布（推荐）
+just ci-release patch  # CI 自动发布（推荐，含子包）
 just dry-run           # 发布前测试
 just publish           # 发布到 npm
+just build-packages    # 构建子包
+just publish-packages  # 发布子包
 ```
 
 ## 项目架构 (Architecture)
@@ -92,6 +100,11 @@ src/
 ├── batch_export.rs     # CSV 异步分批处理 (针对大数据量，防止 UI 阻塞)
 ├── batch_export_xlsx.rs # XLSX 异步分批处理
 └── utils.rs            # 调试与辅助工具
+
+packages/
+├── types/              # @bsg-export/types — 严格 TypeScript 类型定义（零运行时）
+├── react/              # @bsg-export/react — React Hook + 组件
+└── vue/                # @bsg-export/vue  — Vue 3 Composable + 组件
 ```
 
 ### 关键模块职责

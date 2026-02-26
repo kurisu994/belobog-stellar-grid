@@ -10,6 +10,8 @@
 - **丰富功能**: 支持合并单元格、多 Sheet 导出、树形数据导出（自动缩进）。
 - **安全**: 内置文件名安全验证，防止路径遍历攻击，支持公式注入防护。
 - **易用**: 提供统一的 API 和类型支持。
+- **框架集成**: 提供 `@bsg-export/react` 和 `@bsg-export/vue` 官方封装组件。
+- **类型安全**: `@bsg-export/types` 提供严格的 TypeScript 类型定义。
 - **质量保证**: 103 个单元测试，100% 测试覆盖，代码质量检查流程完善。
 
 ## 快速上手
@@ -89,10 +91,45 @@ export_table("my-table-id", "report.xlsx", ExportFormat.Xlsx, false, (progress) 
 - `Csv`: 0
 - `Xlsx`: 1
 
+## 框架集成包
+
+### `@bsg-export/types` — 严格类型定义（零运行时）
+
+提供 `Column`、`ExportDataOptions`、`SheetConfig`、`BatchSheetConfig`、`MergeCellValue` 等核心接口，以及所有导出函数的类型安全签名。
+
+```typescript
+import type { Column, ExportDataOptions } from '@bsg-export/types';
+```
+
+### `@bsg-export/react` — React 封装
+
+- `useExporter()` Hook：自动 WASM 初始化 + loading/progress/error 状态 + 类型安全导出方法
+- `<ExportButton>` 组件：开箱即用的导出按钮
+
+```tsx
+import { useExporter, ExportFormat } from '@bsg-export/react';
+
+const { initialized, loading, progress, exportTable } = useExporter();
+exportTable({ tableId: 'my-table', filename: '报表.xlsx', format: ExportFormat.Xlsx });
+```
+
+### `@bsg-export/vue` — Vue 3 封装
+
+- `useExporter()` Composable：ref 响应式状态 + 导出方法
+- `<ExportButton>` 组件：支持插槽和事件
+
+```vue
+<script setup>
+import { useExporter, ExportFormat } from '@bsg-export/vue';
+const { initialized, loading, progress, exportTable } = useExporter();
+</script>
+```
+
 ## 开发指南
 
 - 构建: `wasm-pack build --target web`
 - 测试: `cargo test`
+- 构建子包: `just build-packages`
 
 ## 常见问题
 

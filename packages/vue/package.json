@@ -1,0 +1,48 @@
+{
+  "name": "@bsg-export/vue",
+  "version": "1.0.5",
+  "description": "belobog-stellar-grid 的 Vue 3 官方封装组件",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "vue-tsc --declaration --emitDeclarationOnly --outDir dist && esbuild src/index.ts src/use-exporter.ts --outdir=dist --format=esm --bundle=false",
+    "typecheck": "vue-tsc --noEmit"
+  },
+  "keywords": [
+    "belobog",
+    "stellar-grid",
+    "vue",
+    "export",
+    "table"
+  ],
+  "author": "Kurisu <makise_kurisuu@outlook.jp>",
+  "license": "MIT OR Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kurisu994/belobog-stellar-grid",
+    "directory": "packages/vue"
+  },
+  "peerDependencies": {
+    "belobog-stellar-grid": ">=1.0.0",
+    "vue": ">=3.3.0"
+  },
+  "dependencies": {
+    "@bsg-export/types": "file:../types"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "typescript": "^5.7.0",
+    "vue": "^3.5.0",
+    "vue-tsc": "^2.2.0"
+  }
+}

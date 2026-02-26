@@ -98,6 +98,21 @@ bump-core level:
     else
         echo "⚠️  README.md 版本更新失败 (可能未找到匹配版本号)"
     fi
+    
+    # 同步子包版本
+    for pkg in packages/types packages/react packages/vue; do
+        if [ -f "$pkg/package.json" ]; then
+            perl -i -pe "s/\"version\": \".*?\"/\"version\": \"$new\"/" "$pkg/package.json"
+            echo "✅ $pkg/package.json 版本已更新: -> $new"
+        fi
+    done
+    
+    # 更新 CHANGELOG.md：将 [Unreleased] 替换为版本号 + 日期
+    if grep -q '## \[Unreleased\]' CHANGELOG.md; then
+        today=$(date +%Y-%m-%d)
+        perl -i -pe "s/## \\[Unreleased\\]/## \\[Unreleased\\]\\n\\n---\\n\\n## [$new] - $today/" CHANGELOG.md
+        echo "✅ CHANGELOG.md 已更新: [Unreleased] -> [$new] - $today"
+    fi
 
 # 升级版本 (手动模式)
 bump level: (bump-core level)
@@ -158,6 +173,35 @@ ci-release level: check test
     echo ""
     echo "🎉 已推送 v$new，GitHub Actions 将自动发布到 npm"
     echo "📦 查看进度: https://github.com/kurisu994/belobog-stellar-grid/actions"
+
+# -----------------------------------------------------------------------------
+# 子包构建与发布
+# -----------------------------------------------------------------------------
+
+# 构建子包 (types/react/vue)
+build-packages:
+    #!/bin/bash
+    set -e
+    for pkg in packages/types packages/react packages/vue; do
+        if [ -d "$pkg" ]; then
+            echo "📦 构建 $pkg..."
+            cd "$pkg" && npm install && npm run build && cd ../.. 
+            echo "✅ $pkg 构建完成"
+        fi
+    done
+
+# 发布子包到 npm
+publish-packages tag="latest":
+    #!/bin/bash
+    set -e
+    tag="{{tag}}"
+    for pkg in packages/types packages/react packages/vue; do
+        if [ -d "$pkg" ]; then
+            echo "📤 发布 $pkg (tag: $tag)..."
+            cd "$pkg" && npm publish --access public --tag "$tag" && cd ../.. 
+            echo "✅ $pkg 发布完成"
+        fi
+    done
 
 # -----------------------------------------------------------------------------
 # npm 发布

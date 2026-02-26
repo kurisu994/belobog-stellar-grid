@@ -124,6 +124,19 @@ npm install belobog-stellar-grid
 yarn add belobog-stellar-grid
 ```
 
+#### 框架集成包（可选）
+
+```bash
+# React 封装
+pnpm add @bsg-export/react
+
+# Vue 3 封装
+pnpm add @bsg-export/vue
+
+# 仅类型定义
+pnpm add -D @bsg-export/types
+```
+
 #### 从源码构建
 
 ```bash
@@ -448,8 +461,8 @@ belobog-stellar-grid/
 
 ### 💻 开发体验 (DX)
 
-- [ ] **框架集成库**: 提供 `@belobog/react`、`@belobog/vue` 等官方封装组件。
-- [ ] **类型定义优化**: 提供更严格的 TypeScript 类型定义。
+- [x] **框架集成库**: 提供 `@bsg-export/react`、`@bsg-export/vue` 官方封装组件。
+- [x] **类型定义优化**: 提供更严格的 TypeScript 类型定义（`@bsg-export/types`）。
 
 ### 🛠️ 工程化与重构
 

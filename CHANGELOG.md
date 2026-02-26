@@ -9,6 +9,23 @@
 
 ## [Unreleased]
 
+### ✨ 新增
+
+- 🆕 **框架集成库**: 提供 React 和 Vue 3 官方封装组件
+  - `@bsg-export/react`：`useExporter()` Hook + `<ExportButton>` 组件，自动管理 WASM 初始化、导出状态和进度
+  - `@bsg-export/vue`：`useExporter()` Composable + `<ExportButton>` 组件，ref 响应式状态 + 插槽支持
+  - 所有导出方法均类型安全，参数使用 Options 对象模式
+- 🆕 **严格 TypeScript 类型定义**: `@bsg-export/types`
+  - 替代 wasm-bindgen 自动生成的 `any` 类型
+  - 提供 `Column`、`ExportDataOptions`、`SheetConfig`、`BatchSheetConfig`、`MergeCellValue` 等核心接口
+  - 所有 6 个导出函数的类型安全签名重新声明
+
+### 🔧 构建和发布流程
+
+- 📦 **子包版本同步**: `bump-core` 升级 `Cargo.toml` 后自动同步 `packages/*/package.json` 版本
+- 📦 **子包构建发布命令**: `just build-packages` / `just publish-packages`
+- 📦 **CI 集成发布**: `publish-npm` job 主包发布后自动构建并发布三个子包
+
 ### 🛠️ 重构
 
 - 🔧 **DOM 提取逻辑重构**: 消除 DOM 遍历代码的重复逻辑
