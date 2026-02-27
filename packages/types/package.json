@@ -1,6 +1,6 @@
 {
   "name": "@bsg-export/types",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "belobog-stellar-grid 的严格 TypeScript 类型定义",
   "type": "module",
   "main": "./dist/index.js",

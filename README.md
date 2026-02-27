@@ -7,7 +7,7 @@
   <p>一个安全、高效、易用的 Rust WebAssembly 库，用于将 HTML 表格导出为 CSV 和 XLSX 文件</p>
 
   <p>
-    <img src="https://img.shields.io/badge/version-1.0.8-blue.svg" alt="Version" />
+    <img src="https://img.shields.io/badge/version-1.0.9-blue.svg" alt="Version" />
     <img src="https://img.shields.io/badge/rust-edition%202024-orange.svg" alt="Rust Edition" />
     <img src="https://img.shields.io/badge/test_coverage-100%25-brightgreen.svg" alt="Test Coverage" />
     <img src="https://img.shields.io/badge/license-MIT%2FApache--2.0-green.svg" alt="License" />
