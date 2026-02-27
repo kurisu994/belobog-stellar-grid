@@ -16,6 +16,7 @@ use web_sys::{Blob, HtmlAnchorElement, Url};
 /// * `table_data` - 表格数据（包含单元格数据和合并区域信息）
 /// * `progress_callback` - 可选的进度回调函数
 /// * `strict_progress` - 是否启用严格进度回调模式
+/// * `freeze_pane` - 可选的冻结窗格位置 (freeze_row, freeze_col)，为 None 时自动根据 header_row_count 冻结
 ///
 /// # 返回值
 /// * `Ok(Vec<u8>)` - 生成的 XLSX 字节
@@ -24,6 +25,7 @@ pub fn generate_xlsx_bytes(
     table_data: &TableData,
     progress_callback: Option<&js_sys::Function>,
     strict_progress: bool,
+    freeze_pane: Option<(u32, u16)>,
 ) -> Result<Vec<u8>, JsValue> {
     let total_rows = table_data.rows.len();
 
@@ -79,6 +81,20 @@ pub fn generate_xlsx_bytes(
             .map_err(|e| JsValue::from_str(&format!("合并单元格失败: {}", e)))?;
     }
 
+    // 应用冻结窗格：用户配置优先，否则自动根据表头行数冻结
+    let effective_freeze = freeze_pane.unwrap_or_else(|| {
+        if table_data.header_row_count > 0 {
+            (table_data.header_row_count as u32, 0)
+        } else {
+            (0, 0)
+        }
+    });
+    if effective_freeze.0 > 0 || effective_freeze.1 > 0 {
+        worksheet
+            .set_freeze_panes(effective_freeze.0, effective_freeze.1)
+            .map_err(|e| JsValue::from_str(&format!("设置冻结窗格失败: {}", e)))?;
+    }
+
     // 报告合并单元格完成进度
     if let Some(callback) = progress_callback {
         report_progress(callback, 90.0, strict_progress)?;
@@ -112,8 +128,9 @@ pub fn export_as_xlsx(
     filename: Option<String>,
     progress_callback: Option<js_sys::Function>,
     strict_progress: bool,
+    freeze_pane: Option<(u32, u16)>,
 ) -> Result<(), JsValue> {
-    let xlsx_bytes = generate_xlsx_bytes(&table_data, progress_callback.as_ref(), strict_progress)?;
+    let xlsx_bytes = generate_xlsx_bytes(&table_data, progress_callback.as_ref(), strict_progress, freeze_pane)?;
 
     // 创建并下载文件
     create_and_download_xlsx(&xlsx_bytes, filename)
@@ -125,6 +142,7 @@ pub fn export_as_xlsx(
 /// * `sheets_data` - 工作表数据列表，每个元素为 (工作表名称, 表格数据)
 /// * `progress_callback` - 可选的进度回调函数
 /// * `strict_progress` - 是否启用严格进度回调模式
+/// * `freeze_pane` - 可选的冻结窗格位置，应用到所有工作表
 ///
 /// # 返回值
 /// * `Ok(Vec<u8>)` - 生成的 XLSX 字节
@@ -133,6 +151,7 @@ pub fn generate_xlsx_multi_bytes(
     sheets_data: &[(String, TableData)],
     progress_callback: Option<&js_sys::Function>,
     strict_progress: bool,
+    freeze_pane: Option<(u32, u16)>,
 ) -> Result<Vec<u8>, JsValue> {
     if sheets_data.is_empty() {
         return Err(JsValue::from_str("没有可导出的工作表数据"));
@@ -204,6 +223,20 @@ pub fn generate_xlsx_multi_bytes(
                 )
                 .map_err(|e| JsValue::from_str(&format!("合并单元格失败: {}", e)))?;
         }
+
+        // 应用冻结窗格：用户配置优先，否则自动根据各 sheet 的表头行数冻结
+        let effective_freeze = freeze_pane.unwrap_or_else(|| {
+            if table_data.header_row_count > 0 {
+                (table_data.header_row_count as u32, 0)
+            } else {
+                (0, 0)
+            }
+        });
+        if effective_freeze.0 > 0 || effective_freeze.1 > 0 {
+            worksheet
+                .set_freeze_panes(effective_freeze.0, effective_freeze.1)
+                .map_err(|e| JsValue::from_str(&format!("设置冻结窗格失败: {}", e)))?;
+        }
     }
 
     // 报告合并单元格完成进度
@@ -235,9 +268,10 @@ pub fn export_as_xlsx_multi(
     filename: Option<String>,
     progress_callback: Option<js_sys::Function>,
     strict_progress: bool,
+    freeze_pane: Option<(u32, u16)>,
 ) -> Result<(), JsValue> {
     let xlsx_bytes =
-        generate_xlsx_multi_bytes(&sheets_data, progress_callback.as_ref(), strict_progress)?;
+        generate_xlsx_multi_bytes(&sheets_data, progress_callback.as_ref(), strict_progress, freeze_pane)?;
 
     // 创建并下载文件
     create_and_download_xlsx(&xlsx_bytes, filename)

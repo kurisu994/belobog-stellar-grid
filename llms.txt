@@ -7,7 +7,7 @@
 - **高性能**: 基于 Rust 和 WebAssembly，速度极快。
 - **大数据支持**: 支持分批异步导出，处理百万级数据不卡顿。
 - **多格式**: 支持 CSV 和 Excel (Xlsx)。
-- **丰富功能**: 支持合并单元格、多 Sheet 导出、树形数据导出（自动缩进）。
+- **丰富功能**: 支持合并单元格、多 Sheet 导出、树形数据导出（自动缩进）、冻结窗格。
 - **安全**: 内置文件名安全验证，防止路径遍历攻击，支持公式注入防护。
 - **易用**: 提供统一的 API 和类型支持。
 - **框架集成**: 提供 `@bsg-export/react` 和 `@bsg-export/vue` 官方封装组件。
@@ -55,6 +55,8 @@ export_table("my-table-id", "report.xlsx", ExportFormat.Xlsx, false, (progress) 
   - `childrenKey`: `string`，传入此参数启用树形数据模式，指定子节点字段名
   - `withBom`: `boolean`，CSV 导出时是否添加 UTF-8 BOM（解决 Excel 中文乱码问题），默认 false
   - `strictProgressCallback`: `boolean`，是否启用严格进度回调模式（回调失败会中断导出），默认 false
+  - `freezeRows`: `number`，冻结前 N 行（仅 XLSX 有效，默认自动根据表头行数）
+  - `freezeCols`: `number`，冻结前 N 列（仅 XLSX 有效，默认 0）
 - 支持树形数据（通过 `childrenKey` 和 `indentColumn`）。
 - 支持复杂表头和合并单元格（通过 `columns` 配置）。
 

@@ -66,6 +66,8 @@ pub fn export_data(data: JsValue, options: Option<JsValue>) -> Result<(), JsValu
     - `childrenKey`: 指定子节点字段名，启用树形数据模式。
     - `withBom`: CSV 导出时是否添加 UTF-8 BOM。默认 `false`。
     - `strictProgressCallback`: 是否启用严格进度回调模式。默认 `false`。启用后进度回调失败将中止导出。
+    - `freezeRows`: 冻结前 N 行（仅 XLSX 有效）。默认自动根据表头行数冻结（有 `columns` 时冻结表头，无 `columns` 时不冻结）。
+    - `freezeCols`: 冻结前 N 列（仅 XLSX 有效）。默认 `0`。
 
 **返回值**
 - `Result<(), JsValue>`
@@ -393,7 +395,7 @@ pub fn generate_data_bytes(
 ) -> Result<js_sys::Uint8Array, JsValue>
 ```
 
-**参数**：同 `export_data`。
+**参数**：同 `export_data`（包含 `freezeRows` / `freezeCols` 冻结窗格配置）。
 
 **返回值**：`Uint8Array` — 生成的 CSV 或 XLSX 文件字节。
 

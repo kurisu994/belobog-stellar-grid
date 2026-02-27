@@ -517,7 +517,11 @@ pub fn build_table_data_from_tree(
     let mut rows = header_rows;
     rows.extend(data_rows);
 
-    Ok(TableData { rows, merge_ranges })
+    Ok(TableData {
+        rows,
+        merge_ranges,
+        header_row_count: max_depth,
+    })
 }
 
 /// 解析表头配置和数据数组，生成完整的 TableData
@@ -560,7 +564,11 @@ pub fn build_table_data_from_array(
     // 7. 合并表头合并区域和数据合并区域
     merge_ranges.extend(data_merge_ranges);
 
-    Ok(TableData { rows, merge_ranges })
+    Ok(TableData {
+        rows,
+        merge_ranges,
+        header_row_count: max_depth,
+    })
 }
 
 #[cfg(test)]

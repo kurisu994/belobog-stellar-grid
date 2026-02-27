@@ -595,6 +595,8 @@ async function exportAll() {
   - `strictProgressCallback` (boolean, 可选): 是否启用严格进度回调模式，默认 false
   - `indentColumn` (string, 可选): 树形数据模式下，指定需要缩进的列的 key
   - `childrenKey` (string, 可选): 传入此参数启用树形数据模式，指定子节点字段名（如 `"children"`）
+  - `freezeRows` (number, 可选): 冻结前 N 行（仅 XLSX 有效，默认自动根据表头行数）
+  - `freezeCols` (number, 可选): 冻结前 N 列（仅 XLSX 有效，默认 0）
 
 **返回**：无（成功）或抛出异常（失败）
 

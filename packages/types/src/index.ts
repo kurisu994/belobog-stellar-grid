@@ -103,6 +103,10 @@ export interface ExportDataOptions {
   withBom?: boolean;
   /** 回调失败是否中断导出（默认 false） */
   strictProgressCallback?: boolean;
+  /** 冻结前 N 行（仅 XLSX 有效，默认自动根据表头行数冻结） */
+  freezeRows?: number;
+  /** 冻结前 N 列（仅 XLSX 有效，默认 0） */
+  freezeCols?: number;
 }
 
 // =============================================================================

@@ -80,6 +80,8 @@ pub struct TableData {
     pub rows: Vec<Vec<String>>,
     /// 合并单元格区域列表
     pub merge_ranges: Vec<MergeRange>,
+    /// 表头行数（用于 XLSX 冻结窗格），0 表示无表头
+    pub header_row_count: usize,
 }
 
 impl TableData {
@@ -88,6 +90,7 @@ impl TableData {
         Self {
             rows: Vec::new(),
             merge_ranges: Vec::new(),
+            header_row_count: 0,
         }
     }
 
@@ -96,6 +99,7 @@ impl TableData {
         Self {
             rows: Vec::with_capacity(capacity),
             merge_ranges: Vec::new(),
+            header_row_count: 0,
         }
     }
 
@@ -383,7 +387,14 @@ pub fn extract_table_data_with_merge(
         return Err(JsValue::from_str("表格为空，没有数据可导出"));
     }
 
+    // 自动检测 thead 行数，用于 XLSX 冻结窗格
+    let header_row_count = table
+        .t_head()
+        .map(|thead| thead.rows().length() as usize)
+        .unwrap_or(0);
+
     let mut result = TableData::new();
+    result.header_row_count = header_row_count;
     let mut tracker = RowSpanTracker::new();
     let mut output_row_idx: u32 = 0;
 

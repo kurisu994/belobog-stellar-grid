@@ -170,6 +170,13 @@ fn generate_and_download_xlsx(
             .map_err(|e| JsValue::from_str(&format!("合并单元格失败: {}", e)))?;
     }
 
+    // 应用冻结窗格：自动根据表头行数冻结
+    if table_data.header_row_count > 0 {
+        worksheet
+            .set_freeze_panes(table_data.header_row_count as u32, 0)
+            .map_err(|e| JsValue::from_str(&format!("设置冻结窗格失败: {}", e)))?;
+    }
+
     // 报告合并单元格完成进度
     if let Some(callback) = progress_callback {
         report_progress(callback, 98.0, strict)?;
@@ -575,6 +582,13 @@ fn generate_and_download_xlsx_multi(
                     &merge_format,
                 )
                 .map_err(|e| JsValue::from_str(&format!("合并单元格失败: {}", e)))?;
+        }
+
+        // 应用冻结窗格：自动根据各 sheet 的表头行数冻结
+        if table_data.header_row_count > 0 {
+            worksheet
+                .set_freeze_panes(table_data.header_row_count as u32, 0)
+                .map_err(|e| JsValue::from_str(&format!("设置冻结窗格失败: {}", e)))?;
         }
     }
 

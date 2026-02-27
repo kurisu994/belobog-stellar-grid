@@ -334,7 +334,7 @@
             <pre><span class="keyword">import</span> { export_data, ExportFormat } <span class="keyword">from</span> <span class="string">'./pkg/belobog_stellar_grid.js'</span>;
 
 <span class="comment">// export_data(data, options?)</span>
-<span class="comment">// options: { columns, filename, format, progressCallback, indentColumn, childrenKey }</span>
+<span class="comment">// options: { columns, filename, format, progressCallback, indentColumn, childrenKey, freezeRows, freezeCols }</span>
 
 <span class="comment">// 参数说明：</span>
 <span class="comment">// data     : Array&lt;Array&gt; 二维数组 或 Array&lt;Object&gt; 对象数组</span>
@@ -345,6 +345,8 @@
 <span class="comment">//   progressCallback? : (progress: number) => void  进度回调</span>
 <span class="comment">//   indentColumn?     : 缩进列（树形数据）</span>
 <span class="comment">//   childrenKey?      : 子节点键名（树形数据）</span>
+<span class="comment">//   freezeRows?       : 冻结前 N 行（仅 XLSX，默认自动根据表头行数）</span>
+<span class="comment">//   freezeCols?       : 冻结前 N 列（仅 XLSX，默认 0）</span>
 
 <span class="comment">// 模式1: 二维数组（不传 columns）</span>
 <span class="func">export_data</span>([[<span class="string">'A'</span>, <span class="string">'B'</span>], [<span class="number">1</span>, <span class="number">2</span>]]);

@@ -9,7 +9,14 @@
 
 ## [Unreleased]
 
----
+### ✨ 新增
+
+- ❄️ **XLSX 冻结窗格 (Freeze Panes)**: 支持冻结表头行/列，方便大数据量 Excel 浏览。
+  - DOM 模式自动检测 `<thead>` 行数，导出时自动冻结表头
+  - Data 模式自动根据 `columns` 表头深度冻结
+  - `export_data` / `generate_data_bytes` 新增 `freezeRows` / `freezeCols` 可选配置，支持用户自定义冻结位置
+  - 所有 XLSX 导出路径均支持：同步单表/多表、异步分批单表/多表
+  - TypeScript 类型定义 `ExportDataOptions` 新增 `freezeRows?` / `freezeCols?` 字段
 
 ## [1.0.8] - 2026-02-26
 
