@@ -82,7 +82,7 @@ pub fn generate_xlsx_bytes(
     }
 
     // 应用冻结窗格：用户配置优先，否则自动根据表头行数冻结
-    let effective_freeze = freeze_pane.unwrap_or_else(|| {
+    let effective_freeze = freeze_pane.unwrap_or({
         if table_data.header_row_count > 0 {
             (table_data.header_row_count as u32, 0)
         } else {
@@ -230,7 +230,7 @@ pub fn generate_xlsx_multi_bytes(
         }
 
         // 应用冻结窗格：用户配置优先，否则自动根据各 sheet 的表头行数冻结
-        let effective_freeze = freeze_pane.unwrap_or_else(|| {
+        let effective_freeze = freeze_pane.unwrap_or({
             if table_data.header_row_count > 0 {
                 (table_data.header_row_count as u32, 0)
             } else {
