@@ -102,7 +102,13 @@ pub fn export_table(
         ExportFormat::Xlsx => {
             // XLSX 支持合并单元格，提取完整数据
             let table_data = extract_table_data_with_merge(table_id, exclude_hidden)?;
-            export_as_xlsx(table_data, filename, progress_callback, strict_progress, None)
+            export_as_xlsx(
+                table_data,
+                filename,
+                progress_callback,
+                strict_progress,
+                None,
+            )
         }
     }
 }
@@ -222,7 +228,13 @@ pub fn export_tables_xlsx(
     }
 
     // 调用多工作表导出
-    export_as_xlsx_multi(sheets_data, filename, progress_callback, strict_progress, None)
+    export_as_xlsx_multi(
+        sheets_data,
+        filename,
+        progress_callback,
+        strict_progress,
+        None,
+    )
 }
 
 /// 从 JS 二维数组解析为 Rust 二维字符串数组
@@ -511,9 +523,13 @@ fn export_data_impl(data: JsValue, opts: ExportDataOptions) -> Result<(), JsValu
                     opts.with_bom,
                     sp,
                 ),
-                ExportFormat::Xlsx => {
-                    export_as_xlsx(table_data, opts.filename, opts.progress_callback, sp, freeze_pane)
-                }
+                ExportFormat::Xlsx => export_as_xlsx(
+                    table_data,
+                    opts.filename,
+                    opts.progress_callback,
+                    sp,
+                    freeze_pane,
+                ),
             };
         }
 
@@ -533,7 +549,13 @@ fn export_data_impl(data: JsValue, opts: ExportDataOptions) -> Result<(), JsValu
             }
             ExportFormat::Xlsx => {
                 // XLSX 支持合并单元格（多行表头）
-                export_as_xlsx(table_data, opts.filename, opts.progress_callback, sp, freeze_pane)
+                export_as_xlsx(
+                    table_data,
+                    opts.filename,
+                    opts.progress_callback,
+                    sp,
+                    freeze_pane,
+                )
             }
         };
     }
@@ -554,7 +576,13 @@ fn export_data_impl(data: JsValue, opts: ExportDataOptions) -> Result<(), JsValu
                 merge_ranges: Vec::new(),
                 header_row_count: 0,
             };
-            export_as_xlsx(table_data, opts.filename, opts.progress_callback, sp, freeze_pane)
+            export_as_xlsx(
+                table_data,
+                opts.filename,
+                opts.progress_callback,
+                sp,
+                freeze_pane,
+            )
         }
     }
 }
@@ -632,9 +660,12 @@ pub fn generate_data_bytes(
             sp,
             with_bom,
         )?,
-        ExportFormat::Xlsx => {
-            generate_xlsx_bytes(&table_data, opts.progress_callback.as_ref(), sp, freeze_pane)?
-        }
+        ExportFormat::Xlsx => generate_xlsx_bytes(
+            &table_data,
+            opts.progress_callback.as_ref(),
+            sp,
+            freeze_pane,
+        )?,
     };
 
     Ok(js_sys::Uint8Array::from(bytes.as_slice()))

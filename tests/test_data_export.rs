@@ -587,7 +587,10 @@ fn test_freeze_pane_strategy_selection() {
     // 模拟 export_xlsx 中的冻结策略选择逻辑：
     // 用户配置 (freeze_pane) 优先 > 自动检测 (header_row_count > 0) > 不冻结 (None)
 
-    fn determine_freeze_pane(user_config: Option<(u32, u16)>, header_row_count: usize) -> Option<(u32, u16)> {
+    fn determine_freeze_pane(
+        user_config: Option<(u32, u16)>,
+        header_row_count: usize,
+    ) -> Option<(u32, u16)> {
         if let Some(config) = user_config {
             Some(config) // 用户配置优先级最高
         } else if header_row_count > 0 {

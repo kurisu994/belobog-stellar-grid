@@ -130,7 +130,12 @@ pub fn export_as_xlsx(
     strict_progress: bool,
     freeze_pane: Option<(u32, u16)>,
 ) -> Result<(), JsValue> {
-    let xlsx_bytes = generate_xlsx_bytes(&table_data, progress_callback.as_ref(), strict_progress, freeze_pane)?;
+    let xlsx_bytes = generate_xlsx_bytes(
+        &table_data,
+        progress_callback.as_ref(),
+        strict_progress,
+        freeze_pane,
+    )?;
 
     // 创建并下载文件
     create_and_download_xlsx(&xlsx_bytes, filename)
@@ -270,8 +275,12 @@ pub fn export_as_xlsx_multi(
     strict_progress: bool,
     freeze_pane: Option<(u32, u16)>,
 ) -> Result<(), JsValue> {
-    let xlsx_bytes =
-        generate_xlsx_multi_bytes(&sheets_data, progress_callback.as_ref(), strict_progress, freeze_pane)?;
+    let xlsx_bytes = generate_xlsx_multi_bytes(
+        &sheets_data,
+        progress_callback.as_ref(),
+        strict_progress,
+        freeze_pane,
+    )?;
 
     // 创建并下载文件
     create_and_download_xlsx(&xlsx_bytes, filename)
