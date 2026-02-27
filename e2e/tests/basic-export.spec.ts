@@ -104,7 +104,8 @@ test.describe('基础导出 - export_table()', () => {
     await setupPage(page);
 
     const downloadPromise = page.waitForEvent('download');
-    await page.getByRole('button', { name: '导出为 Excel' }).click();
+    // 使用精确匹配，避免匹配到新增的带配置的 "导出为 Excel (...)" 按钮
+    await page.getByRole('button', { name: '📗 导出为 Excel', exact: true }).click();
     const download: Download = await downloadPromise;
 
     expect(download.suggestedFilename()).toMatch(/\.xlsx$/);
@@ -122,4 +123,18 @@ test.describe('基础导出 - export_table()', () => {
     expect(pageErrors).toHaveLength(0);
     expect(consoleLogs.some((log) => log.includes('已隐藏第3行数据'))).toBeTruthy();
   });
+
+  test('导出为 Excel（带冻结配置）', async ({ page }) => {
+    await setupPage(page);
+
+    const downloadPromise = page.waitForEvent('download');
+    // 使用精准的名称匹配
+    await page.getByRole('button', { name: '导出为 Excel (冻结前2行和首列)' }).click();
+    const download: Download = await downloadPromise;
+
+    expect(download.suggestedFilename()).toBe('员工信息表(冻结).xlsx');
+    expect(pageErrors).toHaveLength(0);
+    expect(consoleLogs.some((log) => log.includes('导出为 Excel (带冻结配置) 完成'))).toBeTruthy();
+  });
 });
+

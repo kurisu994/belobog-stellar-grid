@@ -84,6 +84,6 @@ test.describe('WASM 初始化', () => {
 
     // 验证所有示例卡片存在
     const cards = page.locator('.example-card');
-    await expect(cards).toHaveCount(8);
+    await expect(cards).toHaveCount(9);
   });
 });

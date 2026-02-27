@@ -143,8 +143,9 @@
             <button class="btn-primary" onclick="exportDefault()">📄 导出为 CSV（默认）</button>
             <button class="btn-primary" onclick="exportWithFilename()">📄 导出为 CSV（自定义文件名）</button>
             <button class="btn-primary" onclick="exportWithBom()">📄 导出为 CSV（带 BOM）</button>
-            <button class="btn-excel" onclick="exportExcel()">📗 导出为 Excel</button>
-            <button class="btn-primary" onclick="exportExcludeHidden()">👁️ 导出可见数据(排除隐藏行)</button>
+            <button class="btn-excel" onclick="exportToExcel()">📗 导出为 Excel</button>
+            <button class="btn-excel" onclick="exportToExcelWithFreeze()">❄️ 导出为 Excel (冻结前2行和首列)</button>
+            <button class="btn-primary" onclick="exportVisibleOnly()">👁️ 导出可见数据 (排除隐藏行)</button>
         </div>
     </div>
 
@@ -174,13 +175,20 @@
         };
 
         // 导出为 Excel
-        window.exportExcel = () => {
+        window.exportToExcel = () => {
             export_table('employees-table', '员工信息表', ExportFormat.Xlsx);
             console.log('✅ 导出为 Excel 完成');
         };
 
+        // 导出为 Excel (带冻结配置)
+        window.exportToExcelWithFreeze = () => {
+            // 参数: tableId, filename, format, excludeHidden, progressCallback, withBom, freezeRowCount, freezeColCount
+            export_table('employees-table', '员工信息表(冻结).xlsx', ExportFormat.Xlsx, false, undefined, false, 2, 1);
+            console.log('✅ 导出为 Excel (带冻结配置) 完成');
+        };
+
         // 导出为 Excel (排除隐藏行)
-        window.exportExcludeHidden = () => {
+        window.exportVisibleOnly = () => {
             // 模拟隐藏一行
             const table = document.getElementById('employees-table');
             const rows = table.rows;

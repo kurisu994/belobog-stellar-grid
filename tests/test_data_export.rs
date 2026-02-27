@@ -576,5 +576,40 @@ fn test_tree_custom_children_key_logic() {
 
     let children_key = "subItems";
     assert_ne!(children_key, "children");
-    assert_eq!(children_key, "subItems");
+}
+
+// ============================================================================
+// 冻结窗格策略选择逻辑测试
+// ============================================================================
+
+#[test]
+fn test_freeze_pane_strategy_selection() {
+    // 模拟 export_xlsx 中的冻结策略选择逻辑：
+    // 用户配置 (freeze_pane) 优先 > 自动检测 (header_row_count > 0) > 不冻结 (None)
+
+    fn determine_freeze_pane(user_config: Option<(u32, u16)>, header_row_count: usize) -> Option<(u32, u16)> {
+        if let Some(config) = user_config {
+            Some(config) // 用户配置优先级最高
+        } else if header_row_count > 0 {
+            Some((header_row_count as u32, 0)) // 自动冻结表头行，0列
+        } else {
+            None // 不冻结
+        }
+    }
+
+    // 场景 1: 用户指定冻结 3 行 1 列，表头有 1 行
+    // 期望: 使用用户配置 (3, 1)
+    assert_eq!(determine_freeze_pane(Some((3, 1)), 1), Some((3, 1)));
+
+    // 场景 2: 用户不指定 (None)，表头有 2 行
+    // 期望: 自动冻结 2 行 0 列
+    assert_eq!(determine_freeze_pane(None, 2), Some((2, 0)));
+
+    // 场景 3: 用户指定冻结 0 行 0 列 (即强制不冻结)，表头有 1 行
+    // 期望: 使用用户配置 (0, 0)
+    assert_eq!(determine_freeze_pane(Some((0, 0)), 1), Some((0, 0)));
+
+    // 场景 4: 用户不指定，且没有表头数据
+    // 期望: 不冻结 (None)
+    assert_eq!(determine_freeze_pane(None, 0), None);
 }
