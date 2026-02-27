@@ -19,6 +19,7 @@ const consoleLogPages = [
 const domInitPages = [
   { name: '多工作表导出', path: '/examples/multi-sheet-export.html', selector: '#btn-sync-export' },
   { name: '树形数据导出', path: '/examples/tree-export.html', selector: '.section button' },
+  { name: 'CDN 分发导出', path: '/examples/cdn-export.html', selector: '#btn-csv' },
 ];
 
 test.describe('WASM 初始化', () => {
@@ -84,6 +85,6 @@ test.describe('WASM 初始化', () => {
 
     // 验证所有示例卡片存在
     const cards = page.locator('.example-card');
-    await expect(cards).toHaveCount(9);
+    await expect(cards).toHaveCount(10);
   });
 });
