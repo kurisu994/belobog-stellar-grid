@@ -143,6 +143,20 @@ pnpm add @bsg-export/worker
 pnpm add -D @bsg-export/types
 ```
 
+#### CDN 引入（无构建工具场景）
+
+你可以直接通过 `unpkg` 或 `jsDelivr` 等 CDN 服务，在 HTML 中以原生 ES Modules 方式引入，无需安装任何依赖或使用打包工具：
+
+```html
+<script type="module">
+  // 引入后，模块会自动从同一 CDN 路径拉取 .wasm 文件
+  import init, { export_table } from "https://unpkg.com/belobog-stellar-grid@1.0.8/pkg/belobog_stellar_grid.js";
+  
+  await init();
+  export_table("my-table", "导出数据.csv");
+</script>
+```
+
 #### 从源码构建
 
 ```bash
@@ -507,7 +521,7 @@ belobog-stellar-grid/
 
 - [ ] **Node.js / 服务端支持**: 探索 `wasm32-wasip1` 或 `wasm32-unknown-unknown` 在非浏览器环境的运行能力。
 - [ ] **更多框架集成**: 提供 Svelte、Solid.js 等框架的官方封装。
-- [ ] **CDN 分发**: 提供 unpkg / jsDelivr 等 CDN 直接引用方式，简化非构建工具场景的接入。
+- [x] **CDN 分发**: 提供 unpkg / jsDelivr 等 CDN 直接引用方式，简化非构建工具场景的接入。 ✅
 
 ---
 
