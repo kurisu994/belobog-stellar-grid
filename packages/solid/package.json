@@ -1,0 +1,47 @@
+{
+  "name": "@bsg-export/solid",
+  "version": "1.0.9",
+  "description": "belobog-stellar-grid 的 Solid.js 官方封装组件",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "belobog",
+    "stellar-grid",
+    "solid",
+    "solidjs",
+    "export",
+    "table"
+  ],
+  "author": "Kurisu <makise_kurisuu@outlook.jp>",
+  "license": "MIT OR Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kurisu994/belobog-stellar-grid",
+    "directory": "packages/solid"
+  },
+  "peerDependencies": {
+    "belobog-stellar-grid": ">=1.0.0",
+    "solid-js": ">=1.8.0"
+  },
+  "dependencies": {
+    "@bsg-export/types": "file:../types"
+  },
+  "devDependencies": {
+    "solid-js": "^1.9.7",
+    "typescript": "^5.9.3"
+  }
+}

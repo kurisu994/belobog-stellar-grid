@@ -136,6 +136,12 @@ pnpm add @bsg-export/react
 # Vue 3 封装
 pnpm add @bsg-export/vue
 
+# Svelte 封装（兼容 Svelte 4/5）
+pnpm add @bsg-export/svelte
+
+# Solid.js 封装
+pnpm add @bsg-export/solid
+
 # Web Worker 支持（大数据量场景推荐）
 pnpm add @bsg-export/worker
 
@@ -375,7 +381,7 @@ just ci-release major   # 主要版本 1.0.0 -> 2.0.0
 2. **WebAssembly 构建** — `wasm-pack build --target web --release`
 3. **浏览器测试** — Puppeteer 自动化验证 WASM 加载和基本功能
 4. **发布主包** — 将 `pkg/` 发布到 npm（`belobog-stellar-grid`）
-5. **发布子包** — 构建并发布 `@bsg-export/types`、`@bsg-export/react`、`@bsg-export/vue`、`@bsg-export/worker`
+5. **发布子包** — 构建并发布 `@bsg-export/types`、`@bsg-export/react`、`@bsg-export/vue`、`@bsg-export/svelte`、`@bsg-export/solid`、`@bsg-export/worker`
 6. **创建 GitHub Release** — 自动提取 CHANGELOG 生成发布说明，附带 WASM 构建产物
 
 > ⚠️ 需要在 GitHub 仓库 Settings → Secrets 中配置 `NPM_TOKEN`
@@ -411,6 +417,8 @@ just publish-packages    # 发布到 npm（默认 latest tag）
 | `@bsg-export/types` | 严格 TypeScript 类型定义 | 无 |
 | `@bsg-export/react` | React Hook + 组件封装 | `@bsg-export/types` |
 | `@bsg-export/vue` | Vue 3 Composable + 组件封装 | `@bsg-export/types` |
+| `@bsg-export/svelte` | Svelte Store 封装 + 组件 | `@bsg-export/types` |
+| `@bsg-export/solid` | Solid.js Primitive + 组件封装 | `@bsg-export/types` |
 | `@bsg-export/worker` | Web Worker 导出封装 | `@bsg-export/types` |
 
 > 子包版本号在 `just bump` 时会自动与主包同步。
@@ -464,6 +472,8 @@ belobog-stellar-grid/
 │   ├── types/             # @bsg-export/types - 严格 TypeScript 类型定义
 │   ├── react/             # @bsg-export/react - React Hook + 组件封装
 │   ├── vue/               # @bsg-export/vue - Vue 3 Composable + 组件封装
+│   ├── svelte/            # @bsg-export/svelte - Svelte Store 封装 + 组件
+│   ├── solid/             # @bsg-export/solid - Solid.js Primitive + 组件
 │   └── worker/            # @bsg-export/worker - Web Worker 导出封装
 ├── pkg/                   # WASM 包输出
 ├── API.md                 # API 详细文档
@@ -511,7 +521,7 @@ belobog-stellar-grid/
 
 - [x] **Web Worker 支持**: 将导出计算移至 Worker 线程，彻底避免主线程阻塞。 ✅
 - [x] **E2E 测试体系**: 引入 Playwright 进行端到端测试，覆盖 33 个测试场景。 ✅
-- [x] **框架集成库**: 提供 React (`@bsg-export/react`) 和 Vue 3 (`@bsg-export/vue`) 官方封装组件。 ✅
+- [x] **框架集成库**: 提供 React (`@bsg-export/react`)、Vue 3 (`@bsg-export/vue`)、Svelte (`@bsg-export/svelte`)、Solid.js (`@bsg-export/solid`) 官方封装组件。 ✅
 - [x] **严格 TypeScript 类型**: `@bsg-export/types` 提供完整类型安全定义。 ✅
 - [ ] **Streaming 导出**: 对超大文件采用流式写入，降低内存峰值占用。
 - [ ] **WASM 体积优化**: 探索 `wasm-opt` 更激进的优化策略或按功能拆分 WASM 模块。
@@ -520,7 +530,7 @@ belobog-stellar-grid/
 ### 🌍 生态扩展
 
 - [ ] **Node.js / 服务端支持**: 探索 `wasm32-wasip1` 或 `wasm32-unknown-unknown` 在非浏览器环境的运行能力。
-- [ ] **更多框架集成**: 提供 Svelte、Solid.js 等框架的官方封装。
+- [x] **更多框架集成**: 提供 Svelte、Solid.js 等框架的官方封装。✅
 - [x] **CDN 分发**: 提供 unpkg / jsDelivr 等 CDN 直接引用方式，简化非构建工具场景的接入。 ✅
 
 ---

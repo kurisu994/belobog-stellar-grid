@@ -1,0 +1,53 @@
+{
+  "name": "@bsg-export/svelte",
+  "version": "1.0.9",
+  "description": "belobog-stellar-grid 的 Svelte 官方封装组件",
+  "type": "module",
+  "svelte": "./dist/index.js",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "svelte": "./dist/index.js",
+      "import": "./dist/index.js"
+    },
+    "./ExportButton.svelte": {
+      "types": "./dist/ExportButton.svelte.d.ts",
+      "svelte": "./dist/ExportButton.svelte",
+      "import": "./dist/ExportButton.svelte"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc && cp src/ExportButton.svelte src/ExportButton.svelte.d.ts dist/",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "belobog",
+    "stellar-grid",
+    "svelte",
+    "export",
+    "table"
+  ],
+  "author": "Kurisu <makise_kurisuu@outlook.jp>",
+  "license": "MIT OR Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kurisu994/belobog-stellar-grid",
+    "directory": "packages/svelte"
+  },
+  "peerDependencies": {
+    "belobog-stellar-grid": ">=1.0.0",
+    "svelte": ">=4.0.0"
+  },
+  "dependencies": {
+    "@bsg-export/types": "file:../types"
+  },
+  "devDependencies": {
+    "svelte": "^5.34.7",
+    "typescript": "^5.9.3"
+  }
+}

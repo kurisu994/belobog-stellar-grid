@@ -19,16 +19,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### 测试 (Tests)
 
-- **运行所有测试**: `cargo test` (103 个单元测试) + `cd e2e && npx playwright test` (20 个 E2E 测试)
+- **运行所有测试**: `cargo test` + `cd e2e && npx playwright test`
 - **运行特定测试文件**:
   - `cargo test --test lib_tests`: DOM 基础功能
   - `cargo test --test test_data_export`: 纯数据/树形/合并/表头
   - `cargo test --test test_resource`: RAII 资源管理
   - `cargo test --test test_unified_api`: 统一 API
+  - `cargo test --test test_security`: 安全测试（CSV 注入等）
 - **按名称过滤单个测试**: `cargo test -- test_flatten_tree`
 - **全面测试**: `just test`
+- **修改后完整检查**: `cargo test && cargo clippy -- -D warnings && cargo fmt`
 
-### 版本发布 (使用 Just)
+### 版本发布
 
 - **CI 自动发布 (推荐)**: `just ci-release patch|minor|major` (自动 Tag、Push 触发 Action)
 - **手动升级版本**: `just bump patch|minor|major`
@@ -41,34 +43,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### 子包管理
 
-- **构建子包**: `just build-packages` (构建 @bsg-export/types、react、vue、worker)
+- **构建子包**: `just build-packages` (构建所有 @bsg-export/* 子包)
 - **发布子包**: `just publish-packages [tag]` (发布到 npm)
 - **版本同步**: `just bump-core` 自动同步子包版本
-
-### 快速参考
-
-```bash
-# 开发流程
-just check-tools  # 检查环境
-just build        # 构建
-just test         # 测试
-just dev          # 启动开发服务器
-
-# 发布流程
-just ci-release patch  # CI 自动发布（推荐，含子包）
-just dry-run           # 发布前测试
-just publish           # 发布到 npm
-just build-packages    # 构建子包
-just publish-packages  # 发布子包
-```
+- 子包使用 **pnpm** 管理依赖
 
 ## 项目架构 (Architecture)
+
+### 工具链要求
+
+- Rust edition 2024, 最低版本 1.85.0
+- wasm-pack, basic-http-server, cargo-edit (cargo-set-version)
+- 可选: wasm-opt (binaryen) 用于 WASM 体积优化
 
 ### 核心设计原则
 
 - **RAII 资源管理**: 自动管理 Blob URL 生命周期，防止内存泄漏
 - **零拷贝操作**: 参数优先使用 `&str` 引用传递，减少内存开销
-- **模块化架构**: 清晰的模块划分，职责单一
 - **安全性优先**: 全面的文件名验证和公式注入防护
 - **性能优化**: 支持百万级数据的异步分批处理
 
@@ -92,7 +83,7 @@ src/
 ├── validation.rs       # 安全模块：文件名与输入验证 (防止路径遍历等攻击)
 ├── resource.rs         # RAII 模式：UrlGuard 自动管理 Blob URL 生命周期
 ├── core/               # 核心业务逻辑
-│   ├── mod.rs          # 统一 API (export_table, export_data, export_tables_xlsx) 和协调层
+│   ├── mod.rs          # 统一 API (export_table, export_data, export_tables_xlsx, generate_data_bytes)
 │   ├── data_export.rs  # [核心] 纯数据导出逻辑 (处理嵌套表头、树形数据、合并单元格)
 │   ├── table_extractor.rs  # DOM 解析与数据提取 (支持合并单元格、隐藏行列检测)
 │   ├── export_csv.rs   # CSV 格式生成
@@ -101,11 +92,13 @@ src/
 ├── batch_export_xlsx.rs # XLSX 异步分批处理
 └── utils.rs            # 调试与辅助工具
 
-packages/
-├── types/              # @bsg-export/types — 严格 TypeScript 类型定义（零运行时）
-├── react/              # @bsg-export/react — React Hook + 组件
-├── vue/                # @bsg-export/vue  — Vue 3 Composable + 组件
-└── worker/             # @bsg-export/worker — Web Worker 导出封装
+packages/                # 框架封装子包 (均为 @bsg-export/ 命名空间)
+├── types/              # 严格 TypeScript 类型定义（零运行时）
+├── react/              # React Hook + 组件
+├── vue/                # Vue 3 Composable + 组件
+├── svelte/             # Svelte Store 封装（兼容 Svelte 4/5）
+├── solid/              # Solid.js Primitive + 组件
+└── worker/             # Web Worker 导出封装
 ```
 
 ### 关键模块职责
@@ -139,39 +132,9 @@ let url = Url::create_object_url_with_blob(&blob)?;
 let _guard = UrlGuard::new(&url); // 作用域结束自动 revoke
 ```
 
-## 核心功能模块
-
-### 统一导出 API (src/core/mod.rs)
-
-- **`export_table`**: DOM 导出。支持 CSV/XLSX、进度回调、隐藏行列排除。
-- **`export_data`**: 纯数据导出。
-  - 支持二维数组或对象数组。
-  - **树形数据**: 通过 `children_key` 自动递归拍平，支持 `indent_column` 缩进。
-  - **复杂表头**: 支持 `columns` 配置嵌套 children 实现多级表头。
-  - **合并单元格**: 支持数据中定义 `rowSpan`/`colSpan`。
-- **`export_tables_xlsx`**: 多工作表导出。将多个表格（DOM 或 Data）导出到同一个 Excel 文件的不同 Sheet。
-
-### 表格数据提取 (src/core/table_extractor.rs)
-
-- 支持 `display: none` 隐藏行列检测。
-- 自动识别 HTML `rowspan` 和 `colspan`。
-- 支持容器查找：如果 ID 是 `div`，自动查找内部的 `table`。
-
-### 格式导出器
-
-- **CSV**: 使用 `csv` crate，高性能，不支持合并单元格。
-- **XLSX**: 使用 `rust_xlsxwriter`。
-  - 支持多 Sheet。
-  - 支持样式、宽高等基础配置。
-
 ## 编码规范 (Coding Guidelines)
 
-### 语言与交流
-
-- **中文优先**: 所有注释、文档、错误消息必须使用中文。
-- **命名**: 变量/函数使用英文，注释说明用途。
-
-### 核心约束 (Critical Constraints)
+### 核心约束
 
 1. **模块隔离**: `lib.rs` 仅做模块声明和重导出，不含业务逻辑；核心逻辑必须在 `src/core/` 中。
 2. **安全优先**:
@@ -188,7 +151,7 @@ let _guard = UrlGuard::new(&url); // 作用域结束自动 revoke
 
 ### 常见错误速查
 
-| 错误类型   | ❌ 错误写法                    | ✅ 正确写法                              |
+| 错误类型   | 错误写法                    | 正确写法                              |
 |--------|---------------------------|-------------------------------------|
 | **验证** | `fn export(name: String)` | `validate_filename(&name)?;`        |
 | **资源** | 手动 revoke URL             | `let _guard = UrlGuard::new(&url);` |
@@ -218,55 +181,32 @@ pub fn example_function(param: &str) -> Result<(), JsValue> {
 
 ```
 [表情] [类型](范围): 主题描述
-- 说明变更原因
-- 描述主要改动
 
 示例：
-🚀 feat(登录): 添加微信登录功能
-- 集成微信OAuth2.0
-- 添加用户绑定流程
+🚀 feat(导出): 添加冻结窗格功能
+♻️ refactor(export): 简化冻结窗格配置逻辑
+🐛 fix(csv): 修复公式注入转义问题
 ```
 
-**类型说明**:
-- feat: 新功能
-- fix: 修复bug
-- docs: 文档
-- style: 代码格式
-- refactor: 重构
-- perf: 性能优化
-- test: 测试
-- chore: 构建/工具
+**类型**: feat / fix / docs / style / refactor / perf / test / chore
 
 ## 测试指南
 
-### 测试文件结构
+### 测试文件对应关系
 
-| 测试文件               | 测试内容                     | 数量  |
-|------------------------|-----------------------------|------|
-| lib_tests.rs           | DOM 基础功能                 | 41   |
-| test_resource.rs       | RAII 资源管理                | 8    |
-| test_unified_api.rs    | 统一 API 接口                | 4    |
-| test_data_export.rs    | 纯数据/树形/合并/表头         | 33   |
-| test_security.rs       | 安全测试 (CSV 注入等)         | 3    |
-| **单元测试总计**        | **103 个单元测试**           | **103**|
-| **E2E 测试**           | **Playwright 端到端测试**    | **20** |
+| 测试文件               | 测试内容                     |
+|------------------------|-----------------------------|
+| lib_tests.rs           | DOM 基础功能                 |
+| test_resource.rs       | RAII 资源管理                |
+| test_unified_api.rs    | 统一 API 接口                |
+| test_data_export.rs    | 纯数据/树形/合并/表头         |
+| test_security.rs       | 安全测试 (CSV 注入等)         |
 
-### 测试覆盖重点
+### 新增功能测试要求
 
-#### 新增功能测试要求
-
-- **DOM 相关功能**: 添加到 `lib_tests.rs` 或 `test_unified_api.rs`。
-- **纯数据逻辑**: 必须添加到 `test_data_export.rs`。
-- **安全功能**: 添加到 `test_security.rs`。
-
-#### 测试场景覆盖
-
-- 正常输入 vs 边界值 (空数据)
-- Unicode 字符 (中文文件名、内容)
-- 恶意文件名 (路径遍历)
-- 树形数据的递归层级和缩进逻辑
-- 合并单元格的各种场景
-- 隐藏行列排除功能
+- **DOM 相关功能**: 添加到 `lib_tests.rs` 或 `test_unified_api.rs`
+- **纯数据逻辑**: 必须添加到 `test_data_export.rs`
+- **安全功能**: 添加到 `test_security.rs`
 
 ### 测试命名规范
 
@@ -275,31 +215,4 @@ pub fn example_function(param: &str) -> Result<(), JsValue> {
 fn test_<模块>_<函数>_<场景>() {
     // 测试代码
 }
-
-// 示例
-#[test]
-fn test_data_export_flatten_tree_basic() {
-    // 测试基础的树形数据拍平
-}
-```
-
-### 测试命令
-
-```bash
-cargo test                            # 运行所有单元测试 (103 个)
-cargo test --test lib_tests           # 运行 DOM 基础功能测试
-cargo test --test test_data_export    # 运行数据导出核心测试
-cargo test -- test_flatten_tree       # 按名称过滤单个测试
-cd e2e && npx playwright test         # 运行 E2E 测试 (20 个，需先构建 WASM)
-```
-
-### 完整开发流程
-
-```bash
-# 代码修改后，运行完整检查
-cargo test && cargo clippy -- -D warnings && cargo fmt
-
-# 使用 just 命令更简单
-just check  # 格式化 + Lint
-just test   # 运行所有测试
 ```

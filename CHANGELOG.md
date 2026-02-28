@@ -9,6 +9,22 @@
 
 ## [Unreleased]
 
+### ✨ 新增
+
+- 🆕 **Svelte 官方封装**: `@bsg-export/svelte`
+  - `createExporter()` Store 封装：自动管理 WASM 初始化、loading/progress/error 响应式状态
+  - `createWorkerExporter()` Worker Store 封装：将导出计算移至 Worker 线程
+  - `<ExportButton>` 开箱即用组件：通过 Props 配置导出参数，支持 slot 自定义内容
+  - 兼容 Svelte 4 和 Svelte 5
+- 🆕 **Solid.js 官方封装**: `@bsg-export/solid`
+  - `createExporter()` Primitive：基于 `createSignal` 的响应式状态管理
+  - `createWorkerExporter()` Worker Primitive：Worker 线程导出管理
+  - `<ExportButton>` 组件：使用 `ParentProps`，支持回调和自定义样式
+
+### ♻️ 优化
+
+- ♻️ **Svelte Store 读取优化**: `create-exporter.ts` 和 `create-worker-exporter.ts` 中使用 `get()` 替代 `subscribe()()` 模式同步读取 store 值
+
 ---
 
 ## [1.0.9] - 2026-02-27

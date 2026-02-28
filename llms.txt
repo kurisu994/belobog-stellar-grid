@@ -10,7 +10,7 @@
 - **丰富功能**: 支持合并单元格、多 Sheet 导出、树形数据导出（自动缩进）、冻结窗格。
 - **安全**: 内置文件名安全验证，防止路径遍历攻击，支持公式注入防护。
 - **易用**: 提供统一的 API 和类型支持。
-- **框架集成**: 提供 `@bsg-export/react` 和 `@bsg-export/vue` 官方封装组件。
+- **框架集成**: 提供 `@bsg-export/react`、`@bsg-export/vue`、`@bsg-export/svelte`、`@bsg-export/solid` 官方封装组件。
 - **Web Worker 支持**: `@bsg-export/worker` 将导出计算移至 Worker 线程，主线程不阻塞。
 - **类型安全**: `@bsg-export/types` 提供严格的 TypeScript 类型定义。
 - **质量保证**: 103 个单元测试，100% 测试覆盖，代码质量检查流程完善。
@@ -133,11 +133,45 @@ const { initialized, loading, progress, exportTable } = useExporter();
 </script>
 ```
 
+### `@bsg-export/svelte` — Svelte 封装（兼容 Svelte 4/5）
+
+- `createExporter()` Store：writable/readable store + 导出方法
+- `createWorkerExporter()` Worker Store：Worker 线程导出
+- `<ExportButton>` 组件：通过 `@bsg-export/svelte/ExportButton.svelte` 导入
+
+```svelte
+<script>
+import { createExporter, ExportFormat } from '@bsg-export/svelte';
+import ExportButton from '@bsg-export/svelte/ExportButton.svelte';
+
+const { initialized, loading, progress, exportTable } = createExporter();
+</script>
+
+<ExportButton tableId="my-table" filename="报表.xlsx" format={ExportFormat.Xlsx}>
+  导出 Excel
+</ExportButton>
+```
+
+### `@bsg-export/solid` — Solid.js 封装
+
+- `createExporter()` Primitive：createSignal 响应式状态 + 导出方法
+- `createWorkerExporter()` Worker Primitive：Worker 线程导出
+- `<ExportButton>` 组件：开箱即用
+
+```tsx
+import { createExporter, ExportFormat } from '@bsg-export/solid';
+
+const { initialized, loading, progress, exportTable } = createExporter();
+exportTable({ tableId: 'my-table', filename: '报表.xlsx', format: ExportFormat.Xlsx });
+```
+
 ### `@bsg-export/worker` — Web Worker 导出封装
 
 - `ExportWorker` 类：管理 Worker 生命周期、消息协议和文件下载
 - React: `useWorkerExporter()` Hook
 - Vue: `useWorkerExporter()` Composable
+- Svelte: `createWorkerExporter()` Store
+- Solid: `createWorkerExporter()` Primitive
 
 ```typescript
 import { ExportWorker } from '@bsg-export/worker';
