@@ -1,9 +1,11 @@
 /// 分批异步导出功能模块
 ///
-/// 提供大数据量表格的分批处理功能，避免阻塞主线程
+/// 提供大数据量表格的分批处理功能，避免阻塞主线程。
+/// 采用分块 Blob 片段策略：每个批次生成独立的 CSV 字节片段，
+/// 最后拼接成单个 Blob 下载，降低内存峰值。
 /// 支持合并单元格（colspan/rowspan）
 use crate::core::{
-    RowSpanTracker, create_and_download_csv, get_table_row, process_row_cells, resolve_table,
+    RowSpanTracker, get_table_row, process_row_cells, resolve_table,
 };
 use crate::utils::{ensure_external_tbody, is_element_hidden, report_progress, yield_to_browser};
 use csv::Writer;
@@ -18,6 +20,9 @@ use web_sys::HtmlTableSectionElement;
 /// 从而避免在处理大量数据时阻塞主线程导致页面卡死。
 /// 支持合并单元格（colspan/rowspan）的正确处理。
 ///
+/// **内存优化**：采用分块 Blob 片段策略，每个批次的 CSV 字节在转为
+/// `Uint8Array` 后立即释放 Rust 侧内存，峰值仅为一个批次大小。
+///
 /// # 参数
 /// * `table_id` - 要导出的 HTML 表格元素的 ID
 /// * `tbody_id` - 可选的数据表格体 ID（用于分离表头和数据）。**注意**：此 ID 应指向**不在** `table_id` 所指表格内部的独立 `<tbody>` 元素。如果传入的 `tbody` 在 `table` 内部，会导致该部分数据被重复导出（一次作为 table 的一部分，一次作为独立 tbody）。
@@ -26,6 +31,7 @@ use web_sys::HtmlTableSectionElement;
 /// * `exclude_hidden` - 可选，是否排除隐藏的行和列（默认为 false）
 /// * `progress_callback` - 进度回调函数，接收进度百分比 (0-100)
 /// * `with_bom` - 可选，是否添加 UTF-8 BOM（默认为 false）
+/// * `strict_progress_callback` - 可选，是否严格报告进度（默认为 false）。如果为 true，则每次进度更新都会触发回调；如果为 false，则可能跳过一些更新以提高性能。
 ///
 /// # 返回值
 /// * `Promise<void>` - 异步操作的 Promise
@@ -113,9 +119,6 @@ pub async fn export_table_to_csv_batch(
         return Err(JsValue::from_str("表格为空，没有数据可导出"));
     }
 
-    // 创建 CSV 写入器
-    let mut wtr = Writer::from_writer(Cursor::new(Vec::new()));
-
     // 报告初始进度
     if let Some(ref callback) = progress_callback {
         report_progress(callback, 0.0, strict)?;
@@ -124,10 +127,22 @@ pub async fn export_table_to_csv_batch(
     // 用于追踪被 rowspan 占用的位置: (row, col) -> cell_text
     let mut tracker = RowSpanTracker::new();
 
-    // 分批处理数据
+    // 收集 Blob 片段（分块策略，降低内存峰值）
+    let blob_parts = js_sys::Array::new();
+
+    // 第一个片段包含 BOM（如果需要）
+    if with_bom {
+        let bom = js_sys::Uint8Array::from(&[0xEF_u8, 0xBB, 0xBF][..]);
+        blob_parts.push(&bom);
+    }
+
+    // 分批处理数据，每个 batch 生成一个 CSV 片段
     let mut current_row = 0;
     while current_row < total_rows {
         let batch_end = std::cmp::min(current_row + batch_size, total_rows);
+
+        // 创建当前批次的 CSV Writer
+        let mut wtr = Writer::from_writer(Cursor::new(Vec::new()));
 
         // 处理当前批次
         for i in current_row..batch_end {
@@ -158,6 +173,22 @@ pub async fn export_table_to_csv_batch(
                 .map_err(|e| JsValue::from_str(&format!("写入 CSV 记录失败: {:?}", e)))?;
         }
 
+        // 完成当前批次的 CSV 写入
+        wtr.flush()
+            .map_err(|e| JsValue::from_str(&format!("完成 CSV 写入失败: {}", e)))?;
+
+        let csv_data = wtr
+            .into_inner()
+            .map_err(|e| JsValue::from_str(&format!("获取 CSV 数据失败: {}", e)))?;
+
+        let raw = csv_data.into_inner();
+
+        // 将当前批次字节转为 Uint8Array 片段（此后 raw 被 drop，释放 Rust 侧内存）
+        if !raw.is_empty() {
+            let uint8_array = js_sys::Uint8Array::from(raw.as_slice());
+            blob_parts.push(&uint8_array);
+        }
+
         current_row = batch_end;
 
         // 报告进度
@@ -172,32 +203,57 @@ pub async fn export_table_to_csv_batch(
         }
     }
 
-    // 安全地完成 CSV 写入
-    wtr.flush()
-        .map_err(|e| JsValue::from_str(&format!("完成 CSV 写入失败: {}", e)))?;
-
-    // 获取 CSV 数据
-    let csv_data = wtr
-        .into_inner()
-        .map_err(|e| JsValue::from_str(&format!("获取 CSV 数据失败: {}", e)))?;
-
-    if csv_data.get_ref().is_empty() {
-        return Err(JsValue::from_str("没有可导出的数据"));
-    }
-
-    // 如果需要 BOM，拼接到头部后再下载
-    let final_data = if with_bom {
-        let raw = csv_data.get_ref();
-        let mut result = Vec::with_capacity(3 + raw.len());
-        result.extend_from_slice(&[0xEF, 0xBB, 0xBF]);
-        result.extend_from_slice(raw);
-        result
-    } else {
-        csv_data.into_inner()
-    };
-
-    // 创建并下载 CSV 文件
-    create_and_download_csv(&final_data, filename)?;
+    // 用所有 Blob 片段创建 CSV 文件并触发下载
+    create_and_download_csv_blob_parts(&blob_parts, filename)?;
 
     Ok(JsValue::UNDEFINED)
+}
+
+/// 从 Blob 片段数组创建 CSV 文件并触发下载（分批导出专用）
+fn create_and_download_csv_blob_parts(
+    parts: &js_sys::Array,
+    filename: Option<String>,
+) -> Result<(), JsValue> {
+    let window = web_sys::window().ok_or_else(|| JsValue::from_str("无法获取 window 对象"))?;
+    let document = window
+        .document()
+        .ok_or_else(|| JsValue::from_str("无法获取 document 对象"))?;
+
+    // 创建 CSV Blob 对象（从多个 Uint8Array 片段拼接）
+    let blob_property_bag = web_sys::BlobPropertyBag::new();
+    blob_property_bag.set_type("text/csv;charset=utf-8");
+
+    let blob = web_sys::Blob::new_with_u8_array_sequence_and_options(parts, &blob_property_bag)
+        .map_err(|e| JsValue::from_str(&format!("创建 Blob 对象失败: {:?}", e)))?;
+
+    // 创建下载链接
+    let url = web_sys::Url::create_object_url_with_blob(&blob)
+        .map_err(|e| JsValue::from_str(&format!("创建下载链接失败: {:?}", e)))?;
+
+    // 设置文件名
+    let final_filename = filename.unwrap_or_else(|| "table_export.csv".to_string());
+
+    // 验证文件名安全性
+    if let Err(e) = crate::validation::validate_filename(&final_filename) {
+        return Err(JsValue::from_str(&format!("文件名验证失败: {}", e)));
+    }
+
+    let final_filename = crate::validation::ensure_extension(&final_filename, "csv");
+
+    // 创建下载链接元素
+    let anchor = document
+        .create_element("a")
+        .map_err(|e| JsValue::from_str(&format!("创建下载链接元素失败: {:?}", e)))?;
+    let anchor = anchor
+        .dyn_into::<web_sys::HtmlAnchorElement>()
+        .map_err(|_| JsValue::from_str("创建的元素不是有效的锚点元素"))?;
+
+    anchor.set_href(&url);
+    anchor.set_download(&final_filename);
+    anchor.click();
+
+    // 延迟释放 Blob URL
+    crate::resource::schedule_url_revoke(&window, url);
+
+    Ok(())
 }

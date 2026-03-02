@@ -9,7 +9,22 @@
 
 ## [Unreleased]
 
----
+### ✨ 新增
+
+- 🆕 **Streaming CSV 导出**: 新增 `export_data_streaming()` 异步 API
+  - 将 CSV 输出按 `chunkSize` 行分块写入，每块转为 `Uint8Array` 后立即释放 Rust 侧内存
+  - Rust 侧内存峰值从「全部数据」降低为「一个分块大小」（默认 5000 行）
+  - 支持 `chunkSize` 参数自定义分块大小
+  - XLSX 格式自动回退到 `export_data` 同步逻辑（受 `rust_xlsxwriter` 库限制）
+  - 新增 `ExportStreamingOptions` TypeScript 类型定义
+  - 新增 `examples/streaming-export.html` 示例页面（含流式 vs 常规对比）
+  - 新增 26 个流式导出相关单元测试
+
+### ⚡ 优化
+
+- ⚡ **batch_export 内存优化**: `export_table_to_csv_batch()` 改用分块 Blob 片段策略
+  - 每个批次的 CSV 字节在转为 `Uint8Array` 后立即释放 Rust 侧内存
+  - 内存峰值从「全部行的 CSV 字节」降低为「一个批次的 CSV 字节」
 
 ## [1.0.10] - 2026-02-28
 
@@ -60,7 +75,6 @@
   - `export_csv.rs`: 提取 `generate_csv_bytes()` 纯字节生成函数，BOM 处理内聚
   - `export_xlsx.rs`: 提取 `generate_xlsx_bytes()` / `generate_xlsx_multi_bytes()` 纯字节生成函数
   - 原 `export_as_csv()` / `export_as_xlsx()` 复用新函数后触发下载，行为不变
-
 
 ## [1.0.7] - 2026-02-26
 

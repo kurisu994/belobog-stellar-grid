@@ -6,8 +6,7 @@ mod export_csv;
 pub(crate) mod export_xlsx;
 mod table_extractor;
 
-use data_export::{build_table_data_from_array, build_table_data_from_tree};
-pub(crate) use export_csv::create_and_download_csv;
+pub(crate) use data_export::{build_table_data_from_array, build_table_data_from_tree};
 use export_csv::{export_as_csv, generate_csv_bytes};
 pub(crate) use export_xlsx::create_and_download_xlsx;
 use export_xlsx::{export_as_xlsx, export_as_xlsx_multi, generate_xlsx_bytes};
@@ -245,7 +244,7 @@ pub fn export_tables_xlsx(
 /// # 返回值
 /// * `Ok(Vec<Vec<String>>)` - 解析成功
 /// * `Err(JsValue)` - 解析失败
-fn parse_js_array_data(data: &JsValue) -> Result<Vec<Vec<String>>, JsValue> {
+pub(crate) fn parse_js_array_data(data: &JsValue) -> Result<Vec<Vec<String>>, JsValue> {
     // 验证 data 是否为数组
     if !js_sys::Array::is_array(data) {
         return Err(JsValue::from_str("data 必须是数组"));
@@ -367,24 +366,24 @@ pub fn export_data(data: JsValue, options: Option<JsValue>) -> Result<(), JsValu
 }
 
 /// 导出数据配置项（从 options 对象解析后的结果）
-struct ExportDataOptions {
-    columns: Option<JsValue>,
-    filename: Option<String>,
-    format: ExportFormat,
-    progress_callback: Option<js_sys::Function>,
-    indent_column: Option<String>,
-    children_key: Option<String>,
-    with_bom: bool,
+pub(crate) struct ExportDataOptions {
+    pub(crate) columns: Option<JsValue>,
+    pub(crate) filename: Option<String>,
+    pub(crate) format: ExportFormat,
+    pub(crate) progress_callback: Option<js_sys::Function>,
+    pub(crate) indent_column: Option<String>,
+    pub(crate) children_key: Option<String>,
+    pub(crate) with_bom: bool,
     /// 是否启用严格进度回调模式
-    strict_progress: bool,
+    pub(crate) strict_progress: bool,
     /// 冻结行数（XLSX 有效，None 表示自动根据表头行数）
-    freeze_rows: Option<u32>,
+    pub(crate) freeze_rows: Option<u32>,
     /// 冻结列数（XLSX 有效，默认 0）
-    freeze_cols: Option<u16>,
+    pub(crate) freeze_cols: Option<u16>,
 }
 
 /// 从 options JsValue 对象中解析 export_data 的配置项
-fn parse_export_data_options(options: Option<JsValue>) -> Result<ExportDataOptions, JsValue> {
+pub(crate) fn parse_export_data_options(options: Option<JsValue>) -> Result<ExportDataOptions, JsValue> {
     let options = match options {
         Some(ref opt) if !opt.is_null() && !opt.is_undefined() => opt,
         _ => {
@@ -496,7 +495,7 @@ fn parse_export_data_options(options: Option<JsValue>) -> Result<ExportDataOptio
 }
 
 /// export_data 的内部实现
-fn export_data_impl(data: JsValue, opts: ExportDataOptions) -> Result<(), JsValue> {
+pub(crate) fn export_data_impl(data: JsValue, opts: ExportDataOptions) -> Result<(), JsValue> {
     let sp = opts.strict_progress;
 
     // 构建冻结窗格配置：只要用户显式传了任一参数，就使用用户配置

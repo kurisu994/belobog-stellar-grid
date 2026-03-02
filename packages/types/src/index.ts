@@ -68,7 +68,7 @@ export type MergeableCellValue = CellValue | MergeCellValue;
 export type DataRow = CellValue[] | Record<string, MergeableCellValue>;
 
 /** 树形数据行（含可选子节点） */
-export type TreeDataRow<TChildrenKey extends string = 'children'> = Record<
+export type TreeDataRow<TChildrenKey extends string = "children"> = Record<
   string,
   MergeableCellValue
 > & {
@@ -358,4 +358,56 @@ export declare function generate_data_bytes(
   options?: ExportDataOptions,
 ): Uint8Array;
 
+// =============================================================================
+// 流式导出配置
+// =============================================================================
 
+/**
+ * `export_data_streaming()` 的配置选项
+ *
+ * 继承 `ExportDataOptions` 的所有配置，额外新增 `chunkSize` 参数。
+ */
+export interface ExportStreamingOptions extends ExportDataOptions {
+  /**
+   * 每个分块包含的行数（默认 5000）。
+   * 较小的值 = 更低的内存峰值，但可能增加处理耗时。
+   * 较大的值 = 更高的吞吐量，但内存峰值更高。
+   */
+  chunkSize?: number;
+}
+
+// =============================================================================
+// 流式导出函数签名
+// =============================================================================
+
+/**
+ * 流式导出 JavaScript 数据为 CSV 文件（异步，降低内存峰值）
+ *
+ * 与 `export_data` 功能相同，但采用分块写入策略：
+ * 将 CSV 输出按 `chunkSize` 行分块写入，每块转为 `Uint8Array` 后立即释放 Rust 侧内存，
+ * 最后用所有分块拼接成单个 `Blob` 触发下载。
+ *
+ * **内存优化**：Rust 侧内存峰值仅为一个分块大小，而非全部数据。
+ *
+ * **XLSX 限制**：当 `format=Xlsx` 时，由于 XLSX 库不支持流式写入，
+ * 会自动回退到 `export_data` 的同步逻辑。
+ *
+ * @param data - 二维数组 `CellValue[][]` 或对象数组 `Record<string, MergeableCellValue>[]`
+ * @param options - 配置选项（继承 ExportDataOptions，额外支持 chunkSize）
+ * @throws 导出失败时抛出错误
+ *
+ * @example
+ * ```typescript
+ * // 流式 CSV 导出（适合超大数据量）
+ * await export_data_streaming(largeData, {
+ *   columns: [{ title: '姓名', key: 'name' }, { title: '年龄', key: 'age' }],
+ *   filename: '大数据.csv',
+ *   chunkSize: 10000,
+ *   progressCallback: (progress) => console.log(`${Math.round(progress)}%`),
+ * });
+ * ```
+ */
+export declare function export_data_streaming(
+  data: DataRow[],
+  options?: ExportStreamingOptions,
+): Promise<void>;

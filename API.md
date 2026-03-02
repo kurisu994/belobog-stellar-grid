@@ -21,6 +21,7 @@ pub fn export_table(
 ```
 
 **参数**
+
 - `table_id`: HTML 表格元素的 ID。
 - `filename`: 导出文件名（可选）。不包含扩展名时会自动根据格式添加。
 - `format`: 导出格式（可选）。默认为 `ExportFormat.Csv`。
@@ -30,18 +31,20 @@ pub fn export_table(
 - `strict_progress_callback`: 是否启用严格进度回调模式（可选）。默认为 `false`。启用后，进度回调失败将中止导出并返回错误；未启用时仅 `console.warn`。
 
 **返回值**
+
 - `Result<(), JsValue>`: 成功返回 `Ok(())`，失败返回错误信息。
 
 **示例**
+
 ```javascript
-import { export_table, ExportFormat } from 'belobog-stellar-grid';
+import { export_table, ExportFormat } from "belobog-stellar-grid";
 
 // 导出为 CSV
-export_table('my-table', 'data.csv');
+export_table("my-table", "data.csv");
 
 // 导出为 Excel，带进度条
-export_table('my-table', 'report', ExportFormat.Xlsx, true, (progress) => {
-    console.log(`Progress: ${progress}%`);
+export_table("my-table", "report", ExportFormat.Xlsx, true, (progress) => {
+  console.log(`Progress: ${progress}%`);
 });
 ```
 
@@ -56,38 +59,44 @@ pub fn export_data(data: JsValue, options: Option<JsValue>) -> Result<(), JsValu
 ```
 
 **参数**
+
 - `data`: JS 数组。可以是二维数组 `Array<Array<any>>` 或对象数组 `Array<Object>`。
 - `options`: 配置对象（可选）。
-    - `columns`: 表头配置数组。导出对象数组时必填。支持嵌套 `children` 实现多级表头。
-    - `filename`: 导出文件名。
-    - `format`: 导出格式。默认 CSV。只接受 `ExportFormat.Csv`(0) 和 `ExportFormat.Xlsx`(1)，传入其他值将报错。
-    - `progressCallback`: 进度回调函数。
-    - `indentColumn`: 树形数据模式下，需要缩进的列的 key。
-    - `childrenKey`: 指定子节点字段名，启用树形数据模式。
-    - `withBom`: CSV 导出时是否添加 UTF-8 BOM。默认 `false`。
-    - `strictProgressCallback`: 是否启用严格进度回调模式。默认 `false`。启用后进度回调失败将中止导出。
-    - `freezeRows`: 冻结前 N 行（仅 XLSX 有效）。默认自动根据表头行数冻结（有 `columns` 时冻结表头，无 `columns` 时不冻结）。
-    - `freezeCols`: 冻结前 N 列（仅 XLSX 有效）。默认 `0`。
+  - `columns`: 表头配置数组。导出对象数组时必填。支持嵌套 `children` 实现多级表头。
+  - `filename`: 导出文件名。
+  - `format`: 导出格式。默认 CSV。只接受 `ExportFormat.Csv`(0) 和 `ExportFormat.Xlsx`(1)，传入其他值将报错。
+  - `progressCallback`: 进度回调函数。
+  - `indentColumn`: 树形数据模式下，需要缩进的列的 key。
+  - `childrenKey`: 指定子节点字段名，启用树形数据模式。
+  - `withBom`: CSV 导出时是否添加 UTF-8 BOM。默认 `false`。
+  - `strictProgressCallback`: 是否启用严格进度回调模式。默认 `false`。启用后进度回调失败将中止导出。
+  - `freezeRows`: 冻结前 N 行（仅 XLSX 有效）。默认自动根据表头行数冻结（有 `columns` 时冻结表头，无 `columns` 时不冻结）。
+  - `freezeCols`: 冻结前 N 列（仅 XLSX 有效）。默认 `0`。
 
 **返回值**
+
 - `Result<(), JsValue>`
 
 **示例**
+
 ```javascript
-import { export_data, ExportFormat } from 'belobog-stellar-grid';
+import { export_data, ExportFormat } from "belobog-stellar-grid";
 
 // 二维数组
-const data = [['Name', 'Age'], ['Alice', 20]];
-export_data(data, { filename: 'users.csv' });
+const data = [
+  ["Name", "Age"],
+  ["Alice", 20],
+];
+export_data(data, { filename: "users.csv" });
 
 // 对象数组 + 树形结构
-const treeData = [{ name: 'Root', children: [{ name: 'Child' }] }];
-const columns = [{ title: 'Name', key: 'name' }];
+const treeData = [{ name: "Root", children: [{ name: "Child" }] }];
+const columns = [{ title: "Name", key: "name" }];
 export_data(treeData, {
-    columns,
-    childrenKey: 'children',
-    indentColumn: 'name',
-    format: ExportFormat.Xlsx
+  columns,
+  childrenKey: "children",
+  indentColumn: "name",
+  format: ExportFormat.Xlsx,
 });
 ```
 
@@ -107,19 +116,24 @@ pub fn export_tables_xlsx(
 ```
 
 **参数**
+
 - `sheets`: 配置数组。每个元素包含 `{ tableId: string, sheetName?: string, excludeHidden?: boolean }`。
 - `filename`: 导出文件名（可选）。
 - `progress_callback`: 进度回调函数（可选）。
 - `strict_progress_callback`: 是否启用严格进度回调模式（可选）。默认为 `false`。
 
 **示例**
-```javascript
-import { export_tables_xlsx } from 'belobog-stellar-grid';
 
-export_tables_xlsx([
-    { tableId: 't1', sheetName: 'Summary' },
-    { tableId: 't2', sheetName: 'Details' }
-], 'report.xlsx');
+```javascript
+import { export_tables_xlsx } from "belobog-stellar-grid";
+
+export_tables_xlsx(
+  [
+    { tableId: "t1", sheetName: "Summary" },
+    { tableId: "t2", sheetName: "Details" },
+  ],
+  "report.xlsx",
+);
 ```
 
 ---
@@ -142,6 +156,7 @@ pub async fn export_table_to_csv_batch(
 ```
 
 **参数**
+
 - `table_id`: 表格 ID。
 - `tbody_id`: 外部 tbody 元素 ID（可选）。用于虚拟滚动等场景，指定包含实际数据行的 tbody。会在运行时验证该 tbody 是否属于目标 table 内部。
 - `filename`: 文件名（可选）。
@@ -152,6 +167,7 @@ pub async fn export_table_to_csv_batch(
 - `strict_progress_callback`: 是否启用严格进度回调模式（可选）。默认为 `false`。
 
 **返回值**
+
 - `Promise`: 导出完成时 resolve。
 
 ---
@@ -173,6 +189,7 @@ pub async fn export_table_to_xlsx_batch(
 ```
 
 **参数**
+
 - `table_id`: 表格 ID。
 - `tbody_id`: 外部 tbody 元素 ID（可选）。同 `export_table_to_csv_batch`。
 - `filename`: 文件名（可选）。
@@ -198,6 +215,7 @@ pub async fn export_tables_to_xlsx_batch(
 ```
 
 **参数**
+
 - `sheets`: 配置数组。每个元素包含 `{ tableId: string, sheetName?: string, excludeHidden?: boolean, tbodyId?: string }`。
 - `filename`: 导出文件名（可选）。
 - `batch_size`: 每批处理行数（可选，默认 1000）。
@@ -214,8 +232,9 @@ pub async fn export_tables_to_xlsx_batch(
 - `Xlsx` (1)
 
 可以通过模块导出的常量使用：
+
 ```javascript
-import { ExportFormat } from 'belobog-stellar-grid';
+import { ExportFormat } from "belobog-stellar-grid";
 console.log(ExportFormat.Csv); // 0
 console.log(ExportFormat.Xlsx); // 1
 ```
@@ -231,8 +250,8 @@ console.log(ExportFormat.Xlsx); // 1
 **核心接口**：`Column`、`ExportDataOptions`、`SheetConfig`、`BatchSheetConfig`、`MergeCellValue`、`ProgressCallback`
 
 ```typescript
-import type { Column, ExportDataOptions } from '@bsg-export/types';
-import { ExportFormat } from '@bsg-export/types';
+import type { Column, ExportDataOptions } from "@bsg-export/types";
+import { ExportFormat } from "@bsg-export/types";
 ```
 
 ---
@@ -246,23 +265,31 @@ React 封装，提供 Hook 和组件。
 自动管理 WASM 初始化，返回状态和类型安全的导出方法。
 
 ```tsx
-import { useExporter, ExportFormat } from '@bsg-export/react';
+import { useExporter, ExportFormat } from "@bsg-export/react";
 
 function App() {
-  const { initialized, loading, progress, error, exportTable, exportData } = useExporter();
+  const { initialized, loading, progress, error, exportTable, exportData } =
+    useExporter();
 
   return (
     <button
       disabled={!initialized || loading}
-      onClick={() => exportTable({ tableId: 'my-table', filename: '报表.xlsx', format: ExportFormat.Xlsx })}
+      onClick={() =>
+        exportTable({
+          tableId: "my-table",
+          filename: "报表.xlsx",
+          format: ExportFormat.Xlsx,
+        })
+      }
     >
-      {loading ? `导出中 ${Math.round(progress)}%` : '导出'}
+      {loading ? `导出中 ${Math.round(progress)}%` : "导出"}
     </button>
   );
 }
 ```
 
 **返回值**：
+
 - `initialized: boolean` — WASM 是否初始化完成
 - `loading: boolean` — 是否正在导出
 - `progress: number` — 导出进度 (0-100)
@@ -279,18 +306,22 @@ function App() {
 将导出计算移至 Worker 线程，主线程不阻塞。
 
 ```tsx
-import { useWorkerExporter } from '@bsg-export/react';
-import ExportWorkerScript from '@bsg-export/worker/worker?worker';
+import { useWorkerExporter } from "@bsg-export/react";
+import ExportWorkerScript from "@bsg-export/worker/worker?worker";
 
 function App() {
   const { initialized, loading, progress, exportData } = useWorkerExporter(
-    () => new ExportWorkerScript()
+    () => new ExportWorkerScript(),
   );
 
   return (
-    <button disabled={!initialized || loading}
-            onClick={() => exportData(data, { columns, filename: '报表.xlsx', format: 1 })}>
-      {loading ? `导出中 ${Math.round(progress)}%` : 'Worker 导出'}
+    <button
+      disabled={!initialized || loading}
+      onClick={() =>
+        exportData(data, { columns, filename: "报表.xlsx", format: 1 })
+      }
+    >
+      {loading ? `导出中 ${Math.round(progress)}%` : "Worker 导出"}
     </button>
   );
 }
@@ -299,6 +330,7 @@ function App() {
 **参数**：`createWorker: () => Worker` — Worker 工厂函数，支持 Vite / Webpack 5 等槑建工具。
 
 **返回值**：
+
 - `initialized / loading / progress / error` — 状态
 - `exportData(data, options?)` — Worker 中生成并触发下载
 - `generateBytes(data, options?)` — 仅生成字节
@@ -309,11 +341,15 @@ function App() {
 开箱即用的导出按钮，自动管理初始化和状态。
 
 ```tsx
-import { ExportButton, ExportFormat } from '@bsg-export/react';
+import { ExportButton, ExportFormat } from "@bsg-export/react";
 
-<ExportButton tableId="my-table" filename="报表.xlsx" format={ExportFormat.Xlsx}>
+<ExportButton
+  tableId="my-table"
+  filename="报表.xlsx"
+  format={ExportFormat.Xlsx}
+>
   导出 Excel
-</ExportButton>
+</ExportButton>;
 ```
 
 ---
@@ -328,14 +364,17 @@ Vue 3 封装，提供 Composable 和组件。
 
 ```vue
 <script setup>
-import { useExporter, ExportFormat } from '@bsg-export/vue';
+import { useExporter, ExportFormat } from "@bsg-export/vue";
 
 const { initialized, loading, progress, exportTable } = useExporter();
 </script>
 
 <template>
-  <button :disabled="!initialized || loading" @click="exportTable({ tableId: 'my-table' })">
-    {{ loading ? `导出中 ${Math.round(progress)}%` : '导出' }}
+  <button
+    :disabled="!initialized || loading"
+    @click="exportTable({ tableId: 'my-table' })"
+  >
+    {{ loading ? `导出中 ${Math.round(progress)}%` : "导出" }}
   </button>
 </template>
 ```
@@ -346,18 +385,20 @@ Worker 线程导出，功能同 React 版 `useWorkerExporter`，使用 Vue 3 响
 
 ```vue
 <script setup>
-import { useWorkerExporter } from '@bsg-export/vue';
-import ExportWorkerScript from '@bsg-export/worker/worker?worker';
+import { useWorkerExporter } from "@bsg-export/vue";
+import ExportWorkerScript from "@bsg-export/worker/worker?worker";
 
 const { initialized, loading, progress, exportData } = useWorkerExporter(
-  () => new ExportWorkerScript()
+  () => new ExportWorkerScript(),
 );
 </script>
 
 <template>
-  <button :disabled="!initialized || loading"
-          @click="exportData(data, { columns, filename: '报表.xlsx', format: 1 })">
-    {{ loading ? `导出中 ${Math.round(progress)}%` : 'Worker 导出' }}
+  <button
+    :disabled="!initialized || loading"
+    @click="exportData(data, { columns, filename: '报表.xlsx', format: 1 })"
+  >
+    {{ loading ? `导出中 ${Math.round(progress)}%` : "Worker 导出" }}
   </button>
 </template>
 ```
@@ -368,11 +409,15 @@ Vue 组件，支持插槽和事件。
 
 ```vue
 <script setup>
-import { ExportButton, ExportFormat } from '@bsg-export/vue';
+import { ExportButton, ExportFormat } from "@bsg-export/vue";
 </script>
 
 <template>
-  <ExportButton table-id="my-table" filename="报表.xlsx" :format="ExportFormat.Xlsx">
+  <ExportButton
+    table-id="my-table"
+    filename="报表.xlsx"
+    :format="ExportFormat.Xlsx"
+  >
     导出 Excel
   </ExportButton>
 </template>
@@ -383,6 +428,59 @@ import { ExportButton, ExportFormat } from '@bsg-export/vue';
 ### `@bsg-export/worker`
 
 Web Worker 导出封装，将 CPU 密集的文件生成移至 Worker 线程，彻底避免主线程阻塞。
+
+#### `export_data_streaming(data, options?)` ⚡ 流式导出
+
+异步流式导出 JavaScript 数据为 CSV 文件。采用分块写入策略降低内存峰值。
+
+```rust
+pub async fn export_data_streaming(
+    data: JsValue,
+    options: Option<JsValue>,
+) -> Result<JsValue, JsValue>
+```
+
+**参数**：
+
+| 参数      | 类型       | 必需 | 描述                               |
+| --------- | ---------- | ---- | ---------------------------------- |
+| `data`    | `JsValue`  | ✅   | JS 数组（二维数组或对象数组）      |
+| `options` | `JsValue?` | ❌   | 配置对象（继承 ExportDataOptions） |
+
+**options 额外字段**：
+
+| 字段        | 类型     | 默认值 | 描述           |
+| ----------- | -------- | ------ | -------------- |
+| `chunkSize` | `number` | `5000` | 每个分块的行数 |
+
+其他字段同 `export_data` 的 `options`。
+
+**返回值**：`Promise<void>`
+
+**XLSX 限制**：当 `format=ExportFormat.Xlsx` 时，自动回退到 `export_data` 同步逻辑。
+
+**示例**：
+
+```javascript
+import init, {
+  export_data_streaming,
+  ExportFormat,
+} from "./pkg/belobog_stellar_grid.js";
+await init();
+
+// 流式 CSV 导出（10 万行，每块 1 万行）
+await export_data_streaming(largeData, {
+  columns: [
+    { title: "姓名", key: "name" },
+    { title: "年龄", key: "age" },
+  ],
+  filename: "大数据.csv",
+  chunkSize: 10000,
+  progressCallback: (p) => console.log(`${Math.round(p)}%`),
+});
+```
+
+---
 
 #### `generate_data_bytes(data, options?)`
 
@@ -408,15 +506,15 @@ pub fn generate_data_bytes(
 管理 Worker 生命周期的高层封装。
 
 ```typescript
-import { ExportWorker } from '@bsg-export/worker';
+import { ExportWorker } from "@bsg-export/worker";
 
 // 1. 创建 Worker（根据构建工具选择方式）
 // Vite:
-import MyWorker from '@bsg-export/worker/worker?worker';
+import MyWorker from "@bsg-export/worker/worker?worker";
 const worker = new ExportWorker(new MyWorker());
 
 // Webpack 5:
-const w = new Worker(new URL('@bsg-export/worker/worker', import.meta.url));
+const w = new Worker(new URL("@bsg-export/worker/worker", import.meta.url));
 const worker = new ExportWorker(w);
 
 // 2. 初始化 WASM
@@ -424,13 +522,16 @@ await worker.init();
 
 // 3. 导出数据（Worker 生成 → 主线程下载）
 await worker.exportData(
-  [{ name: '张三', age: 28 }],
+  [{ name: "张三", age: 28 }],
   {
-    columns: [{ title: '姓名', key: 'name' }, { title: '年龄', key: 'age' }],
-    filename: '用户.xlsx',
+    columns: [
+      { title: "姓名", key: "name" },
+      { title: "年龄", key: "age" },
+    ],
+    filename: "用户.xlsx",
     format: 1, // ExportFormat.Xlsx
   },
-  { onProgress: (p) => console.log(`${p}%`) }
+  { onProgress: (p) => console.log(`${p}%`) },
 );
 
 // 4. 仅生成字节（不触发下载）
@@ -441,10 +542,12 @@ worker.terminate();
 ```
 
 **方法**：
+
 - `init()` — 初始化 Worker 中的 WASM 模块
 - `exportData(data, options?, workerOptions?)` — 生成文件并触发下载
 - `generateBytes(data, options?, workerOptions?)` — 仅生成文件字节
 - `terminate()` — 销毁 Worker
 
 **属性**：
+
 - `initialized: boolean` — WASM 是否初始化完成

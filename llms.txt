@@ -93,6 +93,15 @@ export_table("my-table-id", "report.xlsx", ExportFormat.Xlsx, false, (progress) 
 - 参数同 `export_data`。
 - 返回 `Uint8Array`。
 
+#### `export_data_streaming(data, options?)`
+异步流式导出 JavaScript 数据为 CSV 文件（降低内存峰值）。
+- `data`: JS 数组（二维数组或对象数组），参数同 `export_data`。
+- `options`: 配置对象，继承 `export_data` 所有选项，额外支持：
+  - `chunkSize`: `number`（可选），每个分块行数，默认 5000
+- 采用分块 Blob 拼接策略，Rust 侧内存峰值仅为一个分块大小。
+- 当 `format=Xlsx` 时自动回退到 `export_data` 同步逻辑（XLSX 不支持流式）。
+- 返回 `Promise<void>`。
+
 ### 类型
 
 #### `ExportFormat`

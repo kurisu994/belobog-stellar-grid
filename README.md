@@ -75,7 +75,10 @@
 <html>
   <head>
     <script type="module">
-      import init, { export_table, ExportFormat } from "./pkg/belobog_stellar_grid.js";
+      import init, {
+        export_table,
+        ExportFormat,
+      } from "./pkg/belobog_stellar_grid.js";
 
       // 1. 初始化（只需一次）
       await init();
@@ -156,8 +159,10 @@ pnpm add -D @bsg-export/types
 ```html
 <script type="module">
   // 引入后，模块会自动从同一 CDN 路径拉取 .wasm 文件
-  import init, { export_table } from "https://unpkg.com/belobog-stellar-grid@1.0.8/pkg/belobog_stellar_grid.js";
-  
+  import init, {
+    export_table,
+  } from "https://unpkg.com/belobog-stellar-grid@1.0.8/pkg/belobog_stellar_grid.js";
+
   await init();
   export_table("my-table", "导出数据.csv");
 </script>
@@ -198,16 +203,28 @@ export_table("table-id", "销售报表_2024", ExportFormat.Xlsx); // 自动添�
 import { export_table, ExportFormat } from "belobog-stellar-grid";
 
 // CSV 格式带进度（不排除隐藏行）
-export_table("large-table", "大数据.csv", ExportFormat.Csv, false, (progress) => {
-  console.log(`进度: ${Math.round(progress)}%`);
-  progressBar.style.width = `${progress}%`;
-});
+export_table(
+  "large-table",
+  "大数据.csv",
+  ExportFormat.Csv,
+  false,
+  (progress) => {
+    console.log(`进度: ${Math.round(progress)}%`);
+    progressBar.style.width = `${progress}%`;
+  },
+);
 
 // Excel 格式带进度（排除隐藏行）
-export_table("large-table", "报表.xlsx", ExportFormat.Xlsx, true, (progress) => {
-  console.log(`进度: ${Math.round(progress)}%`);
-  progressBar.style.width = `${progress}%`;
-});
+export_table(
+  "large-table",
+  "报表.xlsx",
+  ExportFormat.Xlsx,
+  true,
+  (progress) => {
+    console.log(`进度: ${Math.round(progress)}%`);
+    progressBar.style.width = `${progress}%`;
+  },
+);
 ```
 
 #### 分批异步导出（大数据量）
@@ -249,17 +266,18 @@ try {
 
 查看 [examples/](./examples/) 目录获取完整示例：
 
-| 示例                   | 难度                                                   | 描述         |
-| ---------------------- | ------------------------------------------------------ | ------------ |
-| basic-export.html      | ![简单](https://img.shields.io/badge/难度-简单-green)  | 基础导出示例 |
-| progress-export.html   | ![中等](https://img.shields.io/badge/难度-中等-yellow) | 进度显示示例 |
-| advanced-features.html | ![进阶](https://img.shields.io/badge/难度-进阶-orange) | 高级特性示例 |
-| container-export.html  | ![中等](https://img.shields.io/badge/难度-中等-yellow) | 容器元素导出示例 |
-| array-export.html      | ![进阶](https://img.shields.io/badge/难度-进阶-orange) | 数组导出（嵌套表头 + 数据合并）示例 |
-| tree-export.html       | ![进阶](https://img.shields.io/badge/难度-进阶-orange) | 树形数据导出（递归拍平 + 层级缩进）示例 |
-| multi-sheet-export.html | ![进阶](https://img.shields.io/badge/难度-进阶-orange) | 多工作表导出示例 |
-| worker-export.html     | ![高级](https://img.shields.io/badge/难度-高级-red)   | Web Worker 导出（避免主线程阻塞）示例 |
-| virtual-scroll-export.html | ![高级](https://img.shields.io/badge/难度-高级-red) | 虚拟滚动导出（百万级数据）示例 |
+| 示例                       | 难度                                                   | 描述                                        |
+| -------------------------- | ------------------------------------------------------ | ------------------------------------------- |
+| basic-export.html          | ![简单](https://img.shields.io/badge/难度-简单-green)  | 基础导出示例                                |
+| progress-export.html       | ![中等](https://img.shields.io/badge/难度-中等-yellow) | 进度显示示例                                |
+| advanced-features.html     | ![进阶](https://img.shields.io/badge/难度-进阶-orange) | 高级特性示例                                |
+| container-export.html      | ![中等](https://img.shields.io/badge/难度-中等-yellow) | 容器元素导出示例                            |
+| array-export.html          | ![进阶](https://img.shields.io/badge/难度-进阶-orange) | 数组导出（嵌套表头 + 数据合并）示例         |
+| tree-export.html           | ![进阶](https://img.shields.io/badge/难度-进阶-orange) | 树形数据导出（递归拍平 + 层级缩进）示例     |
+| multi-sheet-export.html    | ![进阶](https://img.shields.io/badge/难度-进阶-orange) | 多工作表导出示例                            |
+| worker-export.html         | ![高级](https://img.shields.io/badge/难度-高级-red)    | Web Worker 导出（避免主线程阻塞）示例       |
+| virtual-scroll-export.html | ![高级](https://img.shields.io/badge/难度-高级-red)    | 虚拟滚动导出（百万级数据）示例              |
+| streaming-export.html      | ![高级](https://img.shields.io/badge/难度-高级-red)    | 流式 CSV 导出（分块 Blob 降低内存峰值）示例 |
 
 **运行示例**：
 
@@ -289,6 +307,7 @@ basic-http-server .
 - **`export_table_to_csv_batch`**：CSV 异步分批导出。
 - **`export_table_to_xlsx_batch`**：XLSX 异步分批导出。
 - **`export_tables_to_xlsx_batch`**：多工作表分批异步 XLSX 导出。
+- **`export_data_streaming`**：流式 CSV 导出（分块写入，降低内存峰值）。
 
 更多细节请查阅 [API.md](./API.md)。
 
@@ -412,14 +431,14 @@ just publish-packages    # 发布到 npm（默认 latest tag）
 
 #### 子包说明
 
-| 子包 | 说明 | 依赖 |
-| --- | --- | --- |
-| `@bsg-export/types` | 严格 TypeScript 类型定义 | 无 |
-| `@bsg-export/react` | React Hook + 组件封装 | `@bsg-export/types` |
-| `@bsg-export/vue` | Vue 3 Composable + 组件封装 | `@bsg-export/types` |
-| `@bsg-export/svelte` | Svelte Store 封装 + 组件 | `@bsg-export/types` |
-| `@bsg-export/solid` | Solid.js Primitive + 组件封装 | `@bsg-export/types` |
-| `@bsg-export/worker` | Web Worker 导出封装 | `@bsg-export/types` |
+| 子包                 | 说明                          | 依赖                |
+| -------------------- | ----------------------------- | ------------------- |
+| `@bsg-export/types`  | 严格 TypeScript 类型定义      | 无                  |
+| `@bsg-export/react`  | React Hook + 组件封装         | `@bsg-export/types` |
+| `@bsg-export/vue`    | Vue 3 Composable + 组件封装   | `@bsg-export/types` |
+| `@bsg-export/svelte` | Svelte Store 封装 + 组件      | `@bsg-export/types` |
+| `@bsg-export/solid`  | Solid.js Primitive + 组件封装 | `@bsg-export/types` |
+| `@bsg-export/worker` | Web Worker 导出封装           | `@bsg-export/types` |
 
 > 子包版本号在 `just bump` 时会自动与主包同步。
 
@@ -523,7 +542,7 @@ belobog-stellar-grid/
 - [x] **E2E 测试体系**: 引入 Playwright 进行端到端测试，覆盖 33 个测试场景。 ✅
 - [x] **框架集成库**: 提供 React (`@bsg-export/react`)、Vue 3 (`@bsg-export/vue`)、Svelte (`@bsg-export/svelte`)、Solid.js (`@bsg-export/solid`) 官方封装组件。 ✅
 - [x] **严格 TypeScript 类型**: `@bsg-export/types` 提供完整类型安全定义。 ✅
-- [ ] **Streaming 导出**: 对超大文件采用流式写入，降低内存峰值占用。
+- [x] **Streaming 导出**: 对超大文件采用流式写入，降低内存峰值占用。 ✅
 - [ ] **WASM 体积优化**: 探索 `wasm-opt` 更激进的优化策略或按功能拆分 WASM 模块。
 - [ ] **性能基准测试**: 建立自动化 Benchmark，持续追踪导出性能回归。
 

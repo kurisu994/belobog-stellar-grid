@@ -2,6 +2,7 @@ mod batch_export;
 mod batch_export_xlsx;
 mod core;
 mod resource;
+mod streaming_export;
 mod utils;
 mod validation;
 
@@ -15,6 +16,9 @@ pub use core::{ExportFormat, export_data, export_table, export_tables_xlsx, gene
 // 导出分批异步导出
 pub use batch_export::export_table_to_csv_batch;
 pub use batch_export_xlsx::{export_table_to_xlsx_batch, export_tables_to_xlsx_batch};
+
+// 导出流式导出
+pub use streaming_export::export_data_streaming;
 
 // 导出 utils 模块的公共函数
 pub use utils::{escape_csv_injection, set_panic_hook};

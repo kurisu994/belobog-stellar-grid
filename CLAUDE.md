@@ -26,6 +26,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - `cargo test --test test_resource`: RAII 资源管理
   - `cargo test --test test_unified_api`: 统一 API
   - `cargo test --test test_security`: 安全测试（CSV 注入等）
+  - `cargo test --test test_streaming_export`: 流式导出逻辑
 - **按名称过滤单个测试**: `cargo test -- test_flatten_tree`
 - **全面测试**: `just test`
 - **修改后完整检查**: `cargo test && cargo clippy -- -D warnings && cargo fmt`
@@ -43,7 +44,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### 子包管理
 
-- **构建子包**: `just build-packages` (构建所有 @bsg-export/* 子包)
+- **构建子包**: `just build-packages` (构建所有 @bsg-export/\* 子包)
 - **发布子包**: `just publish-packages [tag]` (发布到 npm)
 - **版本同步**: `just bump-core` 自动同步子包版本
 - 子包使用 **pnpm** 管理依赖
@@ -66,11 +67,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### 两条数据通路
 
 #### DOM 模式 (export_table)
+
 ```
 table_id → table_extractor.rs (DOM 解析) → export_csv/xlsx.rs (文件生成)
 ```
 
 #### Data 模式 (export_data)
+
 ```
 data + columns → data_export.rs (数据处理) → export_csv/xlsx.rs (文件生成)
 ```
@@ -88,8 +91,9 @@ src/
 │   ├── table_extractor.rs  # DOM 解析与数据提取 (支持合并单元格、隐藏行列检测)
 │   ├── export_csv.rs   # CSV 格式生成
 │   └── export_xlsx.rs  # XLSX 格式生成 (支持合并单元格、公式导出、多 Sheet)
-├── batch_export.rs     # CSV 异步分批处理 (针对大数据量，防止 UI 阻塞)
+├── batch_export.rs     # CSV 异步分批处理 (分块 Blob 策略，降低内存峰值)
 ├── batch_export_xlsx.rs # XLSX 异步分批处理
+├── streaming_export.rs # 流式 CSV 数据导出 (分块写入 + Blob 拼接，降低内存峰值)
 └── utils.rs            # 调试与辅助工具
 
 packages/                # 框架封装子包 (均为 @bsg-export/ 命名空间)
@@ -104,23 +108,28 @@ packages/                # 框架封装子包 (均为 @bsg-export/ 命名空间)
 ### 关键模块职责
 
 #### 统一入口 (src/core/mod.rs)
+
 - **export_table**: DOM 导出，支持 CSV/XLSX、进度回调、隐藏行列排除
 - **export_data**: 纯数据导出，支持二维数组、对象数组、树形数据、复杂表头
 - **export_tables_xlsx**: 多工作表导出，将多个表格导出到同一个 Excel 文件的不同 Sheet
 - **generate_data_bytes**: 与 export_data 相同，但返回文件字节（Uint8Array）而不触发下载，专为 Worker 场景设计
+- **export_data_streaming**: 流式 CSV 导出，分块写入 + Blob 拼接，降低内存峰值（XLSX 自动回退同步）
 
 #### 核心算法 (src/core/data_export.rs)
+
 - **嵌套表头解析**: 支持配置嵌套的 children 实现多级表头
 - **树形数据处理**: 通过 children_key 自动递归拍平，支持 indent_column 缩进
 - **合并单元格**: 支持数据中定义 rowSpan/colSpan 属性
 - **安全限制**: MAX_DEPTH=64 防止深层嵌套导致栈溢出，MAX_HEADER_CELLS=100_000 防止 OOM
 
 #### DOM 提取 (src/core/table_extractor.rs)
+
 - **隐藏行列检测**: 支持 display: none 的隐藏检测
 - **合并单元格识别**: 自动识别 HTML rowspan 和 colspan
 - **容器查找**: 如果 ID 是 div，自动查找内部的 table
 
 #### 格式导出器
+
 - **CSV**: 使用 csv crate，高性能，不支持合并单元格，自动转义公式注入字符
 - **XLSX**: 使用 rust_xlsxwriter，支持多 Sheet、合并单元格、公式防护（统一使用 write_string）
 
@@ -138,26 +147,26 @@ let _guard = UrlGuard::new(&url); // 作用域结束自动 revoke
 
 1. **模块隔离**: `lib.rs` 仅做模块声明和重导出，不含业务逻辑；核心逻辑必须在 `src/core/` 中。
 2. **安全优先**:
-    - 导出前必须调用 `validate_filename()`。
-    - 必须使用 `Result<T, JsValue>` 处理错误，**严禁** `panic!` 或 `unwrap()`。
+   - 导出前必须调用 `validate_filename()`。
+   - 必须使用 `Result<T, JsValue>` 处理错误，**严禁** `panic!` 或 `unwrap()`。
 3. **RAII 资源管理**:
-    - **必须**使用 `UrlGuard::new(&url)` 管理 Blob URL。
-    - 禁止手动调用 `revoke_object_url`。
+   - **必须**使用 `UrlGuard::new(&url)` 管理 Blob URL。
+   - 禁止手动调用 `revoke_object_url`。
 4. **WASM 兼容性**:
-    - 导出函数必须标记 `#[wasm_bindgen]`。
-    - 尽量使用引用 `&str` 传递字符串以减少拷贝。
+   - 导出函数必须标记 `#[wasm_bindgen]`。
+   - 尽量使用引用 `&str` 传递字符串以减少拷贝。
 5. **错误处理**: 错误信息必须为中文，使用 `Err(JsValue::from_str("错误说明"))`。
 6. **测试约束**: 使用 JsValue 的代码需要加 `#[cfg(target_arch = "wasm32")]` 标记。
 
 ### 常见错误速查
 
-| 错误类型   | 错误写法                    | 正确写法                              |
-|--------|---------------------------|-------------------------------------|
-| **验证** | `fn export(name: String)` | `validate_filename(&name)?;`        |
-| **资源** | 手动 revoke URL             | `let _guard = UrlGuard::new(&url);` |
-| **错误** | `panic!("error")`         | `Err(JsValue::from_str("错误说明"))`    |
-| **引用** | `String` 参数传递            | `&str` 参数传递 (WASM 边界除外)          |
-| **测试** | 无 cfg 属性                  | `#[cfg(target_arch = "wasm32")]`      |
+| 错误类型 | 错误写法                  | 正确写法                             |
+| -------- | ------------------------- | ------------------------------------ |
+| **验证** | `fn export(name: String)` | `validate_filename(&name)?;`         |
+| **资源** | 手动 revoke URL           | `let _guard = UrlGuard::new(&url);`  |
+| **错误** | `panic!("error")`         | `Err(JsValue::from_str("错误说明"))` |
+| **引用** | `String` 参数传递         | `&str` 参数传递 (WASM 边界除外)      |
+| **测试** | 无 cfg 属性               | `#[cfg(target_arch = "wasm32")]`     |
 
 ### 函数规范
 
@@ -194,13 +203,14 @@ pub fn example_function(param: &str) -> Result<(), JsValue> {
 
 ### 测试文件对应关系
 
-| 测试文件               | 测试内容                     |
-|------------------------|-----------------------------|
-| lib_tests.rs           | DOM 基础功能                 |
-| test_resource.rs       | RAII 资源管理                |
-| test_unified_api.rs    | 统一 API 接口                |
-| test_data_export.rs    | 纯数据/树形/合并/表头         |
-| test_security.rs       | 安全测试 (CSV 注入等)         |
+| 测试文件                 | 测试内容                     |
+| ------------------------ | ---------------------------- |
+| lib_tests.rs             | DOM 基础功能                 |
+| test_resource.rs         | RAII 资源管理                |
+| test_unified_api.rs      | 统一 API 接口                |
+| test_data_export.rs      | 纯数据/树形/合并/表头        |
+| test_security.rs         | 安全测试 (CSV 注入等)        |
+| test_streaming_export.rs | 流式导出逻辑 (分块/进度/BOM) |
 
 ### 新增功能测试要求
 
