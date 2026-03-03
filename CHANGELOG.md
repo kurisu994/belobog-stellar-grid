@@ -9,9 +9,20 @@
 
 ## [Unreleased]
 
----
+### ✨ 新增
 
-## [1.1.0] - 2026-03-03
+- 🆕 **性能基准测试体系**: 建立两层自动化 Benchmark，持续追踪导出性能回归
+  - **Rust 原生 Benchmark**（Criterion）：覆盖 CSV/XLSX 生成（4 种数据规模）、合并单元格场景、CSV 注入转义
+  - **E2E 性能 Benchmark**（Playwright）：6 个端到端性能测试场景
+    - WASM 初始化耗时测量
+    - DOM 表格 CSV/XLSX 导出（1000 行 × 10 列）
+    - 纯数据 CSV/XLSX 导出（1000 行对象数组，使用 `generate_data_bytes` 避免触发下载）
+    - 树形数据 XLSX 导出（3 层 ~584 节点）
+  - 每个 E2E 场景运行 3 次取中位数，设置合理阈值断言防止性能回归
+  - 新增 `examples/benchmark.html` 基准测试页面
+  - 新增 `e2e/tests/benchmark.spec.ts` 性能测试文件
+
+---
 
 ## [1.1.0] - 2026-03-03
 

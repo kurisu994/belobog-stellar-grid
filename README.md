@@ -30,7 +30,7 @@
 - **🚀 极致性能**：Rust 原生速度 + WebAssembly 优化
 - **🔒 企业级安全**：内置文件名验证，防止路径遍历攻击
 - **📦 轻量级**：约 1.3MB 的 WASM 文件（Gzip 压缩后约 450KB）
-- **✅ 100% 测试覆盖**：130 个单元测试 + 33 个 E2E 测试确保代码质量
+- **✅ 100% 测试覆盖**：130 个单元测试 + 39 个 E2E 测试确保代码质量
 - **🏗️ 模块化架构**：清晰的模块设计，易于维护和扩展
 - **🌍 国际化支持**：完美支持中文、日文、韩文等 Unicode 字符
 - **💾 多格式导出**：支持 CSV 和 XLSX (Excel) 两种格式
@@ -279,6 +279,7 @@ try {
 | worker-export.html         | ![高级](https://img.shields.io/badge/难度-高级-red)    | Web Worker 导出（避免主线程阻塞）示例       |
 | virtual-scroll-export.html | ![高级](https://img.shields.io/badge/难度-高级-red)    | 虚拟滚动导出（百万级数据）示例              |
 | streaming-export.html      | ![高级](https://img.shields.io/badge/难度-高级-red)    | 流式 CSV 导出（分块 Blob 降低内存峰值）示例 |
+| benchmark.html             | ![高级](https://img.shields.io/badge/难度-高级-red)    | 性能基准测试（E2E Benchmark）               |
 
 #### 框架集成示例
 
@@ -501,7 +502,7 @@ belobog-stellar-grid/
 │   ├── test_streaming_export.rs # 流式导出测试（26 个）（注：需 wasm32 环境）
 │   ├── fixtures/          # 测试夹具
 │   └── browser/           # 浏览器测试辅助
-├── e2e/                   # E2E 测试目录（Playwright，33 个测试）
+├── e2e/                   # E2E 测试目录（Playwright，39 个测试）
 │   ├── playwright.config.ts # Playwright 配置
 │   └── tests/             # E2E 测试用例
 │       ├── basic-export.spec.ts      # 基础导出测试（6 个）
@@ -509,7 +510,8 @@ belobog-stellar-grid/
 │       ├── container-export.spec.ts  # 容器导出测试（5 个）
 │       ├── multi-sheet-export.spec.ts # 多工作表测试（3 个）
 │       ├── tree-export.spec.ts       # 树形数据测试（7 个）
-│       └── wasm-init.spec.ts         # WASM 初始化测试（3 个）
+│       ├── wasm-init.spec.ts         # WASM 初始化测试（3 个）
+│       └── benchmark.spec.ts        # 性能基准测试（6 个）
 ├── examples/              # 原生 HTML 示例目录
 ├── packages/              # 框架集成子包
 │   ├── types/             # @bsg-export/types - 严格 TypeScript 类型定义
@@ -536,6 +538,21 @@ belobog-stellar-grid/
 ---
 
 ## 🚀 性能指标
+
+### Benchmark 基准数据
+
+> 以下数据基于 Playwright E2E Benchmark，每个场景运行 3 次取中位数（Chromium，本地环境）。
+
+| 场景                        | 中位数   | 范围             |
+| --------------------------- | -------- | ---------------- |
+| WASM 初始化                 | ~16ms    | -                |
+| DOM CSV 导出（1000行×10列） | ~14ms    | 11~36ms          |
+| DOM XLSX 导出（1000行×10列）| ~40ms    | 31~56ms          |
+| 纯数据 CSV（1000行×10列）   | ~8ms     | 6~9ms            |
+| 纯数据 XLSX（1000行×10列）  | ~25ms    | 24~27ms          |
+| 树形 XLSX（~584节点）       | ~7ms     | 7~7ms            |
+
+运行 Benchmark：`cargo bench` (Rust) 或 `cd e2e && npx playwright test tests/benchmark.spec.ts` (E2E)
 
 ### 运行时性能
 
@@ -573,7 +590,7 @@ belobog-stellar-grid/
 - [x] **严格 TypeScript 类型**: `@bsg-export/types` 提供完整类型安全定义。 ✅
 - [x] **Streaming 导出**: 对超大文件采用流式写入，降低内存峰值占用。 ✅
 - [ ] **WASM 体积优化**: 探索 `wasm-opt` 更激进的优化策略或按功能拆分 WASM 模块。
-- [ ] **性能基准测试**: 建立自动化 Benchmark，持续追踪导出性能回归。
+- [x] **性能基准测试**: 建立自动化 Benchmark（Criterion + Playwright），持续追踪导出性能回归。 ✅
 
 ### 🌍 生态扩展
 
