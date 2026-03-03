@@ -1,41 +1,42 @@
 # 测试说明
 
-本目录包含 belobog-stellar-grid 项目的所有集成测试，共 **103 个测试用例**（`cargo test` 环境下）。
+本目录包含 belobog-stellar-grid 项目的所有集成测试，共 **130 个测试用例**（`cargo test` 环境下）。
 
 ## 目录结构
 
 ```
 tests/
-├── README.md              # 本文件
-├── lib_tests.rs           # 核心功能测试（41 个）⭐
-├── test_data_export.rs    # 纯数据导出测试（33 个）⭐
-├── test_resource.rs       # RAII 资源管理测试（8 个）
-├── test_security.rs       # 安全/CSV注入测试（3 个）
-├── test_unified_api.rs    # 统一 API 测试（4 个）
-├── BUILD_REPORT.md        # 构建报告
-├── browser/               # 浏览器环境测试（wasm-pack test）
-└── fixtures/              # 测试数据文件
-    └── test-page.html     # 手动功能验证页面
+├── README.md                  # 本文件
+├── lib_tests.rs               # 核心功能测试（41 个）⭐
+├── test_data_export.rs        # 纯数据导出测试（34 个）⭐
+├── test_resource.rs           # RAII 资源管理测试（8 个）
+├── test_security.rs           # 安全/CSV注入测试（3 个）
+├── test_streaming_export.rs   # 流式导出测试（26 个）
+└── test_unified_api.rs        # 统一 API 测试（4 个）
 ```
 
-> 另有 `src/core/data_export.rs` 中的内联单元测试（10 个在 native 环境运行，19 个仅在 wasm32 环境运行）以及 `src/utils.rs`（2 个）和 `src/validation.rs`（1 个）中的内联测试。
+> 另有 `src/core/data_export.rs` 中的内联单元测试（14 个在 native 环境运行，19 个仅在 wasm32 环境运行）以及 `src/utils.rs`（2 个）和 `src/validation.rs`（1 个）中的内联测试。
 
 ## 运行测试
 
 ```bash
-# 运行所有测试（103 个）
+# 运行所有测试（130 个）
 cargo test
 
 # 按文件运行
-cargo test --test lib_tests           # 核心功能（41 个）
-cargo test --test test_data_export    # 纯数据导出（33 个）
-cargo test --test test_resource       # 资源管理（8 个）
-cargo test --test test_security       # CSV 注入（3 个）
-cargo test --test test_unified_api    # ExportFormat（4 个）
+cargo test --test lib_tests               # 核心功能（41 个）
+cargo test --test test_data_export        # 纯数据导出（34 个）
+cargo test --test test_resource           # 资源管理（8 个）
+cargo test --test test_security           # CSV 注入（3 个）
+cargo test --test test_streaming_export   # 流式导出（26 个）
+cargo test --test test_unified_api        # ExportFormat（4 个）
 
 # 按名称过滤
 cargo test test_flatten_tree          # 单个测试
 cargo test -- --nocapture             # 显示 println 输出
+
+# 性能基准测试
+cargo bench --bench export_benchmarks
 
 # 完整检查
 cargo test && cargo clippy -- -D warnings && cargo fmt --check
@@ -53,7 +54,7 @@ cargo test && cargo clippy -- -D warnings && cargo fmt --check
 - **输入验证**（4 个）：空输入、非法参数
 - **边界/回归测试**（10 个）：大数据、极端输入、已修复 Bug 验证
 
-### test_data_export.rs（33 个）
+### test_data_export.rs（34 个）
 
 纯数据导出逻辑（不依赖 DOM），包括：
 
@@ -62,6 +63,15 @@ cargo test && cargo clippy -- -D warnings && cargo fmt --check
 - **树形数据**：递归拍平、层级缩进、自定义 `childrenKey`
 - **合并单元格**：`rowSpan`/`colSpan` 处理
 - **数据格式化**：数字/布尔/null 类型转换
+
+### test_streaming_export.rs（26 个）
+
+流式 CSV 导出逻辑（不依赖 DOM），包括：
+
+- **分块策略**：默认分块、自定义 chunkSize、边界情况
+- **进度回调**：进度递增、严格模式
+- **BOM 处理**：UTF-8 BOM 头写入
+- **XLSX 回退**：格式检测与同步回退
 
 ### test_resource.rs（8 个）
 
@@ -81,17 +91,18 @@ CSV 注入防护测试：`=`、`+`、`-`、`@` 等危险前缀转义。
 
 ## 测试统计
 
-| 测试文件 | 数量 | 覆盖模块 |
-|----------|------|----------|
-| lib_tests.rs | 41 | CSV 生成、文件名验证、输入校验 |
-| test_data_export.rs | 33 | 纯数据导出、树形结构、嵌套表头 |
-| data_export.rs（内联） | 10 | 内部算法（表头解析、树形拍平） |
-| utils.rs（内联） | 2 | 工具函数 |
-| validation.rs（内联） | 1 | 文件名验证 |
-| test_resource.rs | 8 | UrlGuard RAII |
-| test_unified_api.rs | 4 | ExportFormat 枚举 |
-| test_security.rs | 3 | CSV 注入防护 |
-| **合计** | **103** | |
+| 测试文件                 | 数量    | 覆盖模块                       |
+| ------------------------ | ------- | ------------------------------ |
+| lib_tests.rs             | 41      | CSV 生成、文件名验证、输入校验 |
+| test_data_export.rs      | 34      | 纯数据导出、树形结构、嵌套表头 |
+| test_streaming_export.rs | 26      | 流式导出、分块策略、进度回调   |
+| data_export.rs（内联）   | 14      | 内部算法（表头解析、树形拍平） |
+| test_resource.rs         | 8       | UrlGuard RAII                  |
+| test_unified_api.rs      | 4       | ExportFormat 枚举              |
+| test_security.rs         | 3       | CSV 注入防护                   |
+| utils.rs（内联）         | 2       | 工具函数                       |
+| validation.rs（内联）    | 1       | 文件名验证                     |
+| **合计**                 | **130** |                                |
 
 > 注：`data_export.rs` 中另有 19 个 `#[cfg(target_arch = "wasm32")]` 测试仅在 wasm32 环境运行，不计入上表。
 

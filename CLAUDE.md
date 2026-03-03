@@ -27,6 +27,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - `cargo test --test test_unified_api`: 统一 API
   - `cargo test --test test_security`: 安全测试（CSV 注入等）
   - `cargo test --test test_streaming_export`: 流式导出逻辑
+- **性能基准测试**: `cargo bench --bench export_benchmarks` (包含 CSV/XLSX 生成、合并场景对比)
 - **按名称过滤单个测试**: `cargo test -- test_flatten_tree`
 - **全面测试**: `just test`
 - **修改后完整检查**: `cargo test && cargo clippy -- -D warnings && cargo fmt`
@@ -95,6 +96,10 @@ src/
 ├── batch_export_xlsx.rs # XLSX 异步分批处理
 ├── streaming_export.rs # 流式 CSV 数据导出 (分块写入 + Blob 拼接，降低内存峰值)
 └── utils.rs            # 调试与辅助工具
+
+tests/                   # 单元测试目录 (130 个测试)
+benches/                 # 性能基准测试目录 (Criterion)
+e2e/                     # E2E 浏览器自动化测试目录 (Playwright)
 
 packages/                # 框架封装子包 (均为 @bsg-export/ 命名空间)
 ├── types/              # 严格 TypeScript 类型定义（零运行时）

@@ -21,6 +21,9 @@
   - 每个 E2E 场景运行 3 次取中位数，设置合理阈值断言防止性能回归
   - 新增 `examples/benchmark.html` 基准测试页面
   - 新增 `e2e/tests/benchmark.spec.ts` 性能测试文件
+  - **CI 自动化集成**（GitHub Actions）：
+    - 自动运行并追踪 `cargo bench` 历史数据（PR 性能回归 30% 告警）
+    - 自动追踪 WASM 产物体积变化（大于 2MB 告警）
 
 ---
 
