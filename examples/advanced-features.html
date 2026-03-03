@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>高级特性示例 - belobog-stellar-grid</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 32px;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 16px;
+        }
+
+        .demo-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .demo-card {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            padding: 30px;
+            transition: transform 0.3s ease;
+        }
+
+        .demo-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .demo-card h2 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 20px;
+        }
+
+        .demo-card p {
+            color: #666;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            margin-bottom: 15px;
+            transition: border-color 0.3s ease;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        button {
+            width: 100%;
+            padding: 12px 24px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            color: white;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 10px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 13px;
+        }
+
+        td {
+            padding: 8px 10px;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 13px;
+        }
+
+        tr:hover {
+            background-color: #f8f9fa;
+        }
+
+        .message {
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 15px;
+            font-size: 14px;
+            display: none;
+        }
+
+        .message.show {
+            display: block;
+        }
+
+        .message.success {
+            background: #e8f5e9;
+            color: #2e7d32;
+            border-left: 4px solid #4caf50;
+        }
+
+        .message.error {
+            background: #ffebee;
+            color: #c62828;
+            border-left: 4px solid #f44336;
+        }
+
+        .info-section {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            padding: 30px;
+            margin-top: 20px;
+        }
+
+        .info-section h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+        }
+
+        .feature-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .feature-list li {
+            padding: 10px 0;
+            padding-left: 30px;
+            position: relative;
+            line-height: 1.6;
+            color: #555;
+        }
+
+        .feature-list li:before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: #4caf50;
+            font-weight: bold;
+            font-size: 18px;
+        }
+
+        .validation-result {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+
+        .validation-result .valid {
+            color: #2e7d32;
+        }
+
+        .validation-result .invalid {
+            color: #c62828;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>⚡ 高级特性演示</h1>
+            <p class="subtitle">展示 belobog-stellar-grid 的所有高级功能</p>
+        </div>
+
+        <div class="demo-grid">
+            <!-- 示例 1: 自定义文件名 -->
+            <div class="demo-card">
+                <h2>📝 自定义文件名导出</h2>
+                <p>输入您想要的文件名（会自动添加 .csv 扩展名）</p>
+
+                <input type="text" id="custom-filename" placeholder="例如: 我的数据" value="销售报表_2024">
+
+                <table id="table-1">
+                    <thead>
+                        <tr>
+                            <th>月份</th>
+                            <th>销售额</th>
+                            <th>增长率</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>1月</td><td>¥120,000</td><td>+15%</td></tr>
+                        <tr><td>2月</td><td>¥135,000</td><td>+12.5%</td></tr>
+                        <tr><td>3月</td><td>¥142,000</td><td>+5.2%</td></tr>
+                    </tbody>
+                </table>
+
+                <button onclick="exportCustomFilename()">导出</button>
+                <div class="message" id="message-1"></div>
+            </div>
+
+            <!-- 示例 2: 文件名验证 -->
+            <div class="demo-card">
+                <h2>🛡️ 文件名安全验证</h2>
+                <p>尝试输入不同的文件名，查看验证结果</p>
+
+                <input type="text" id="test-filename" placeholder="输入文件名测试">
+
+                <button onclick="testFilenameValidation()">验证文件名</button>
+
+                <div class="validation-result" id="validation-result">
+                    <div>等待输入文件名...</div>
+                </div>
+            </div>
+
+            <!-- 示例 3: 批量导出 -->
+            <div class="demo-card">
+                <h2>📦 批量导出多个表格</h2>
+                <p>一次性导出多个表格到不同的文件</p>
+
+                <table id="table-batch-1">
+                    <thead>
+                        <tr><th>部门</th><th>人数</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>技术部</td><td>45</td></tr>
+                        <tr><td>市场部</td><td>30</td></tr>
+                    </tbody>
+                </table>
+
+                <table id="table-batch-2" style="margin-top: 10px;">
+                    <thead>
+                        <tr><th>产品</th><th>库存</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>产品A</td><td>120</td></tr>
+                        <tr><td>产品B</td><td>85</td></tr>
+                    </tbody>
+                </table>
+
+                <button onclick="exportBatch()">批量导出</button>
+                <div class="message" id="message-batch"></div>
+            </div>
+
+            <!-- 示例 4: 错误处理 -->
+            <div class="demo-card">
+                <h2>🚨 错误处理演示</h2>
+                <p>演示各种错误情况的处理</p>
+
+                <button onclick="testInvalidTableId()" style="margin-bottom: 10px;">测试无效表格ID</button>
+                <button onclick="testInvalidFilename()" style="margin-bottom: 10px;">测试非法文件名</button>
+                <button onclick="testEmptyFilename()">测试空文件名</button>
+
+                <div class="message" id="message-error"></div>
+            </div>
+        </div>
+
+        <div class="info-section">
+            <h2>✨ 功能特性</h2>
+            <ul class="feature-list">
+                <li><strong>文件名自动处理：</strong>自动添加 .csv 扩展名，保持原有大小写</li>
+                <li><strong>安全验证：</strong>防止路径遍历、危险字符、Windows 保留名称</li>
+                <li><strong>Unicode 支持：</strong>完美支持中文、日文、韩文等多语言文件名</li>
+                <li><strong>批量导出：</strong>可以一次性导出多个表格</li>
+                <li><strong>错误处理：</strong>友好的错误提示，帮助快速定位问题</li>
+                <li><strong>内存安全：</strong>使用 Rust 的 RAII 模式自动管理资源</li>
+            </ul>
+        </div>
+    </div>
+
+    <script type="module">
+        import init, { export_table_to_csv } from '../pkg/belobog_stellar_grid.js';
+
+        let wasmInitialized = false;
+
+        async function initWasm() {
+            if (!wasmInitialized) {
+                try {
+                    await init();
+                    wasmInitialized = true;
+                    console.log('✅ WASM 模块初始化成功');
+                } catch (error) {
+                    console.error('❌ WASM 初始化失败:', error);
+                    throw error;
+                }
+            }
+        }
+
+        function showMessage(elementId, message, type = 'success') {
+            const messageDiv = document.getElementById(elementId);
+            messageDiv.textContent = message;
+            messageDiv.className = `message ${type} show`;
+            setTimeout(() => {
+                messageDiv.classList.remove('show');
+            }, 3000);
+        }
+
+        // 示例 1: 自定义文件名导出
+        window.exportCustomFilename = async function() {
+            try {
+                await initWasm();
+                const filename = document.getElementById('custom-filename').value || '默认文件名';
+                export_table('table-1', filename);
+                showMessage('message-1', `✅ 导出成功！文件名: ${filename}.csv`, 'success');
+            } catch (error) {
+                showMessage('message-1', `❌ 导出失败: ${error}`, 'error');
+            }
+        };
+
+        // 示例 2: 文件名验证（模拟）
+        window.testFilenameValidation = function() {
+            const filename = document.getElementById('test-filename').value;
+            const resultDiv = document.getElementById('validation-result');
+
+            const tests = [
+                { name: '空文件名检查', pass: filename.length > 0 },
+                { name: '路径分隔符检查', pass: !filename.includes('/') && !filename.includes('\\') },
+                { name: '危险字符检查', pass: !/[<>:"|?*]/.test(filename) },
+                { name: '长度检查', pass: filename.length <= 255 },
+                { name: '开头结尾检查', pass: !filename.startsWith('.') && !filename.startsWith(' ') &&
+                                              !filename.endsWith('.') && !filename.endsWith(' ') },
+            ];
+
+            const reservedNames = ['CON', 'PRN', 'AUX', 'NUL', 'COM1', 'COM2', 'COM3', 'LPT1', 'LPT2'];
+            const baseName = filename.split('.')[0].toUpperCase();
+            tests.push({ name: 'Windows保留名检查', pass: !reservedNames.includes(baseName) });
+
+            let html = `<div style="margin-bottom: 10px;"><strong>文件名: "${filename}"</strong></div>`;
+            let allPass = true;
+
+            tests.forEach(test => {
+                const className = test.pass ? 'valid' : 'invalid';
+                const icon = test.pass ? '✓' : '✗';
+                html += `<div class="${className}">${icon} ${test.name}</div>`;
+                if (!test.pass) allPass = false;
+            });
+
+            html += `<div style="margin-top: 10px; padding-top: 10px; border-top: 2px solid #ddd;">`;
+            if (allPass) {
+                html += `<div class="valid"><strong>✓ 验证通过</strong></div>`;
+            } else {
+                html += `<div class="invalid"><strong>✗ 验证失败</strong></div>`;
+            }
+            html += `</div>`;
+
+            resultDiv.innerHTML = html;
+        };
+
+        // 示例 3: 批量导出
+        window.exportBatch = async function() {
+            try {
+                await initWasm();
+                const tables = [
+                    { id: 'table-batch-1', filename: '部门统计' },
+                    { id: 'table-batch-2', filename: '产品库存' }
+                ];
+
+                let successCount = 0;
+                for (const table of tables) {
+                    // 使用新的 API 签名: table_id, filename, format, exclude_hidden, progress_callback
+                    export_table(table.id, table.filename, undefined, false, undefined);
+                    successCount++;
+                    // 添加小延迟，避免浏览器下载限制
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+
+                showMessage('message-batch', `✅ 成功导出 ${successCount} 个文件！`, 'success');
+            } catch (error) {
+                showMessage('message-batch', `❌ 批量导出失败: ${error}`, 'error');
+            }
+        };
+
+        // 示例 4: 错误处理
+        window.testInvalidTableId = async function() {
+            try {
+                await initWasm();
+                export_table('non-existent-table', '测试');
+            } catch (error) {
+                showMessage('message-error', `预期错误: ${error}`, 'error');
+            }
+        };
+
+        window.testInvalidFilename = async function() {
+            try {
+                await initWasm();
+                export_table('table-1', 'invalid/filename');
+            } catch (error) {
+                showMessage('message-error', `预期错误: ${error}`, 'error');
+            }
+        };
+
+        window.testEmptyFilename = async function() {
+            try {
+                await initWasm();
+                export_table('table-1', '');
+            } catch (error) {
+                showMessage('message-error', `预期错误: ${error}`, 'error');
+            }
+        };
+
+        // 页面加载时初始化
+        initWasm().catch(error => {
+            console.error('初始化失败:', error);
+        });
+    </script>
+</body>
+</html>
+

@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>容器内表格导出示例 - belobog-stellar-grid</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            padding: 40px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 { color: #333; margin-bottom: 10px; font-size: 32px; }
+        .subtitle { color: #666; margin-bottom: 30px; font-size: 14px; }
+        .section { margin-bottom: 40px; }
+        .section h2 { color: #444; margin-bottom: 15px; font-size: 20px; border-left: 4px solid #667eea; padding-left: 12px; }
+        .section p { color: #666; margin-bottom: 15px; line-height: 1.6; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 13px;
+        }
+        tr:hover { background-color: #f8f9fa; }
+        .button-group {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin: 20px 0;
+        }
+        button {
+            padding: 12px 24px;
+            font-size: 14px;
+            font-weight: 600;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            min-width: 140px;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102,126,234,0.4);
+        }
+        .btn-excel {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+        }
+        .btn-excel:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(40,167,69,0.4);
+        }
+        button:active { transform: translateY(0); }
+        .code {
+            background: #e8f0fe;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            color: #5f6368;
+        }
+        /* 模拟 Ant Design 表格嵌套结构 */
+        .ant-table-wrapper {
+            border: 1px solid #f0f0f0;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .ant-table-wrapper .ant-tag {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            margin: 2px;
+        }
+        .ant-tag-green { background: #f6ffed; color: #52c41a; border: 1px solid #b7eb8f; }
+        .ant-tag-blue { background: #e6f7ff; color: #1890ff; border: 1px solid #91d5ff; }
+        .ant-tag-red { background: #fff1f0; color: #f5222d; border: 1px solid #ffa39e; }
+        pre {
+            background: #282c34;
+            color: #abb2bf;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+        pre .keyword { color: #c678dd; }
+        pre .string { color: #98c379; }
+        pre .comment { color: #5c6370; font-style: italic; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏗️ 容器内表格导出</h1>
+        <p class="subtitle">
+            支持 Ant Design、Element UI 等 UI 框架的表格结构 —— ID 可以在容器元素上，自动查找内部的 <span class="code">&lt;table&gt;</span>
+        </p>
+
+        <!-- 场景1: 模拟 Ant Design 表格（ID 在 section 上） -->
+        <div class="section">
+            <h2>场景1: ID 在容器元素上（Ant Design 风格）</h2>
+            <p>ID <span class="code">"antd-table"</span> 设置在外层 <span class="code">&lt;section&gt;</span> 上，库会自动在其内部查找 <span class="code">&lt;table&gt;</span> 元素。</p>
+
+            <section id="antd-table" class="ant-table-wrapper">
+                <div>
+                    <div>
+                        <div>
+                            <table style="table-layout: auto;">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Age</th>
+                                        <th>Address</th>
+                                        <th>Tags</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>John Brown</td>
+                                        <td>32</td>
+                                        <td>New York No. 1 Lake Park</td>
+                                        <td>
+                                            <span class="ant-tag ant-tag-green">NICE</span>
+                                            <span class="ant-tag ant-tag-blue">DEVELOPER</span>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td>Jim Green</td>
+                                        <td>42</td>
+                                        <td>London No. 1 Lake Park</td>
+                                        <td>
+                                            <span class="ant-tag ant-tag-red">LOSER</span>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td>Joe Black</td>
+                                        <td>32</td>
+                                        <td>Sydney No. 1 Lake Park</td>
+                                        <td>
+                                            <span class="ant-tag ant-tag-green">COOL</span>
+                                            <span class="ant-tag ant-tag-blue">TEACHER</span>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <div class="button-group">
+                <button class="btn-primary" onclick="exportAntdCsv()">📄 导出为 CSV</button>
+                <button class="btn-excel" onclick="exportAntdXlsx()">📗 导出为 Excel</button>
+            </div>
+        </div>
+
+        <!-- 场景2: ID 在 div 上 -->
+        <div class="section">
+            <h2>场景2: ID 在 div 容器上</h2>
+            <p>ID <span class="code">"wrapper-table"</span> 设置在外层 <span class="code">&lt;div&gt;</span> 上，同样自动查找内部表格。</p>
+
+            <div id="wrapper-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>产品</th>
+                            <th>价格</th>
+                            <th>库存</th>
+                            <th>状态</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>MacBook Pro 16"</td>
+                            <td>¥18,999</td>
+                            <td>56</td>
+                            <td><span class="ant-tag ant-tag-green">在售</span></td>
+                        </tr>
+                        <tr>
+                            <td>iPhone 15 Pro</td>
+                            <td>¥8,999</td>
+                            <td>128</td>
+                            <td><span class="ant-tag ant-tag-green">在售</span></td>
+                        </tr>
+                        <tr>
+                            <td>AirPods Max</td>
+                            <td>¥4,399</td>
+                            <td>0</td>
+                            <td><span class="ant-tag ant-tag-red">缺货</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="button-group">
+                <button class="btn-primary" onclick="exportWrapperCsv()">📄 导出为 CSV</button>
+                <button class="btn-excel" onclick="exportWrapperXlsx()">📗 导出为 Excel</button>
+            </div>
+        </div>
+
+        <!-- 代码示例 -->
+        <div class="section">
+            <h2>💡 代码示例</h2>
+            <pre><span class="comment">// ID 在容器上（如 Ant Design 的 section/div），自动查找内部 table</span>
+<span class="keyword">import</span> { export_table, ExportFormat } <span class="keyword">from</span> <span class="string">'./pkg/belobog_stellar_grid.js'</span>;
+
+<span class="comment">// 无需关心 table 是否有 id，只需传入容器的 id</span>
+export_table(<span class="string">'antd-table'</span>, <span class="string">'用户列表.csv'</span>);
+export_table(<span class="string">'wrapper-table'</span>, <span class="string">'产品列表'</span>, ExportFormat.Xlsx);</pre>
+        </div>
+    </div>
+
+    <script type="module">
+        import init, { export_table, ExportFormat } from '../pkg/belobog_stellar_grid.js';
+
+        await init();
+
+        // 场景1: 从 Ant Design 风格容器导出
+        window.exportAntdCsv = () => {
+            export_table('antd-table', '用户列表.csv');
+            console.log('✅ 从 Ant Design 容器导出 CSV 完成');
+        };
+
+        window.exportAntdXlsx = () => {
+            export_table('antd-table', '用户列表', ExportFormat.Xlsx);
+            console.log('✅ 从 Ant Design 容器导出 Excel 完成');
+        };
+
+        // 场景2: 从 div 容器导出
+        window.exportWrapperCsv = () => {
+            export_table('wrapper-table', '产品列表.csv');
+            console.log('✅ 从 div 容器导出 CSV 完成');
+        };
+
+        window.exportWrapperXlsx = () => {
+            export_table('wrapper-table', '产品列表', ExportFormat.Xlsx);
+            console.log('✅ 从 div 容器导出 Excel 完成');
+        };
+
+        console.log('🚀 WebAssembly 已初始化，容器内表格导出功能可用');
+    </script>
+</body>
+</html>

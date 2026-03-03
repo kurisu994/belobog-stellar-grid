@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数组直接导出示例 - belobog-stellar-grid</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            padding: 40px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 { color: #333; margin-bottom: 10px; font-size: 32px; }
+        .subtitle { color: #666; margin-bottom: 30px; font-size: 14px; }
+        .section { margin-bottom: 40px; }
+        .section h2 { color: #444; margin-bottom: 15px; font-size: 20px; border-left: 4px solid #667eea; padding-left: 12px; }
+        .section p { color: #666; margin-bottom: 15px; line-height: 1.6; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-weight: 600;
+            font-size: 13px;
+        }
+        tr:hover { background-color: #f8f9fa; }
+        .button-group {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin: 20px 0;
+        }
+        button {
+            padding: 12px 24px;
+            font-size: 14px;
+            font-weight: 600;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            min-width: 140px;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102,126,234,0.4);
+        }
+        .btn-excel {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+        }
+        .btn-excel:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(40,167,69,0.4);
+        }
+        .btn-orange {
+            background: linear-gradient(135deg, #FF9966 0%, #FF5E62 100%);
+            color: white;
+        }
+        .btn-orange:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(255, 94, 98, 0.4);
+        }
+        button:active { transform: translateY(0); }
+        .code {
+            background: #e8f0fe;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            color: #5f6368;
+        }
+        pre {
+            background: #282c34;
+            color: #abb2bf;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-size: 13px;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+        pre .keyword { color: #c678dd; }
+        pre .string { color: #98c379; }
+        pre .comment { color: #5c6370; font-style: italic; }
+        pre .number { color: #d19a66; }
+        pre .func { color: #61afef; }
+        #preview-table { margin-top: 15px; }
+        .info-box {
+            background: #e6f7ff;
+            border: 1px solid #91d5ff;
+            border-radius: 8px;
+            padding: 15px 20px;
+            margin-bottom: 20px;
+            color: #0050b3;
+            font-size: 14px;
+        }
+        .info-box strong { color: #003a8c; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📦 数组直接导出</h1>
+        <p class="subtitle">
+            使用 <span class="code">export_data()</span> 从 JavaScript 数组直接生成 CSV/XLSX 文件，<strong>无需 DOM 表格</strong>
+        </p>
+
+        <div class="info-box">
+            <strong>💡 适用场景：</strong>
+            数据来自 API 接口、计算结果、用户输入等，无需先渲染到 HTML 表格再导出。
+            支持字符串、数字、布尔值、null/undefined 等多种数据类型。
+        </div>
+
+        <!-- 场景1: 基本数组导出 -->
+        <div class="section">
+            <h2>场景1: 基本数组导出</h2>
+            <p>直接传入二维数组，第一行作为表头：</p>
+
+            <pre><span class="keyword">const</span> data = [
+    [<span class="string">'姓名'</span>, <span class="string">'年龄'</span>, <span class="string">'城市'</span>, <span class="string">'邮箱'</span>],
+    [<span class="string">'张三'</span>, <span class="number">28</span>, <span class="string">'北京'</span>, <span class="string">'zhangsan@example.com'</span>],
+    [<span class="string">'李四'</span>, <span class="number">35</span>, <span class="string">'上海'</span>, <span class="string">'lisi@example.com'</span>],
+    [<span class="string">'王五'</span>, <span class="number">42</span>, <span class="string">'广州'</span>, <span class="string">'wangwu@example.com'</span>],
+];
+
+<span class="func">export_data</span>(data, { filename: <span class="string">'用户数据.csv'</span> });
+<span class="func">export_data</span>(data, { filename: <span class="string">'用户数据.xlsx'</span>, format: ExportFormat.Xlsx });</pre>
+
+            <table id="preview-basic">
+                <thead><tr><th>姓名</th><th>年龄</th><th>城市</th><th>邮箱</th></tr></thead>
+                <tbody>
+                    <tr><td>张三</td><td>28</td><td>北京</td><td>zhangsan@example.com</td></tr>
+                    <tr><td>李四</td><td>35</td><td>上海</td><td>lisi@example.com</td></tr>
+                    <tr><td>王五</td><td>42</td><td>广州</td><td>wangwu@example.com</td></tr>
+                </tbody>
+            </table>
+
+            <div class="button-group">
+                <button class="btn-primary" onclick="exportBasicCsv()">📄 导出为 CSV</button>
+                <button class="btn-primary" onclick="exportBasicCsvWithBom()">📄 导出为 CSV (带 BOM)</button>
+                <button class="btn-excel" onclick="exportBasicXlsx()">📗 导出为 Excel</button>
+            </div>
+        </div>
+
+        <!-- 场景2: API 数据导出 -->
+        <div class="section">
+            <h2>场景2: 对象数组 + 表头配置（推荐）</h2>
+            <p>传入 <span class="code">columns</span> 表头配置和 <span class="code">data</span> 对象数组，类似 Ant Design Table 用法：</p>
+
+            <pre><span class="keyword">const</span> columns = [
+    { title: <span class="string">'姓名'</span>, key: <span class="string">'name'</span> },
+    { title: <span class="string">'年龄'</span>, key: <span class="string">'age'</span> },
+    { title: <span class="string">'住址'</span>, key: <span class="string">'address'</span> },
+];
+
+<span class="keyword">const</span> data = [
+    { name: <span class="string">'张三'</span>, age: <span class="number">28</span>, address: <span class="string">'北京市朝阳区'</span> },
+    { name: <span class="string">'李四'</span>, age: <span class="number">35</span>, address: <span class="string">'上海市浦东新区'</span> },
+];
+
+<span class="func">export_data</span>(data, { columns: columns, filename: <span class="string">'用户详情.xlsx'</span>, format: ExportFormat.Xlsx });</pre>
+
+            <div class="button-group">
+                <button class="btn-primary" onclick="exportSimpleColumnsCsv()">📄 导出为 CSV</button>
+                <button class="btn-excel" onclick="exportSimpleColumnsXlsx()">📗 导出为 Excel</button>
+            </div>
+        </div>
+
+        <!-- 场景3: 嵌套表头 -->
+        <div class="section">
+            <h2>场景3: 嵌套表头（多行表头 + 合并单元格）</h2>
+            <p>使用 <span class="code">children</span> 属性定义多级表头，导出 XLSX 时自动生成合并单元格：</p>
+
+            <pre><span class="keyword">const</span> nestedColumns = [
+    { title: <span class="string">'姓名'</span>, key: <span class="string">'name'</span> },
+    { title: <span class="string">'其他信息'</span>, children: [
+        { title: <span class="string">'年龄'</span>, key: <span class="string">'age'</span> },
+        { title: <span class="string">'住址'</span>, key: <span class="string">'address'</span> },
+    ]},
+];
+
+<span class="comment">// 导出效果（Excel 中）:</span>
+<span class="comment">// | 姓名     |    其他信息    |</span>
+<span class="comment">// | (rowspan) | 年龄 |  住址  |</span>
+<span class="comment">// | 张三      |  28  |  北京  |</span>
+
+<span class="func">export_data</span>(data, { columns: nestedColumns, filename: <span class="string">'嵌套表头.xlsx'</span>, format: ExportFormat.Xlsx });</pre>
+
+            <table>
+                <thead>
+                    <tr><th rowspan="2">姓名</th><th colspan="2">其他信息</th></tr>
+                    <tr><th>年龄</th><th>住址</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>张三</td><td>28</td><td>北京市朝阳区</td></tr>
+                    <tr><td>李四</td><td>35</td><td>上海市浦东新区</td></tr>
+                    <tr><td>王五</td><td>42</td><td>广州市天河区</td></tr>
+                </tbody>
+            </table>
+
+            <div class="button-group">
+                <button class="btn-primary" onclick="exportNestedCsv()">📄 导出为 CSV</button>
+                <button class="btn-excel" onclick="exportNestedXlsx()">📗 导出为 Excel（含合并单元格）</button>
+            </div>
+        </div>
+
+        <!-- 场景4: 三级嵌套表头 -->
+        <div class="section">
+            <h2>场景4: 三级嵌套表头</h2>
+            <p>支持任意深度的嵌套，自动计算 rowspan 和 colspan：</p>
+
+            <pre><span class="keyword">const</span> deepColumns = [
+    { title: <span class="string">'ID'</span>, key: <span class="string">'id'</span> },
+    { title: <span class="string">'基本信息'</span>, children: [
+        { title: <span class="string">'姓名'</span>, key: <span class="string">'name'</span> },
+        { title: <span class="string">'联系方式'</span>, children: [
+            { title: <span class="string">'电话'</span>, key: <span class="string">'phone'</span> },
+            { title: <span class="string">'邮箱'</span>, key: <span class="string">'email'</span> },
+        ]},
+    ]},
+    { title: <span class="string">'部门'</span>, key: <span class="string">'dept'</span> },
+];</pre>
+
+            <table>
+                <thead>
+                    <tr><th rowspan="3">ID</th><th colspan="3">基本信息</th><th rowspan="3">部门</th></tr>
+                    <tr><th rowspan="2">姓名</th><th colspan="2">联系方式</th></tr>
+                    <tr><th>电话</th><th>邮箱</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>1001</td><td>张三</td><td>13800001111</td><td>zhangsan@example.com</td><td>技术部</td></tr>
+                    <tr><td>1002</td><td>李四</td><td>13800002222</td><td>lisi@example.com</td><td>产品部</td></tr>
+                </tbody>
+            </table>
+
+            <div class="button-group">
+                <button class="btn-excel" onclick="exportDeepNestedXlsx()">📗 导出三级表头 Excel</button>
+            </div>
+        </div>
+
+        <!-- 场景5: 数据区域合并单元格 -->
+        <div class="section">
+            <h2>场景5: 数据合并单元格（colSpan / rowSpan）</h2>
+            <p>数据对象中的值可以使用 <span class="code">{ value, colSpan?, rowSpan? }</span> 格式来指定合并：</p>
+
+            <pre><span class="keyword">const</span> columns = [
+    { title: <span class="string">'姓名'</span>, key: <span class="string">'name'</span> },
+    { title: <span class="string">'科目'</span>, key: <span class="string">'subject'</span> },
+    { title: <span class="string">'成绩'</span>, key: <span class="string">'score'</span> },
+    { title: <span class="string">'评价'</span>, key: <span class="string">'comment'</span> },
+];
+
+<span class="keyword">const</span> data = [
+    <span class="comment">// 张三的姓名合并2行，评价合并2行</span>
+    { name: { value: <span class="string">'张三'</span>, rowSpan: <span class="number">2</span> }, subject: <span class="string">'数学'</span>,
+      score: <span class="number">90</span>, comment: { value: <span class="string">'优秀'</span>, rowSpan: <span class="number">2</span> } },
+    { name: { value: <span class="string">''</span>, rowSpan: <span class="number">0</span> }, subject: <span class="string">'英语'</span>,
+      score: <span class="number">85</span>, comment: { value: <span class="string">''</span>, rowSpan: <span class="number">0</span> } },
+    <span class="comment">// 李四的地址横跨2列</span>
+    { name: <span class="string">'李四'</span>, subject: { value: <span class="string">'全科'</span>, colSpan: <span class="number">2</span> },
+      score: { value: <span class="string">''</span>, colSpan: <span class="number">0</span> }, comment: <span class="string">'良好'</span> },
+    <span class="comment">// 正常行</span>
+    { name: <span class="string">'王五'</span>, subject: <span class="string">'数学'</span>, score: <span class="number">95</span>, comment: <span class="string">'优秀'</span> },
+];</pre>
+
+            <table>
+                <thead>
+                    <tr><th>姓名</th><th>科目</th><th>成绩</th><th>评价</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td rowspan="2">张三</td><td>数学</td><td>90</td><td rowspan="2">优秀</td></tr>
+                    <tr><td>英语</td><td>85</td></tr>
+                    <tr><td>李四</td><td colspan="2">全科</td><td>良好</td></tr>
+                    <tr><td>王五</td><td>数学</td><td>95</td><td>优秀</td></tr>
+                </tbody>
+            </table>
+
+            <div class="button-group">
+                <button class="btn-primary" onclick="exportDataMergeCsv()">📄 导出为 CSV</button>
+                <button class="btn-excel" onclick="exportDataMergeXlsx()">📗 导出为 Excel（含合并单元格）</button>
+            </div>
+        </div>
+
+        <!-- 场景6: 大数据量导出（带进度回调） -->
+        <div class="section">
+            <h2>场景6: 大数据量导出（带进度回调）</h2>
+            <p>动态生成大量数据并导出，支持进度回调：</p>
+
+            <div class="button-group">
+                <button class="btn-orange" onclick="exportLargeCsv()">📄 生成 10000 行 CSV</button>
+                <button class="btn-orange" onclick="exportLargeXlsx()">📗 生成 10000 行 Excel</button>
+            </div>
+            <div id="progress-info" style="color: #666; font-size: 14px; margin-top: 10px;"></div>
+        </div>
+
+        <!-- 场景7: 错误处理演示 -->
+        <div class="section">
+            <h2>场景7: 错误处理演示</h2>
+            <p>演示当传入对象数组但忘记提供 <code>columns</code> 时的错误提示：</p>
+            <pre><span class="comment">// 错误用法：对象数组必须提供 columns</span>
+<span class="keyword">const</span> data = [{ name: <span class="string">'张三'</span>, age: <span class="number">28</span> }];
+<span class="func">export_data</span>(data, { filename: <span class="string">'error.csv'</span> });</pre>
+
+            <div class="button-group">
+                <button class="btn-primary" style="background: #ff4d4f;" onclick="testErrorHandling()">🚫 测试错误用法</button>
+            </div>
+        </div>
+
+        <!-- 代码示例 -->
+        <div class="section">
+            <h2>💡 API 概览</h2>
+            <pre><span class="keyword">import</span> { export_data, ExportFormat } <span class="keyword">from</span> <span class="string">'./pkg/belobog_stellar_grid.js'</span>;
+
+<span class="comment">// export_data(data, options?)</span>
+<span class="comment">// options: { columns, filename, format, progressCallback, indentColumn, childrenKey, freezeRows, freezeCols }</span>
+
+<span class="comment">// 参数说明：</span>
+<span class="comment">// data     : Array&lt;Array&gt; 二维数组 或 Array&lt;Object&gt; 对象数组</span>
+<span class="comment">// options? : 可选配置对象</span>
+<span class="comment">//   columns?          : 表头配置数组 { title, key?, children? }[]</span>
+<span class="comment">//   filename?         : 文件名（可选，自动添加扩展名）</span>
+<span class="comment">//   format?           : ExportFormat.Csv | ExportFormat.Xlsx（默认 CSV）</span>
+<span class="comment">//   progressCallback? : (progress: number) => void  进度回调</span>
+<span class="comment">//   indentColumn?     : 缩进列（树形数据）</span>
+<span class="comment">//   childrenKey?      : 子节点键名（树形数据）</span>
+<span class="comment">//   freezeRows?       : 冻结前 N 行（仅 XLSX，默认自动根据表头行数）</span>
+<span class="comment">//   freezeCols?       : 冻结前 N 列（仅 XLSX，默认 0）</span>
+
+<span class="comment">// 模式1: 二维数组（不传 columns）</span>
+<span class="func">export_data</span>([[<span class="string">'A'</span>, <span class="string">'B'</span>], [<span class="number">1</span>, <span class="number">2</span>]]);
+
+<span class="comment">// 模式2: 对象数组 + 表头配置</span>
+<span class="func">export_data</span>(
+    [{ name: <span class="string">'张三'</span>, age: <span class="number">28</span> }],
+    { columns: [{ title: <span class="string">'姓名'</span>, key: <span class="string">'name'</span> }, { title: <span class="string">'年龄'</span>, key: <span class="string">'age'</span> }],
+      filename: <span class="string">'成绩单.xlsx'</span>,
+      format: ExportFormat.Xlsx }
+);
+
+<span class="comment">// 模式3: 嵌套表头（XLSX 自动合并单元格）</span>
+<span class="func">export_data</span>(
+    data,
+    { columns: [{ title: <span class="string">'姓名'</span>, key: <span class="string">'name'</span> },
+       { title: <span class="string">'详情'</span>, children: [
+         { title: <span class="string">'年龄'</span>, key: <span class="string">'age'</span> },
+         { title: <span class="string">'住址'</span>, key: <span class="string">'address'</span> }
+       ]}],
+      filename: <span class="string">'报表.xlsx'</span>, format: ExportFormat.Xlsx }
+);
+
+<span class="comment">// 模式4: 数据合并单元格（colSpan / rowSpan）</span>
+<span class="comment">// 单元格值使用 { value, colSpan?, rowSpan? } 格式</span>
+<span class="func">export_data</span>(
+    [{ name: { value: <span class="string">'张三'</span>, rowSpan: <span class="number">2</span> }, score: <span class="number">90</span> },
+     { name: { value: <span class="string">''</span>, rowSpan: <span class="number">0</span> }, score: <span class="number">85</span> }],
+    { columns: [{ title: <span class="string">'姓名'</span>, key: <span class="string">'name'</span> },
+       { title: <span class="string">'成绩'</span>, key: <span class="string">'score'</span> }],
+      filename: <span class="string">'合并.xlsx'</span>, format: ExportFormat.Xlsx }
+);</pre>
+        </div>
+    </div>
+
+    <script type="module">
+        import init, { export_data, ExportFormat } from '../pkg/belobog_stellar_grid.js';
+
+        await init();
+
+        // 场景1: 基本二维数组导出
+        const basicData = [
+            ['姓名', '年龄', '城市', '邮箱'],
+            ['张三', 28, '北京', 'zhangsan@example.com'],
+            ['李四', 35, '上海', 'lisi@example.com'],
+            ['王五', 42, '广州', 'wangwu@example.com'],
+        ];
+
+        window.exportBasicCsv = () => {
+            export_data(basicData, { filename: '用户数据.csv' });
+            console.log('✅ 二维数组导出 CSV 完成');
+        };
+
+        window.exportBasicCsvWithBom = () => {
+            export_data(basicData, { filename: '用户数据_BOM.csv', withBom: true });
+            console.log('✅ 二维数组导出 CSV 完成 (带 BOM)');
+        };
+
+        window.exportBasicXlsx = () => {
+            export_data(basicData, { filename: '用户数据.xlsx', format: ExportFormat.Xlsx });
+            console.log('✅ 二维数组导出 Excel 完成');
+        };
+
+        // 通用数据源
+        const objectData = [
+            { name: '张三', age: 28, address: '北京市朝阳区' },
+            { name: '李四', age: 35, address: '上海市浦东新区' },
+            { name: '王五', age: 42, address: '广州市天河区' },
+        ];
+
+        // 场景2: 简单表头配置
+        const simpleColumns = [
+            { title: '姓名', key: 'name' },
+            { title: '年龄', key: 'age' },
+            { title: '住址', key: 'address' },
+        ];
+
+        window.exportSimpleColumnsCsv = () => {
+            export_data(objectData, { columns: simpleColumns, filename: '用户详情.csv' });
+            console.log('✅ 对象数组导出 CSV 完成');
+        };
+
+        window.exportSimpleColumnsXlsx = () => {
+            export_data(objectData, { columns: simpleColumns, filename: '用户详情.xlsx', format: ExportFormat.Xlsx });
+            console.log('✅ 对象数组导出 Excel 完成');
+        };
+
+        // 场景3: 嵌套表头
+        const nestedColumns = [
+            { title: '姓名', key: 'name' },
+            {
+                title: '其他信息',
+                children: [
+                    { title: '年龄', key: 'age' },
+                    { title: '住址', key: 'address' },
+                ],
+            },
+        ];
+
+        window.exportNestedCsv = () => {
+            export_data(objectData, { columns: nestedColumns, filename: '嵌套表头.csv' });
+            console.log('✅ 嵌套表头导出 CSV 完成');
+        };
+
+        window.exportNestedXlsx = () => {
+            export_data(objectData, { columns: nestedColumns, filename: '嵌套表头.xlsx', format: ExportFormat.Xlsx });
+            console.log('✅ 嵌套表头导出 Excel 完成（含合并单元格）');
+        };
+
+        // 场景4: 三级嵌套表头
+        const deepData = [
+            { id: 1001, name: '张三', phone: '13800001111', email: 'zhangsan@example.com', dept: '技术部' },
+            { id: 1002, name: '李四', phone: '13800002222', email: 'lisi@example.com', dept: '产品部' },
+            { id: 1003, name: '王五', phone: '13800003333', email: 'wangwu@example.com', dept: '设计部' },
+        ];
+
+        const deepColumns = [
+            { title: 'ID', key: 'id' },
+            {
+                title: '基本信息',
+                children: [
+                    { title: '姓名', key: 'name' },
+                    {
+                        title: '联系方式',
+                        children: [
+                            { title: '电话', key: 'phone' },
+                            { title: '邮箱', key: 'email' },
+                        ],
+                    },
+                ],
+            },
+            { title: '部门', key: 'dept' },
+        ];
+
+        window.exportDeepNestedXlsx = () => {
+            export_data(deepData, { columns: deepColumns, filename: '三级表头.xlsx', format: ExportFormat.Xlsx });
+            console.log('✅ 三级嵌套表头导出 Excel 完成');
+        };
+
+        // 场景5: 数据合并单元格
+        const mergeColumns = [
+            { title: '姓名', key: 'name' },
+            { title: '科目', key: 'subject' },
+            { title: '成绩', key: 'score' },
+            { title: '评价', key: 'comment' },
+        ];
+
+        const mergeData = [
+            // 张三的姓名合并2行，评价合并2行
+            { name: { value: '张三', rowSpan: 2 }, subject: '数学', score: 90, comment: { value: '优秀', rowSpan: 2 } },
+            { name: { value: '', rowSpan: 0 }, subject: '英语', score: 85, comment: { value: '', rowSpan: 0 } },
+            // 李四的科目横跨2列（科目+成绩）
+            { name: '李四', subject: { value: '全科', colSpan: 2 }, score: { value: '', colSpan: 0 }, comment: '良好' },
+            // 正常行
+            { name: '王五', subject: '数学', score: 95, comment: '优秀' },
+        ];
+
+        window.exportDataMergeCsv = () => {
+            export_data(mergeData, { columns: mergeColumns, filename: '数据合并.csv' });
+            console.log('✅ 数据合并单元格导出 CSV 完成');
+        };
+
+        window.exportDataMergeXlsx = () => {
+            export_data(mergeData, { columns: mergeColumns, filename: '数据合并.xlsx', format: ExportFormat.Xlsx });
+            console.log('✅ 数据合并单元格导出 Excel 完成（含合并单元格）');
+        };
+
+        // 场景5: 大数据量导出
+        function generateLargeObjectData(count) {
+            const departments = ['技术部', '产品部', '设计部', '市场部', '人力资源部', '财务部'];
+            const data = [];
+            for (let i = 1; i <= count; i++) {
+                data.push({
+                    id: i,
+                    name: `用户_${i}`,
+                    email: `user${i}@example.com`,
+                    dept: departments[i % departments.length],
+                    salary: Math.floor(Math.random() * 30000) + 10000,
+                    joinDate: `2024-${String(Math.floor(Math.random() * 12) + 1).padStart(2, '0')}-${String(Math.floor(Math.random() * 28) + 1).padStart(2, '0')}`,
+                });
+            }
+            return data;
+        }
+
+        const largeColumns = [
+            { title: '序号', key: 'id' },
+            { title: '用户名', key: 'name' },
+            { title: '邮箱', key: 'email' },
+            { title: '部门', key: 'dept' },
+            { title: '薪资', key: 'salary' },
+            { title: '入职日期', key: 'joinDate' },
+        ];
+
+        const progressInfo = document.getElementById('progress-info');
+
+        window.exportLargeCsv = () => {
+            const start = performance.now();
+            const data = generateLargeObjectData(10000);
+            progressInfo.textContent = '⏳ 正在导出...';
+
+            export_data(data, { columns: largeColumns, filename: '大数据_10000行.csv', format: ExportFormat.Csv, progressCallback: (progress) => {
+                progressInfo.textContent = `⏳ 导出进度: ${progress.toFixed(1)}%`;
+            } });
+
+            const elapsed = (performance.now() - start).toFixed(0);
+            progressInfo.textContent = `✅ 10000 行 CSV 导出完成，耗时 ${elapsed}ms`;
+        };
+
+        window.exportLargeXlsx = () => {
+            const start = performance.now();
+            const data = generateLargeObjectData(10000);
+            progressInfo.textContent = '⏳ 正在导出...';
+
+            export_data(data, { columns: largeColumns, filename: '大数据_10000行.xlsx', format: ExportFormat.Xlsx, progressCallback: (progress) => {
+                progressInfo.textContent = `⏳ 导出进度: ${progress.toFixed(1)}%`;
+            } });
+
+            const elapsed = (performance.now() - start).toFixed(0);
+            progressInfo.textContent = `✅ 10000 行 Excel 导出完成，耗时 ${elapsed}ms`;
+        };
+
+        // 场景6: 错误处理测试
+        window.testErrorHandling = () => {
+            const data = [{ name: '张三', age: 28 }];
+            try {
+                console.log('正在测试错误用法...');
+                export_data(data, { filename: 'error.csv' });
+            } catch (e) {
+                console.error('捕获到预期错误:', e);
+                alert(`✅ 成功捕获预期错误：\n\n${e}`);
+            }
+        };
+
+        console.log('🚀 WebAssembly 已初始化，数组直接导出功能可用');
+    </script>
+</body>
+</html>

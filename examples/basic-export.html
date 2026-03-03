@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>基础导出示例 - Excel Exporter</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            padding: 40px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 { color: #333; margin-bottom: 10px; font-size: 32px; }
+        .subtitle { color: #666; margin-bottom: 30px; font-size: 14px; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 13px;
+            letter-spacing: 0.5px;
+        }
+        tr:hover { background-color: #f8f9fa; }
+        .button-group {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin: 30px 0;
+        }
+        button {
+            padding: 12px 24px;
+            font-size: 14px;
+            font-weight: 600;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            min-width: 140px;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102,126,234,0.4);
+        }
+        .btn-excel {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+        }
+        .btn-excel:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(40,167,69,0.4);
+        }
+        button:active { transform: translateY(0); }
+        .code {
+            background: #e8f0fe;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            color: #5f6368;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📊 基础导出示例</h1>
+        <p class="subtitle">使用 <span class="code">export_table()</span> 函数导出表格</p>
+
+        <table id="employees-table">
+            <thead>
+                <tr>
+                    <th>姓名</th>
+                    <th>部门</th>
+                    <th>职位</th>
+                    <th>工号</th>
+                    <th>邮箱</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>张三</td>
+                    <td>技术部</td>
+                    <td>高级工程师</td>
+                    <td>E10001</td>
+                    <td>zhangsan@example.com</td>
+                </tr>
+                <tr>
+                    <td>李四</td>
+                    <td>产品部</td>
+                    <td>产品经理</td>
+                    <td>P20002</td>
+                    <td>lisi@example.com</td>
+                </tr>
+                <tr>
+                    <td>王五</td>
+                    <td>设计部</td>
+                    <td>UI设计师</td>
+                    <td>D30003</td>
+                    <td>wangwu@example.com</td>
+                </tr>
+                <tr>
+                    <td>赵六</td>
+                    <td>市场部</td>
+                    <td>市场专员</td>
+                    <td>M40004</td>
+                    <td>zhaoliu@example.com</td>
+                </tr>
+                <tr>
+                    <td>孙七</td>
+                    <td>人力资源部</td>
+                    <td>HR经理</td>
+                    <td>H50005</td>
+                    <td>sunqi@example.com</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="button-group">
+            <button class="btn-primary" onclick="exportDefault()">📄 导出为 CSV（默认）</button>
+            <button class="btn-primary" onclick="exportWithFilename()">📄 导出为 CSV（自定义文件名）</button>
+            <button class="btn-primary" onclick="exportWithBom()">📄 导出为 CSV（带 BOM）</button>
+            <button class="btn-excel" onclick="exportToExcel()">📗 导出为 Excel</button>
+            <button class="btn-excel" onclick="exportToExcelWithFreeze()">❄️ 导出为 Excel (冻结前2行和首列)</button>
+            <button class="btn-primary" onclick="exportVisibleOnly()">👁️ 导出可见数据 (排除隐藏行)</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import init, { export_table, ExportFormat } from '../pkg/belobog_stellar_grid.js';
+
+        // 初始化 WebAssembly
+        await init();
+
+        // 导出为 CSV（默认文件名）
+        window.exportDefault = () => {
+            export_table('employees-table');
+            console.log('✅ 导出为 CSV 完成（默认文件名）');
+        };
+
+        // 导出为 CSV（自定义文件名）
+        window.exportWithFilename = () => {
+            export_table('employees-table', '员工信息表.csv');
+            console.log('✅ 导出为 CSV 完成（自定义文件名）');
+        };
+
+        // 导出为 CSV（带 BOM，解决 Excel 中文乱码）
+        window.exportWithBom = () => {
+            // 参数: tableId, filename, format, excludeHidden, progressCallback, withBom
+            export_table('employees-table', '员工信息表_BOM.csv', ExportFormat.Csv, false, undefined, true);
+            console.log('✅ 导出为 CSV 完成（带 BOM）');
+        };
+
+        // 导出为 Excel
+        window.exportToExcel = () => {
+            export_table('employees-table', '员工信息表', ExportFormat.Xlsx);
+            console.log('✅ 导出为 Excel 完成');
+        };
+
+        // 导出为 Excel (带冻结配置)
+        window.exportToExcelWithFreeze = () => {
+            // 参数: tableId, filename, format, excludeHidden, progressCallback, withBom, freezeRowCount, freezeColCount
+            export_table('employees-table', '员工信息表(冻结).xlsx', ExportFormat.Xlsx, false, undefined, false, 2, 1);
+            console.log('✅ 导出为 Excel (带冻结配置) 完成');
+        };
+
+        // 导出为 Excel (排除隐藏行)
+        window.exportVisibleOnly = () => {
+            // 模拟隐藏一行
+            const table = document.getElementById('employees-table');
+            const rows = table.rows;
+            if (rows.length > 2) {
+                rows[2].style.display = 'none'; // 隐藏第三行(李四)
+                console.log('已隐藏第3行数据');
+            }
+
+            export_table('employees-table', '员工信息表(可见).xlsx', ExportFormat.Xlsx, true);
+            console.log('✅ 导出可见数据完成');
+
+            // 恢复显示
+            if (rows.length > 2) {
+                setTimeout(() => {
+                    rows[2].style.display = '';
+                    console.log('已恢复第3行数据显示');
+                }, 1000);
+            }
+        };
+
+        console.log('🚀 WebAssembly 已初始化，可以使用导出功能');
+    </script>
+</body>
+</html>

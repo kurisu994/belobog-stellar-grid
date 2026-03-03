@@ -1,0 +1,31 @@
+{
+  "name": "belobog-stellar-grid",
+  "type": "module",
+  "collaborators": [
+    "Kurisu <makise_kurisuu@outlook.jp>"
+  ],
+  "description": "一个安全高效的 WebAssembly 库，用于将 HTML 表格数据导出为 CSV 和 XLSX 文件",
+  "version": "1.1.0",
+  "license": "MIT OR Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kurisu994/belobog-stellar-grid"
+  },
+  "files": [
+    "belobog_stellar_grid_bg.wasm",
+    "belobog_stellar_grid.js",
+    "belobog_stellar_grid.d.ts"
+  ],
+  "main": "belobog_stellar_grid.js",
+  "types": "belobog_stellar_grid.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ],
+  "keywords": [
+    "wasm",
+    "csv",
+    "xlsx",
+    "export",
+    "table"
+  ]
+}

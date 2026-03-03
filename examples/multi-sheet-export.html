@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>多工作表导出示例 - belobog-stellar-grid</title>
+    <style>
+        /* 复制自 virtual-scroll-export.html 的基础样式 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); /* 紫蓝渐变，与 index.html 一致 */
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 40px 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            max-width: 1000px;
+            width: 100%;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        h2 {
+            color: #444;
+            font-size: 20px;
+            margin: 30px 0 15px;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        /* 表格样式优化 */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+            background: white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            border-radius: 8px;
+            overflow: hidden;
+            font-size: 14px;
+        }
+
+        th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 15px;
+            text-align: left;
+            font-weight: 600;
+            border-bottom: none;
+        }
+
+        td {
+            padding: 10px 15px;
+            border-bottom: 1px solid #f0f0f0;
+            color: #555;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:hover {
+            background-color: #f8f9fa;
+        }
+
+        .hidden-row {
+            background-color: #fff0f0;
+            color: #999;
+            text-decoration: line-through;
+            display: none; /* 默认隐藏，用于测试 excludeHidden */
+        }
+
+        .hidden-row.show-for-demo {
+            display: table-row;
+        }
+
+        /* 按钮样式 */
+        button {
+            padding: 10px 20px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            border-radius: 6px;
+            transition: all 0.2s ease;
+            color: white;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(240, 147, 251, 0.4);
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+            background: #ccc;
+        }
+
+        button.secondary {
+            background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
+        }
+        button.secondary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+
+        /* 进度条样式 */
+        .progress-container {
+            margin-top: 15px;
+            background-color: #f0f0f0;
+            border-radius: 4px;
+            height: 8px;
+            width: 100%;
+            overflow: hidden;
+            display: none; /* 默认隐藏 */
+        }
+
+        .progress-container.active {
+            display: block;
+        }
+
+        .progress-bar {
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            height: 100%;
+            width: 0%;
+            transition: width 0.3s ease;
+            border-radius: 4px;
+        }
+
+        /* 信息框样式 */
+        .info-box {
+            background: #e7f3ff;
+            border-left: 4px solid #2196F3;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+
+        .info-box h3 {
+            color: #2196F3;
+            margin-bottom: 8px;
+            font-size: 16px;
+        }
+
+        .info-box p {
+            color: #555;
+            line-height: 1.6;
+            font-size: 14px;
+        }
+
+        .info-box code {
+            background: #f5f5f5;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            color: #d63384;
+        }
+
+        /* 日志区域 */
+        .log {
+            background: #f5f5f5;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 20px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            border: 1px solid #eee;
+        }
+
+        .log-entry {
+            padding: 5px 0;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+        }
+
+        .log-time {
+            color: #999;
+            margin-right: 15px;
+            min-width: 70px;
+        }
+
+        .log-message {
+            color: #333;
+        }
+
+        .feature-badge {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            vertical-align: middle;
+            margin-left: 8px;
+        }
+
+        .preview-container {
+            border: 1px solid #eee;
+            border-radius: 8px;
+            padding: 15px;
+            background: #fafafa;
+            margin: 15px 0;
+        }
+
+        .grid-2-col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .grid-2-col {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📑 多工作表导出示例 <span class="feature-badge">New</span></h1>
+        <p class="subtitle">将多个 HTML 表格导出到同一个 Excel 文件的不同 Sheet 中</p>
+
+        <div class="info-box">
+            <h3>💡 功能说明</h3>
+            <p>
+                该功能允许你在一次导出操作中包含多个数据源。每个表格将成为 Excel 文件中的一个独立工作表（Sheet）。
+                <br>
+                支持配置：<strong>自定义 Sheet 名称</strong>、<strong>排除隐藏行列</strong>、<strong>同步/异步模式</strong>。
+            </p>
+        </div>
+
+        <!-- 场景 1 -->
+        <h2>场景 1: 基础多表导出 (同步)</h2>
+        <p style="color: #666; font-size: 14px; margin-bottom: 15px;">
+            将下方的"订单列表"和"商品库存"导出到一个 Excel 文件。注意观察"隐藏行"的处理。
+        </p>
+
+        <div class="preview-container">
+            <div class="grid-2-col">
+                <div>
+                    <div style="font-weight: bold; margin-bottom: 10px; color: #444;">📋 表 1: 订单列表 (Sheet: 订单数据)</div>
+                    <table id="orders-table">
+                        <thead>
+                            <tr>
+                                <th colspan="2">订单信息</th>
+                                <th rowspan="2" style="vertical-align: middle;">金额</th>
+                                <th rowspan="2" style="vertical-align: middle;">状态</th>
+                            </tr>
+                            <tr>
+                                <th>订单号</th>
+                                <th>客户</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>ORD-001</td>
+                                <td>张三</td>
+                                <td>¥1,200</td>
+                                <td><span style="color: green">已完成</span></td>
+                            </tr>
+                            <tr>
+                                <td>ORD-002</td>
+                                <td>李四</td>
+                                <td>¥850</td>
+                                <td><span style="color: orange">处理中</span></td>
+                            </tr>
+                            <!-- 这是一个隐藏行，测试 excludeHidden -->
+                            <tr style="display: none;">
+                                <td>ORD-003</td>
+                                <td>隐藏客户</td>
+                                <td>¥0</td>
+                                <td>已取消</td>
+                            </tr>
+                            <tr>
+                                <td>ORD-004</td>
+                                <td>王五</td>
+                                <td>¥900</td>
+                                <td><span style="color: orange">处理中</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <div style="font-size: 12px; color: #999;">* 表中包含 1 个隐藏行 (display: none)</div>
+                </div>
+
+                <div>
+                    <div style="font-weight: bold; margin-bottom: 10px; color: #444;">📦 表 2: 商品库存 (Sheet: 库存清单)</div>
+                    <table id="inventory-table">
+                        <thead>
+                            <tr>
+                                <th>商品名称</th>
+                                <th>类别</th>
+                                <th>库存</th>
+                                <th colspan="2">位置 (合并)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>MacBook Pro</td>
+                                <td>电子产品</td>
+                                <td>50</td>
+                                <td rowspan="2" style="vertical-align: middle; background: #fffdf0;">A区</td>
+                                <td>架位 1</td>
+                            </tr>
+                            <tr>
+                                <td>iPhone 15</td>
+                                <td>电子产品</td>
+                                <td>200</td>
+                                <td>架位 2</td>
+                            </tr>
+                            <tr>
+                                <td>Sony WH-1000XM5</td>
+                                <td>电子产品</td>
+                                <td colspan="3" style="text-align: center; background-color: #f0f8ff; color: #666;">
+                                    <i>暂无库存信息 (测试 colspan=3)</i>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div style="margin-top: 15px;">
+            <button id="btn-sync-export" onclick="exportSync()">
+                📤 导出多表 Excel
+            </button>
+        </div>
+
+        <!-- 场景 2 -->
+        <h2>场景 2: 大数据量多表导出 (异步分批)</h2>
+        <p style="color: #666; font-size: 14px; margin-bottom: 15px;">
+            模拟两个较大的数据表，使用异步分批方式导出，避免阻塞 UI。
+        </p>
+
+        <div class="info-box" style="background: #fff3cd; border-left-color: #ffc107;">
+            <h3>⚙️ 异步处理优势</h3>
+            <p>
+                对于超过 10,000 行的数据，建议使用 <code>export_tables_to_xlsx_batch</code>。
+                它会将任务分批执行，每批处理完后让出主线程，保持页面响应（不会卡死）。
+            </p>
+        </div>
+
+        <div class="preview-container">
+            <div style="margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
+                <button id="btn-generate-data" class="secondary" onclick="generateData()">
+                    🔄 生成模拟数据 (各 5,000 行)
+                </button>
+                <span id="data-status" style="font-size: 14px; color: #666;">暂无数据</span>
+            </div>
+
+            <!-- 隐藏的大数据表格容器 -->
+            <div style="height: 200px; overflow: auto; border: 1px solid #eee; display: none; background: white; padding: 10px;" id="large-tables-container">
+                <h4 style="margin: 10px 0;">大数据表 1 (ID: large-table-1)</h4>
+                <table id="large-table-1">
+                    <thead><tr><th>ID</th><th>名称</th><th>数值</th><th>日期</th></tr></thead>
+                    <tbody id="tbody-1"></tbody>
+                </table>
+
+                <h4 style="margin: 20px 0 10px;">大数据表 2 (ID: large-table-2)</h4>
+                <table id="large-table-2">
+                    <thead><tr><th>代码</th><th>描述</th><th>状态</th><th>备注</th></tr></thead>
+                    <tbody id="tbody-2"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div style="margin-top: 15px;">
+            <button id="btn-async-export" disabled onclick="exportAsync()">
+                🚀 异步分批导出
+            </button>
+        </div>
+
+        <div id="progress-container" class="progress-container">
+            <div id="progress-bar" class="progress-bar"></div>
+        </div>
+
+        <!-- 日志区域 -->
+        <div class="log" id="log">
+            <div class="log-entry">
+                <span class="log-time">系统</span>
+                <span class="log-message">等待用户操作...</span>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import init, { export_tables_xlsx, export_tables_to_xlsx_batch } from '../pkg/belobog_stellar_grid.js';
+
+        // 初始化
+        let wasmInitialized = false;
+
+        async function ensureInit() {
+            if (!wasmInitialized) {
+                try {
+                    await init();
+                    wasmInitialized = true;
+                    addLog('✅ WASM 模块初始化成功');
+                } catch (e) {
+                    addLog('❌ WASM 初始化失败: ' + e);
+                    throw e;
+                }
+            }
+        }
+
+        // 添加日志
+        function addLog(message) {
+            const log = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+
+            const time = new Date().toLocaleTimeString('zh-CN');
+            entry.innerHTML = `
+                <span class="log-time">${time}</span>
+                <span class="log-message">${message}</span>
+            `;
+
+            log.appendChild(entry);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        // 场景 1: 同步导出
+        window.exportSync = async function() {
+            try {
+                await ensureInit();
+                addLog('🔄 开始同步导出...');
+
+                const startTime = performance.now();
+
+                export_tables_xlsx(
+                    [
+                        {
+                            tableId: 'orders-table',
+                            sheetName: '订单数据',
+                            excludeHidden: true // 排除隐藏行
+                        },
+                        {
+                            tableId: 'inventory-table',
+                            sheetName: '库存清单'
+                        }
+                    ],
+                    '多工作表报表.xlsx'
+                );
+
+                const duration = (performance.now() - startTime).toFixed(2);
+                addLog(`✅ 导出成功！耗时: ${duration}ms`);
+            } catch (e) {
+                addLog('❌ 导出失败: ' + e);
+                alert('导出失败: ' + e);
+            }
+        };
+
+        // 生成模拟数据
+        window.generateData = function() {
+            const tbody1 = document.getElementById('tbody-1');
+            const tbody2 = document.getElementById('tbody-2');
+            const status = document.getElementById('data-status');
+            const container = document.getElementById('large-tables-container');
+            const btnGenerate = document.getElementById('btn-generate-data');
+
+            btnGenerate.disabled = true;
+            status.innerText = '正在生成数据...';
+            addLog('🔄 开始生成模拟数据...');
+
+            // 使用 setTimeout 让 UI 有机会刷新
+            setTimeout(() => {
+                const rowCount = 5000;
+
+                // 生成表 1 数据
+                let html1 = '';
+                for(let i=0; i<rowCount; i++) {
+                    html1 += `<tr><td>${i+1}</td><td>Item-${Math.random().toString(36).substr(2,5)}</td><td>${Math.floor(Math.random()*1000)}</td><td>2024-02-12</td></tr>`;
+                }
+                tbody1.innerHTML = html1;
+
+                // 生成表 2 数据
+                let html2 = '';
+                for(let i=0; i<rowCount; i++) {
+                    html2 += `<tr><td>Code-${10000+i}</td><td>这是第 ${i+1} 条记录的描述信息</td><td>${Math.random()>0.5?'Active':'Inactive'}</td><td>无备注</td></tr>`;
+                }
+                tbody2.innerHTML = html2;
+
+                status.innerText = `✅ 已生成 ${rowCount * 2} 行数据`;
+                container.style.display = 'block';
+                document.getElementById('btn-async-export').disabled = false;
+                btnGenerate.disabled = false;
+
+                addLog(`✅ 数据生成完成: 2 个表格，各 ${rowCount} 行`);
+            }, 50);
+        };
+
+        // 场景 2: 异步分批导出
+        window.exportAsync = async function() {
+            const btn = document.getElementById('btn-async-export');
+            const progressBar = document.getElementById('progress-bar');
+            const progressContainer = document.getElementById('progress-container');
+
+            try {
+                await ensureInit();
+
+                btn.disabled = true;
+                progressContainer.classList.add('active');
+                progressBar.style.width = '0%';
+                addLog('🚀 开始异步分批导出...');
+
+                const startTime = performance.now();
+
+                await export_tables_to_xlsx_batch(
+                    [
+                        {
+                            tableId: 'large-table-1',
+                            tbodyId: 'tbody-1',
+                            sheetName: '大数据 Sheet1'
+                        },
+                        {
+                            tableId: 'large-table-2',
+                            tbodyId: 'tbody-2',
+                            sheetName: '大数据 Sheet2'
+                        }
+                    ],
+                    '大数据多表导出.xlsx',
+                    1000, // 批次大小
+                    (progress) => {
+                        progressBar.style.width = `${progress}%`;
+                        // 减少日志刷屏，每 10% 记录一次
+                        if (Math.round(progress) % 10 === 0) {
+                            // console.log(`进度: ${progress}%`);
+                        }
+                    }
+                );
+
+                const duration = ((performance.now() - startTime) / 1000).toFixed(2);
+                progressBar.style.width = '100%';
+                addLog(`✅ 异步导出完成！耗时: ${duration}秒`);
+
+            } catch (e) {
+                addLog('❌ 异步导出失败: ' + e);
+                console.error(e);
+                alert('导出失败: ' + e);
+            } finally {
+                btn.disabled = false;
+                setTimeout(() => {
+                    progressContainer.classList.remove('active');
+                }, 3000);
+            }
+        };
+    </script>
+</body>
+</html>

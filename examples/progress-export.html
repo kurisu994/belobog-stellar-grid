@@ -1,0 +1,606 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>进度条示例 - belobog-stellar-grid</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 20px;
+      }
+
+      .container {
+        background: white;
+        border-radius: 20px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        padding: 40px;
+        max-width: 900px;
+        width: 100%;
+      }
+
+      h1 {
+        color: #333;
+        margin-bottom: 10px;
+        font-size: 28px;
+      }
+
+      .subtitle {
+        color: #666;
+        margin-bottom: 30px;
+        font-size: 14px;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 0;
+        background: white;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        border-radius: 8px;
+        overflow: hidden;
+      }
+
+      thead {
+        background: white;
+      }
+
+      th {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 15px;
+        text-align: left;
+        font-weight: 600;
+      }
+
+      td {
+        padding: 12px 15px;
+        border-bottom: 1px solid #f0f0f0;
+      }
+
+      .tbody-container {
+        max-height: 250px;
+        overflow-y: auto;
+        display: block;
+      }
+
+      tbody {
+        display: table;
+        width: 100%;
+      }
+
+      thead,
+      tbody tr {
+        display: table;
+        width: 100%;
+        table-layout: fixed;
+      }
+
+      tr:hover {
+        background-color: #f8f9fa;
+      }
+
+      .progress-container {
+        width: 100%;
+        background-color: #f0f0f0;
+        border-radius: 10px;
+        padding: 5px;
+        margin: 20px 0;
+        display: none;
+      }
+
+      .progress-container.show {
+        display: block;
+      }
+
+      .progress-bar {
+        width: 0%;
+        height: 40px;
+        background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: width 0.3s ease;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+
+      .progress-text {
+        color: white;
+        font-weight: 600;
+        font-size: 16px;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+      }
+
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 15px;
+        margin: 20px 0;
+      }
+
+      .stat-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 20px;
+        border-radius: 10px;
+        text-align: center;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      }
+
+      .stat-value {
+        font-size: 32px;
+        font-weight: bold;
+        margin-bottom: 5px;
+      }
+
+      .stat-label {
+        font-size: 14px;
+        opacity: 0.9;
+      }
+
+      button {
+        padding: 15px 30px;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        border: none;
+        border-radius: 8px;
+        transition: all 0.3s ease;
+        color: white;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        width: 100%;
+        margin-top: 20px;
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+      }
+
+      button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 12px rgba(240, 147, 251, 0.4);
+      }
+
+      button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        transform: none;
+      }
+
+      button:active:not(:disabled) {
+        transform: translateY(0);
+      }
+
+      .info-box {
+        background: #e7f3ff;
+        border-left: 4px solid #2196f3;
+        padding: 15px;
+        margin: 20px 0;
+        border-radius: 4px;
+      }
+
+      .info-box h3 {
+        color: #2196f3;
+        margin-bottom: 8px;
+        font-size: 16px;
+      }
+
+      .info-box p {
+        color: #555;
+        line-height: 1.6;
+        font-size: 14px;
+      }
+
+      .log {
+        background: #f5f5f5;
+        border-radius: 8px;
+        padding: 15px;
+        margin-top: 20px;
+        max-height: 200px;
+        overflow-y: auto;
+        font-family: "Courier New", monospace;
+        font-size: 13px;
+      }
+
+      .log-entry {
+        padding: 5px 0;
+        border-bottom: 1px solid #ddd;
+      }
+
+      .log-entry:last-child {
+        border-bottom: none;
+      }
+
+      .log-time {
+        color: #666;
+        margin-right: 10px;
+      }
+
+      .log-message {
+        color: #333;
+      }
+
+      .loading-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.7);
+        display: none;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+      }
+
+      .loading-overlay.show {
+        display: flex;
+      }
+
+      .loading-content {
+        background: white;
+        padding: 40px;
+        border-radius: 20px;
+        text-align: center;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      }
+
+      .loading-spinner {
+        width: 60px;
+        height: 60px;
+        border: 4px solid #f3f3f3;
+        border-top: 4px solid #667eea;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 20px;
+      }
+
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+
+      .loading-text {
+        font-size: 18px;
+        color: #333;
+        margin-bottom: 10px;
+      }
+
+      .loading-progress {
+        font-size: 14px;
+        color: #666;
+      }
+
+      /* 硬件加速优化滚动性能 */
+      .tbody-container {
+        transform: translateZ(0);
+        -webkit-overflow-scrolling: touch;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>📊 进度条导出示例</h1>
+      <p class="subtitle">演示大数据集导出时的进度反馈功能</p>
+
+      <div class="info-box">
+        <h3>🎯 功能说明</h3>
+        <p>
+          这个示例展示了 <code>export_table()</code> 函数的使用。
+          当导出大型表格时，进度回调函数会实时更新进度条，让用户了解导出进度。
+        </p>
+      </div>
+
+      <div class="stats">
+        <div class="stat-card">
+          <div class="stat-value" id="row-count">1000</div>
+          <div class="stat-label">表格行数</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="column-count">6</div>
+          <div class="stat-label">表格列数</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="export-time">-</div>
+          <div class="stat-label">导出耗时</div>
+        </div>
+      </div>
+
+      <table id="large-data-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>产品名称</th>
+            <th>类别</th>
+            <th>价格</th>
+            <th>库存</th>
+            <th>销量</th>
+          </tr>
+        </thead>
+      </table>
+      <div class="tbody-container">
+        <table style="width: 100%">
+          <tbody id="table-body">
+            <!-- 将由 JavaScript 动态生成 -->
+          </tbody>
+        </table>
+      </div>
+
+      <div class="progress-container" id="progress-container">
+        <div class="progress-bar" id="progress-bar">
+          <span class="progress-text" id="progress-text">0%</span>
+        </div>
+      </div>
+
+      <button id="export-btn" onclick="exportWithProgress('csv')">🚀 导出 CSV（分批异步）</button>
+      <button
+        id="export-xlsx-btn"
+        onclick="exportWithProgress('xlsx')"
+        style="margin-top: 10px; background: linear-gradient(135deg, #28a745 0%, #20c997 100%)"
+      >
+        📗 导出 Excel（分批异步）
+      </button>
+
+      <div class="log" id="log">
+        <div class="log-entry">
+          <span class="log-time">系统</span>
+          <span class="log-message">等待用户操作...</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 数据生成加载覆盖层 -->
+    <div class="loading-overlay" id="loading-overlay">
+      <div class="loading-content">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">正在生成测试数据...</div>
+        <div class="loading-progress" id="loading-progress">0%</div>
+      </div>
+    </div>
+
+    <script type="module">
+      import init, { export_table_to_csv_batch, export_table_to_xlsx_batch } from "../pkg/belobog_stellar_grid.js";
+
+      // 使用 Web Worker 生成大量测试数据
+      function generateTableData(rowCount = 1000) {
+        return new Promise((resolve, reject) => {
+          const loadingOverlay = document.getElementById("loading-overlay");
+          const loadingProgress = document.getElementById("loading-progress");
+          const tbody = document.getElementById("table-body");
+          const exportBtn = document.getElementById("export-btn");
+
+          // 显示加载覆盖层
+          loadingOverlay.classList.add("show");
+          addLog(`🔄 开始生成 ${rowCount.toLocaleString()} 行数据...`);
+
+          const worker = new Worker("./data-generator-worker.js");
+
+          worker.onmessage = function (e) {
+            const { type, rows, progress, processedCount, totalCount } = e.data;
+
+            if (type === "progress") {
+              // 更新进度
+              loadingProgress.textContent = `${progress}% (${processedCount.toLocaleString()} / ${totalCount.toLocaleString()})`;
+            } else if (type === "complete") {
+              // 数据生成完成，开始分片渲染
+              tbody.innerHTML = "";
+
+              // 渲染配置
+              const totalRows = rows.length;
+              const batchSize = 500; // 每批渲染 500 行
+              let currentIndex = 0;
+
+              addLog(`⚡️ 数据生成完毕，开始渲染 ${totalRows.toLocaleString()} 行数据...`);
+
+              const startTime = performance.now(); // 记录渲染开始时间
+
+              function renderBatch() {
+                const fragment = document.createDocumentFragment();
+                const endIndex = Math.min(currentIndex + batchSize, totalRows);
+
+                for (let i = currentIndex; i < endIndex; i++) {
+                  const rowData = rows[i];
+                  const row = document.createElement("tr");
+
+                  // 使用 innerHTML 构建行内容
+                  row.innerHTML = `
+                    <td>${rowData.id}</td>
+                    <td>${rowData.product}</td>
+                    <td><span class="badge badge-${
+                      rowData.category === "电子产品"
+                        ? "primary"
+                        : rowData.category === "家居用品"
+                          ? "success"
+                          : "warning"
+                    }">${rowData.category}</span></td>
+                    <td>${rowData.price}</td>
+                    <td>${rowData.stock}</td>
+                    <td>${rowData.sales}</td>
+                  `;
+
+                  fragment.appendChild(row);
+                }
+
+                tbody.appendChild(fragment);
+                currentIndex = endIndex;
+
+                // 更新进度
+                const progress = Math.round((currentIndex / totalRows) * 100);
+                loadingProgress.textContent = `渲染中... ${progress}% (${currentIndex.toLocaleString()} / ${totalRows.toLocaleString()})`;
+
+                if (currentIndex < totalRows) {
+                  // 给浏览器更多时间处理，使用 setTimeout 替代 requestAnimationFrame
+                  setTimeout(renderBatch, 0);
+                } else {
+                  // 渲染完成，延迟一帧后关闭加载提示
+                  requestAnimationFrame(() => {
+                    const endTime = performance.now();
+                    const duration = ((endTime - startTime) / 1000).toFixed(2);
+
+                    loadingOverlay.classList.remove("show");
+                    addLog(`✅ 渲染完成！总耗时: ${duration}秒`);
+                    document.getElementById("row-count").textContent = totalRows.toLocaleString();
+                    exportBtn.disabled = false;
+                    worker.terminate();
+                    resolve();
+                  });
+                }
+              }
+
+              // 开始第一批渲染
+              requestAnimationFrame(renderBatch);
+            }
+          };
+
+          worker.onerror = function (error) {
+            loadingOverlay.classList.remove("show");
+            addLog("❌ 数据生成失败: " + error.message);
+            worker.terminate();
+            reject(error);
+          };
+
+          // 启动 Worker
+          worker.postMessage({ rowCount });
+        });
+      }
+
+      // 添加日志
+      function addLog(message, type = "info") {
+        const log = document.getElementById("log");
+        const entry = document.createElement("div");
+        entry.className = "log-entry";
+
+        const time = new Date().toLocaleTimeString("zh-CN");
+        entry.innerHTML = `
+                <span class="log-time">${time}</span>
+                <span class="log-message">${message}</span>
+            `;
+
+        log.appendChild(entry);
+        log.scrollTop = log.scrollHeight;
+      }
+
+      // 初始化 WASM 模块
+      let wasmInitialized = false;
+
+      async function initWasm() {
+        if (!wasmInitialized) {
+          try {
+            await init();
+            wasmInitialized = true;
+            addLog("✅ WASM 模块初始化成功");
+            console.log("✅ WASM 模块初始化成功");
+          } catch (error) {
+            addLog("❌ WASM 模块初始化失败: " + error);
+            throw error;
+          }
+        }
+      }
+
+      // 导出函数 - 带进度显示
+      window.exportWithProgress = async function (format = "csv") {
+        const isXlsx = format === "xlsx";
+        try {
+          await initWasm();
+
+          const btn = document.getElementById(isXlsx ? "export-xlsx-btn" : "export-btn");
+          const progressContainer = document.getElementById("progress-container");
+          const progressBar = document.getElementById("progress-bar");
+          const progressText = document.getElementById("progress-text");
+          const exportTimeElement = document.getElementById("export-time");
+
+          // 禁用按钮
+          btn.disabled = true;
+          btn.textContent = isXlsx ? "⏳ 正在导出 Excel..." : "⏳ 正在导出 CSV...";
+
+          // 显示进度条
+          progressContainer.classList.add("show");
+          progressBar.style.width = "0%";
+          progressText.textContent = "0%";
+
+          addLog("🚀 开始导出数据...");
+
+          const startTime = performance.now();
+
+          // 进度回调函数
+          let lastProgress = 0;
+          const progressCallback = (progress) => {
+            const roundedProgress = Math.round(progress);
+            progressBar.style.width = `${progress}%`;
+            progressText.textContent = `${roundedProgress}%`;
+
+            // 每 20% 记录一次日志
+            if (roundedProgress % 20 === 0 && roundedProgress !== lastProgress) {
+              addLog(`📊 导出进度: ${roundedProgress}%`);
+              lastProgress = roundedProgress;
+            }
+          };
+
+          // 执行导出 - 使用分批异步处理（DOM读取模式）
+          const today = new Date().toISOString().split("T")[0];
+          const filename = `产品数据_${today}.${isXlsx ? "xlsx" : "csv"}`;
+          const excludeHidden = false; // 不排除隐藏行
+
+          if (isXlsx) {
+            await export_table_to_xlsx_batch("large-data-table", "table-body", filename, 1000, excludeHidden, progressCallback);
+          } else {
+            await export_table_to_csv_batch("large-data-table", "table-body", filename, 1000, excludeHidden, progressCallback);
+          }
+
+          const endTime = performance.now();
+          const duration = ((endTime - startTime) / 1000).toFixed(2);
+
+          exportTimeElement.textContent = `${duration}s`;
+
+          addLog(`✅ 导出成功！文件名: ${filename}`);
+          addLog(`⏱️ 耗时: ${duration} 秒`);
+
+          // 延迟隐藏进度条
+          setTimeout(() => {
+            progressContainer.classList.remove("show");
+            btn.disabled = false;
+            btn.textContent = isXlsx ? "📗 导出 Excel（分批异步）" : "🚀 导出 CSV（分批异步）";
+          }, 2000);
+        } catch (error) {
+          addLog("❌ 导出失败: " + error);
+          console.error("❌ 导出失败:", error);
+
+          const btn = document.getElementById("export-btn");
+          const progressContainer = document.getElementById("progress-container");
+
+          btn.disabled = false;
+          btn.textContent = isXlsx ? "📗 导出 Excel（分批异步）" : "🚀 导出 CSV（分批异步）";
+          progressContainer.classList.remove("show");
+        }
+      };
+
+      // 页面加载时初始化
+      window.addEventListener("DOMContentLoaded", async () => {
+        try {
+          // 先初始化 WASM（很快）
+          await initWasm();
+
+          // 然后异步生成数据（使用 Worker，不阻塞）
+          // 默认生成 10000 行
+          await generateTableData(10_000);
+        } catch (error) {
+          console.error("初始化失败:", error);
+          addLog("❌ 初始化失败: " + error);
+        }
+      });
+    </script>
+  </body>
+</html>
