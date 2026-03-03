@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1772525676577,
+  "lastUpdate": 1772526566571,
   "repoUrl": "https://github.com/kurisu994/belobog-stellar-grid",
   "entries": {
     "Rust Benchmark": [
@@ -179,6 +179,102 @@ window.BENCHMARK_DATA = {
             "name": "xlsx_generation/含合并/1000行x10列",
             "value": 29070039,
             "range": "± 149159",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_escape/普通文本",
+            "value": 6,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_escape/公式文本",
+            "value": 45,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "makise_kurisuu@outlook.jp",
+            "name": "Kurisu",
+            "username": "kurisu994"
+          },
+          "committer": {
+            "email": "makise_kurisuu@outlook.jp",
+            "name": "Kurisu",
+            "username": "kurisu994"
+          },
+          "distinct": true,
+          "id": "feb8938b751189e5624808d505fb59b9027bb9dc",
+          "message": "🎨 style(examples): 全面升级 CDN 导出示例页面的视觉设计和交互体验\n\n重构示例页面的整体布局和样式，移除对第三方 CSS 框架的依赖，采用自定义的现代化设计语言\n增强视觉层次和可读性，优化按钮组、表格和代码块的展示效果\n改进状态提示面板和加载动画，提升用户交互反馈的清晰度\n保持原有功能逻辑不变，专注于提升演示页面的专业性和用户体验",
+          "timestamp": "2026-03-03T16:26:01+08:00",
+          "tree_id": "b921cc807d27b1580e3f38a12bee92b7764a79bb",
+          "url": "https://github.com/kurisu994/belobog-stellar-grid/commit/feb8938b751189e5624808d505fb59b9027bb9dc"
+        },
+        "date": 1772526565928,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "csv_generation/无BOM/100行x10列",
+            "value": 78505,
+            "range": "± 376",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_generation/无BOM/1000行x10列",
+            "value": 820234,
+            "range": "± 5060",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_generation/无BOM/5000行x10列",
+            "value": 4308348,
+            "range": "± 29698",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_generation/无BOM/1000行x50列",
+            "value": 4065925,
+            "range": "± 11400",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_generation/带BOM/1000行x10列",
+            "value": 846946,
+            "range": "± 12813",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "xlsx_generation/无合并/100行x10列",
+            "value": 2949762,
+            "range": "± 22110",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "xlsx_generation/无合并/1000行x10列",
+            "value": 27610081,
+            "range": "± 204860",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "xlsx_generation/无合并/5000行x10列",
+            "value": 150231555,
+            "range": "± 841381",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "xlsx_generation/无合并/1000行x50列",
+            "value": 174297419,
+            "range": "± 1396865",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "xlsx_generation/含合并/1000行x10列",
+            "value": 29362137,
+            "range": "± 255199",
             "unit": "ns/iter"
           },
           {
