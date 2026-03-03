@@ -9,6 +9,8 @@
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-03-03
+
 ### ✨ 新增
 
 - 🆕 **Streaming CSV 导出**: 新增 `export_data_streaming()` 异步 API
@@ -19,12 +21,35 @@
   - 新增 `ExportStreamingOptions` TypeScript 类型定义
   - 新增 `examples/streaming-export.html` 示例页面（含流式 vs 常规对比）
   - 新增 26 个流式导出相关单元测试
+- 🆕 **框架示例项目**: 为所有 5 个框架封装包添加完整的可运行示例
+  - `packages/react/examples/` — Rsbuild + React 18 示例（DOM 导出 + 数据导出 + Worker 后台导出）
+  - `packages/vue/examples/` — Rsbuild + Vue 3 示例（DOM 导出 + 数据导出 + Worker 后台导出）
+  - `packages/svelte/examples/` — Rsbuild + Svelte 5 示例（DOM 导出 + 数据导出 + Worker 后台导出）
+  - `packages/solid/examples/` — Rsbuild + Solid.js 示例（DOM 导出 + 数据导出 + Worker 后台导出）
+  - `packages/worker/examples/` — Rsbuild + React 示例（ExportWorker 类的完整用法）
+  - 所有示例均配置了 WASM asyncWebAssembly 实验特性支持
+
+### 🐛 修复
+
+- 🐛 **Worker 初始化失败修复**: 修复 Rsbuild 开发模式下 Worker 永远无法完成初始化的问题
+  - 根因：Rsbuild 懒编译代理在 Worker 环境中触发 HMR 更新，Worker 无 `window` 对象导致 `reloadPage()` 崩溃
+  - 解决：所有示例 rsbuild 配置添加 `dev.lazyCompilation: false`
+- 🐛 **React StrictMode 竞态修复**: 修复 `useWorkerExporter` Hook 在 React StrictMode 下的状态更新竞态
+  - 根因：`mountedRef` 共享引用在 StrictMode 双挂载时导致被拒绝的 Promise catch 回调误调 `setError`
+  - 解决：使用局部 `cancelled` 变量替代共享 `mountedRef` 守护初始化 Promise 回调
+- 🐛 **@bsg-export/types 构建修复**: 修复 `ExportFormat` 枚举无法在运行时使用的问题（`emitDeclarationOnly: true → false`）
+- 🐛 **@bsg-export/vue 构建修复**: 修复 `.vue` 单文件组件未包含在发布产物中的问题（构建脚本增加 `cp src/ExportButton.vue dist/`）
 
 ### ⚡ 优化
 
 - ⚡ **batch_export 内存优化**: `export_table_to_csv_batch()` 改用分块 Blob 片段策略
   - 每个批次的 CSV 字节在转为 `Uint8Array` 后立即释放 Rust 侧内存
   - 内存峰值从「全部行的 CSV 字节」降低为「一个批次的 CSV 字节」
+
+### 📝 文档
+
+- 📚 新增 Solid.js (`packages/solid/README.md`) 和 Svelte (`packages/svelte/README.md`) 封装库的完整 README 文档
+- 📝 更新提交消息格式规范，统一使用中文 emoji 前缀格式
 
 ## [1.0.10] - 2026-02-28
 

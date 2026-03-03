@@ -7,7 +7,7 @@
   <p>一个安全、高效、易用的 Rust WebAssembly 库，用于将 HTML 表格导出为 CSV 和 XLSX 文件</p>
 
   <p>
-    <img src="https://img.shields.io/badge/version-1.0.10-blue.svg" alt="Version" />
+    <img src="https://img.shields.io/badge/version-1.1.0-blue.svg" alt="Version" />
     <img src="https://img.shields.io/badge/rust-edition%202024-orange.svg" alt="Rust Edition" />
     <img src="https://img.shields.io/badge/test_coverage-100%25-brightgreen.svg" alt="Test Coverage" />
     <img src="https://img.shields.io/badge/license-MIT%2FApache--2.0-green.svg" alt="License" />
@@ -30,7 +30,7 @@
 - **🚀 极致性能**：Rust 原生速度 + WebAssembly 优化
 - **🔒 企业级安全**：内置文件名验证，防止路径遍历攻击
 - **📦 轻量级**：约 1.3MB 的 WASM 文件（Gzip 压缩后约 450KB）
-- **✅ 100% 测试覆盖**：121 个单元测试 + 33 个 E2E 测试确保代码质量
+- **✅ 100% 测试覆盖**：130 个单元测试 + 33 个 E2E 测试确保代码质量
 - **🏗️ 模块化架构**：清晰的模块设计，易于维护和扩展
 - **🌍 国际化支持**：完美支持中文、日文、韩文等 Unicode 字符
 - **💾 多格式导出**：支持 CSV 和 XLSX (Excel) 两种格式
@@ -64,6 +64,7 @@
 - **容器查找**：自动在容器元素中查找表格
 - **Web Worker 支持**：将导出计算移至 Worker 线程，避免主线程阻塞
 - **字节生成模式**：`generate_data_bytes` 支持仅生成文件字节而不触发下载，适用于 Worker 场景
+- **流式 CSV 导出**：`export_data_streaming` 分块写入降低内存峰值，适合超大数据集
 - **冻结窗格**：XLSX 导出自动冻结表头行，支持自定义冻结行/列数
 
 ## 🚀 快速开始
@@ -279,6 +280,27 @@ try {
 | virtual-scroll-export.html | ![高级](https://img.shields.io/badge/难度-高级-red)    | 虚拟滚动导出（百万级数据）示例              |
 | streaming-export.html      | ![高级](https://img.shields.io/badge/难度-高级-red)    | 流式 CSV 导出（分块 Blob 降低内存峰值）示例 |
 
+#### 框架集成示例
+
+每个框架封装包都包含完整的可运行 Rsbuild 示例项目，位于 `packages/<框架>/examples/` 目录下：
+
+| 框架     | 目录                         | 描述                                           |
+| -------- | ---------------------------- | ---------------------------------------------- |
+| React    | `packages/react/examples/`   | DOM 导出 + 数据导出 + Worker 后台导出          |
+| Vue 3    | `packages/vue/examples/`     | DOM 导出 + 数据导出 + Worker 后台导出          |
+| Svelte 5 | `packages/svelte/examples/`  | DOM 导出 + 数据导出 + Worker 后台导出          |
+| Solid.js | `packages/solid/examples/`   | DOM 导出 + 数据导出 + Worker 后台导出          |
+| Worker   | `packages/worker/examples/`  | ExportWorker 类完整用法（React 实现）          |
+
+运行框架示例：
+
+```bash
+cd packages/react/examples   # 或 vue/svelte/solid/worker
+pnpm install
+pnpm dev
+# 访问 http://localhost:3000/
+```
+
 **运行示例**：
 
 ```bash
@@ -468,13 +490,15 @@ belobog-stellar-grid/
 │   │   └── export_xlsx.rs # XLSX 导出
 │   ├── batch_export.rs    # 异步分批导出（CSV）
 │   ├── batch_export_xlsx.rs # 异步分批导出（XLSX）
+│   ├── streaming_export.rs # 流式 CSV 导出（分块写入 + Blob 拼接）
 │   └── utils.rs           # 调试工具（含 2 个内联测试）
-├── tests/                 # 单元测试目录（89 个测试）
+├── tests/                 # 单元测试目录（98 个测试）
 │   ├── lib_tests.rs       # 基础功能测试（41 个）
 │   ├── test_resource.rs   # RAII 资源测试（8 个）
 │   ├── test_unified_api.rs # 统一 API 测试（4 个）
-│   ├── test_data_export.rs # 数据导出测试（33 个）
+│   ├── test_data_export.rs # 数据导出测试（34 个）
 │   ├── test_security.rs   # 安全/CSV注入测试（3 个）
+│   ├── test_streaming_export.rs # 流式导出测试（26 个）（注：需 wasm32 环境）
 │   ├── fixtures/          # 测试夹具
 │   └── browser/           # 浏览器测试辅助
 ├── e2e/                   # E2E 测试目录（Playwright，33 个测试）
@@ -486,14 +510,19 @@ belobog-stellar-grid/
 │       ├── multi-sheet-export.spec.ts # 多工作表测试（3 个）
 │       ├── tree-export.spec.ts       # 树形数据测试（7 个）
 │       └── wasm-init.spec.ts         # WASM 初始化测试（3 个）
-├── examples/              # 示例目录
+├── examples/              # 原生 HTML 示例目录
 ├── packages/              # 框架集成子包
 │   ├── types/             # @bsg-export/types - 严格 TypeScript 类型定义
 │   ├── react/             # @bsg-export/react - React Hook + 组件封装
+│   │   └── examples/      # Rsbuild + React 示例项目
 │   ├── vue/               # @bsg-export/vue - Vue 3 Composable + 组件封装
+│   │   └── examples/      # Rsbuild + Vue 3 示例项目
 │   ├── svelte/            # @bsg-export/svelte - Svelte Store 封装 + 组件
+│   │   └── examples/      # Rsbuild + Svelte 5 示例项目
 │   ├── solid/             # @bsg-export/solid - Solid.js Primitive + 组件
+│   │   └── examples/      # Rsbuild + Solid.js 示例项目
 │   └── worker/            # @bsg-export/worker - Web Worker 导出封装
+│       └── examples/      # Rsbuild + React Worker 示例项目
 ├── pkg/                   # WASM 包输出
 ├── API.md                 # API 详细文档
 ├── CHANGELOG.md           # 更新日志
