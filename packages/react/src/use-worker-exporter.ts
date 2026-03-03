@@ -132,6 +132,11 @@ export function useWorkerExporter(createWorker: () => Worker): UseWorkerExporter
 
   // 初始化 Worker 和 WASM
   useEffect(() => {
+    // 使用局部变量避免 React StrictMode 双挂载时 mountedRef 竞态：
+    // StrictMode 下 effect1→cleanup→effect2，cleanup 设置 mountedRef=false 后
+    // effect2 立即设回 true，导致 effect1 被拒绝的 Promise 的 catch 回调
+    // 误判组件仍然挂载并调用 setError
+    let cancelled = false;
     mountedRef.current = true;
 
     const worker = createWorker();
@@ -150,13 +155,14 @@ export function useWorkerExporter(createWorker: () => Worker): UseWorkerExporter
 
     initPromise
       .then(() => {
-        if (mountedRef.current) setInitialized(true);
+        if (!cancelled) setInitialized(true);
       })
       .catch((err) => {
-        if (mountedRef.current) setError(err instanceof Error ? err : new Error(String(err)));
+        if (!cancelled) setError(err instanceof Error ? err : new Error(String(err)));
       });
 
     return () => {
+      cancelled = true;
       mountedRef.current = false;
       // 拒绝所有待处理请求
       for (const [, pending] of pendingRef.current) {
