@@ -41,6 +41,19 @@ jobs:
       - name: 运行 Benchmark
         run: cargo bench --bench export_benchmarks -- --output-format bencher | tee benchmark_output.txt
 
+      - name: 确保 gh-pages 分支存在
+        run: |
+          if ! git ls-remote --exit-code --heads origin gh-pages > /dev/null 2>&1; then
+            echo "gh-pages 分支不存在，正在创建..."
+            git checkout --orphan gh-pages
+            git rm -rf . 2>/dev/null || true
+            git commit --allow-empty -m "初始化 gh-pages 分支（Benchmark 数据存储）"
+            git push origin gh-pages
+            git checkout -
+          else
+            echo "gh-pages 分支已存在"
+          fi
+
       - name: 保存 Benchmark 结果
         uses: benchmark-action/github-action-benchmark@v1
         if: github.event_name != 'pull_request'
