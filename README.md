@@ -514,7 +514,6 @@ belobog-stellar-grid/
 ├── pkg/                   # WASM 包输出
 ├── API.md                 # API 详细文档
 ├── CHANGELOG.md           # 更新日志
-├── CODE_REVIEW_REPORT.md  # 代码审查报告
 ├── CLAUDE.md              # AI 辅助开发指南
 ├── llms.txt               # LLM 上下文文档
 ├── justfile               # Just 命令配置
