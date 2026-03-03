@@ -136,9 +136,12 @@
     </main>
 
     <script type="module">
-      // 我们直接使用已发布在 npm 并缓存到 unpkg 上的 1.0.8 版本进行演示
-      // 注意：当你发布新版本后，可以更新这里的版本号测试
-      import init, { export_table, ExportFormat } from "https://unpkg.com/belobog-stellar-grid@1.0.8/pkg/belobog_stellar_grid.js";
+      // 检测是否在 GitHub Pages 环境下运行，是则使用本地 pkg 路径
+      const isGitHubPages = location.hostname.endsWith('github.io');
+      const wasmModuleUrl = isGitHubPages
+        ? "../pkg/belobog_stellar_grid.js"
+        : "https://unpkg.com/belobog-stellar-grid@1.0.8/pkg/belobog_stellar_grid.js";
+      const { default: init, export_table, ExportFormat } = await import(wasmModuleUrl);
 
       const btnCsv = document.getElementById("btn-csv");
       const btnXlsx = document.getElementById("btn-xlsx");
