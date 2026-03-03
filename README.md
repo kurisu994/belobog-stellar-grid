@@ -248,6 +248,8 @@ try {
 
 ### 🎨 完整示例
 
+> **🌐 在线演示**：[https://kurisu994.github.io/belobog-stellar-grid/examples/](https://kurisu994.github.io/belobog-stellar-grid/examples/)
+
 查看 [examples/](./examples/) 目录获取完整示例：
 
 | 示例                       | 难度                                                   | 描述                                        |
@@ -538,6 +540,8 @@ belobog-stellar-grid/
 | 树形 XLSX（~584节点）        | ~7ms   | 7~7ms   |
 
 运行 Benchmark：`cargo bench` (Rust) 或 `cd e2e && npx playwright test tests/benchmark.spec.ts` (E2E)
+
+> **📈 历史趋势图表**：[https://kurisu994.github.io/belobog-stellar-grid/dev/bench/](https://kurisu994.github.io/belobog-stellar-grid/dev/bench/)
 
 ### 运行时性能
 

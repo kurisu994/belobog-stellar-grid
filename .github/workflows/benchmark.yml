@@ -138,3 +138,66 @@ jobs:
           else
             echo "> ✅ WASM 体积在合理范围内" >> $GITHUB_STEP_SUMMARY
           fi
+
+  # 部署示例页面到 GitHub Pages
+  deploy-examples:
+    name: 部署示例页面
+    runs-on: ubuntu-latest
+    needs: [rust-benchmark, wasm-size]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: 安装 wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: 缓存 Cargo 依赖
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-wasm-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-wasm-
+
+      - name: 构建 WASM
+        run: wasm-pack build --target web --release
+
+      - name: 准备部署目录
+        run: |
+          mkdir -p deploy/examples deploy/pkg
+          cp -r examples/* deploy/examples/
+          cp -r pkg/* deploy/pkg/
+
+          # 生成首页，跳转到 examples/
+          cat > deploy/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html lang="zh-CN">
+          <head>
+            <meta charset="UTF-8">
+            <meta http-equiv="refresh" content="0; url=examples/">
+            <title>belobog-stellar-grid 在线示例</title>
+          </head>
+          <body>
+            <p>正在跳转到 <a href="examples/">示例页面</a>...</p>
+          </body>
+          </html>
+          EOF
+
+      - name: 部署到 GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./deploy
+          keep_files: true
+          user_name: 'Kurisu'
+          user_email: 'makise_kurisuu@outlook.jp'
+          commit_message: '🚀 部署示例页面和 WASM 产物'
