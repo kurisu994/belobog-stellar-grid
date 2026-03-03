@@ -22,3 +22,11 @@ pub use streaming_export::export_data_streaming;
 
 // 导出 utils 模块的公共函数
 pub use utils::{escape_csv_injection, set_panic_hook};
+
+// 导出 benchmark 所需的内部类型和函数（不在文档中显示）
+#[doc(hidden)]
+pub mod bench_exports {
+    pub use crate::core::export_csv::generate_csv_bytes;
+    pub use crate::core::export_xlsx::{generate_xlsx_bytes, generate_xlsx_multi_bytes};
+    pub use crate::core::table_extractor::{MergeRange, TableData};
+}

@@ -2,9 +2,9 @@
 ///
 /// 提供统一的导出接口，协调各个导出模块
 mod data_export;
-mod export_csv;
+pub(crate) mod export_csv;
 pub(crate) mod export_xlsx;
-mod table_extractor;
+pub(crate) mod table_extractor;
 
 pub(crate) use data_export::{build_table_data_from_array, build_table_data_from_tree};
 use export_csv::{export_as_csv, generate_csv_bytes};
