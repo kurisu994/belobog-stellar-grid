@@ -1,0 +1,125 @@
+name: Benchmark
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # Rust 原生 Benchmark（criterion）
+  rust-benchmark:
+    name: Rust Benchmark
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: 缓存 Cargo 依赖
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-bench-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-bench-
+
+      - name: 运行 Benchmark
+        run: cargo bench --bench export_benchmarks -- --output-format bencher | tee benchmark_output.txt
+
+      - name: 保存 Benchmark 结果
+        uses: benchmark-action/github-action-benchmark@v1
+        if: github.event_name != 'pull_request'
+        with:
+          name: Rust Benchmark
+          tool: "cargo"
+          output-file-path: benchmark_output.txt
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          auto-push: true
+          benchmark-data-dir-path: dev/bench
+
+      - name: PR Benchmark 对比
+        uses: benchmark-action/github-action-benchmark@v1
+        if: github.event_name == 'pull_request'
+        with:
+          name: Rust Benchmark
+          tool: "cargo"
+          output-file-path: benchmark_output.txt
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          alert-threshold: "130%"
+          comment-on-alert: true
+          fail-on-alert: true
+          comment-always: true
+          benchmark-data-dir-path: dev/bench
+
+  # WASM 产物体积追踪
+  wasm-size:
+    name: WASM 体积追踪
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: 安装 wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: 缓存 Cargo 依赖
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-wasm-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-wasm-
+
+      - name: 构建 WASM
+        run: wasm-pack build --target web --release
+
+      - name: 检查包大小
+        run: |
+          WASM_FILE="pkg/belobog_stellar_grid_bg.wasm"
+          SIZE=$(stat -c%s "$WASM_FILE")
+          SIZE_KB=$((SIZE / 1024))
+          SIZE_MB=$(echo "scale=2; $SIZE / 1024 / 1024" | bc)
+
+          echo "## 📦 WASM 产物大小" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| 指标 | 值 |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| 原始大小 | **${SIZE_MB} MB** (${SIZE} bytes) |" >> $GITHUB_STEP_SUMMARY
+
+          # Gzip 压缩大小
+          gzip -k "$WASM_FILE"
+          GZ_SIZE=$(stat -c%s "${WASM_FILE}.gz")
+          GZ_KB=$((GZ_SIZE / 1024))
+          echo "| Gzip 压缩 | ${GZ_KB} KB (${GZ_SIZE} bytes) |" >> $GITHUB_STEP_SUMMARY
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # 体积阈值检查（2MB 警告）
+          if [ $SIZE -gt 2097152 ]; then
+            echo "> ⚠️ **警告**: WASM 体积超过 2MB，请关注是否引入了不必要的依赖" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "> ✅ WASM 体积在合理范围内" >> $GITHUB_STEP_SUMMARY
+          fi
