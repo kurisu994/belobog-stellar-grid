@@ -1,6 +1,6 @@
 # @bsg-export/worker 示例
 
-演示 `ExportWorker` 类的基本用法（纯 TypeScript，无框架依赖）。
+演示 `ExportWorker` 类的基本用法（React + TypeScript）。
 
 ## 运行步骤
 

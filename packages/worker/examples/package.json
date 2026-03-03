@@ -8,12 +8,17 @@
     "preview": "rsbuild preview"
   },
   "dependencies": {
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
     "belobog-stellar-grid": "file:../../../pkg",
     "@bsg-export/worker": "file:..",
     "@bsg-export/types": "file:../../types"
   },
   "devDependencies": {
     "@rsbuild/core": "^1.0.0",
+    "@rsbuild/plugin-react": "^1.0.0",
+    "@types/react": "^18.0.0",
+    "@types/react-dom": "^18.0.0",
     "typescript": "^5.0.0"
   }
 }
