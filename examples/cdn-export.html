@@ -3,119 +3,249 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>CDN 分发导出示例 - belobog-stellar-grid</title>
-    <!-- 引入 CDN 版本的 CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/picocss@1.5.10/pico.min.css">
+    <title>CDN 分发导出示例 - Excel Exporter</title>
     <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
       body {
-        padding: 2rem;
-        background-color: #f8f9fa;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        padding: 40px 20px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
       }
       .container {
-        pointer-events: auto;
+        max-width: 900px;
+        margin: 0 auto;
+        background: white;
+        padding: 40px;
+        border-radius: 12px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
       }
-      /* 简单的加载动画 */
+      h1 {
+        color: #333;
+        margin-bottom: 10px;
+        font-size: 32px;
+      }
+      .subtitle {
+        color: #666;
+        margin-bottom: 30px;
+        font-size: 14px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 20px 0;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      }
+      th,
+      td {
+        padding: 12px 15px;
+        text-align: left;
+        border-bottom: 1px solid #ddd;
+      }
+      th {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 13px;
+        letter-spacing: 0.5px;
+      }
+      tr:hover {
+        background-color: #f8f9fa;
+      }
+      .button-group {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin: 30px 0;
+      }
+      button {
+        padding: 12px 24px;
+        font-size: 14px;
+        font-weight: 600;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        min-width: 140px;
+      }
+      button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        transform: none !important;
+        box-shadow: none !important;
+      }
+      .btn-primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+      }
+      .btn-primary:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+      }
+      .btn-excel {
+        background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        color: white;
+      }
+      .btn-excel:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(40, 167, 69, 0.4);
+      }
+
+      .code {
+        background: #e8f0fe;
+        padding: 2px 8px;
+        border-radius: 3px;
+        font-family: "Courier New", monospace;
+        color: #5f6368;
+      }
+      .nav-link {
+        display: inline-block;
+        margin-bottom: 20px;
+        color: #667eea;
+        text-decoration: none;
+        font-weight: 600;
+      }
+      .nav-link:hover {
+        text-decoration: underline;
+      }
+      .section-title {
+        margin: 30px 0 15px;
+        color: #2d3748;
+        font-size: 20px;
+        border-bottom: 2px solid #e2e8f0;
+        padding-bottom: 8px;
+      }
+      .description {
+        color: #4a5568;
+        line-height: 1.6;
+        margin-bottom: 15px;
+      }
+      .status-panel {
+        margin-top: 20px;
+        padding: 15px;
+        border-radius: 8px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        font-weight: 600;
+      }
       .loading {
         display: inline-block;
         width: 1rem;
         height: 1rem;
-        border: 2px solid rgba(0,0,0,0.1);
+        border: 2px solid rgba(0, 0, 0, 0.1);
         border-radius: 50%;
-        border-top-color: #0f172a;
+        border-top-color: #667eea;
         animation: spin 1s ease-in-out infinite;
         margin-right: 0.5rem;
         vertical-align: middle;
       }
       @keyframes spin {
-        to { transform: rotate(360deg); }
+        to {
+          transform: rotate(360deg);
+        }
       }
-      #status-msg {
-        margin-top: 1rem;
-        font-weight: bold;
+      .success {
+        color: #38a169;
       }
-      .success { color: #10b981; }
-      .error { color: #ef4444; }
+      .error {
+        color: #e53e3e;
+      }
+
       pre {
         background: #1e1e1e;
         color: #d4d4d4;
-        padding: 1rem;
-        border-radius: 6px;
+        padding: 15px;
+        border-radius: 8px;
         overflow-x: auto;
+        font-family: "Courier New", monospace;
+        font-size: 14px;
+        line-height: 1.5;
+        margin: 15px 0;
       }
-      .code-comment { color: #6a9955; }
-      .code-keyword { color: #569cd6; }
-      .code-function { color: #dcdcaa; }
-      .code-string { color: #ce9178; }
+      .code-comment {
+        color: #6a9955;
+      }
+      .code-keyword {
+        color: #569cd6;
+      }
+      .code-function {
+        color: #dcdcaa;
+      }
+      .code-string {
+        color: #ce9178;
+      }
     </style>
   </head>
   <body>
-    <main class="container">
-      <nav aria-label="breadcrumb">
-        <ul>
-          <li><a href="index.html">返回示例列表</a></li>
-          <li>CDN 分发示例</li>
-        </ul>
-      </nav>
+    <div class="container">
+      <a href="index.html" class="nav-link">← 返回示例列表</a>
 
-      <article>
-        <header>
-          <h2>🌐 CDN 直接引入演示</h2>
-          <p>这个页面展示了如何在<strong>不使用任何构建工具（如 Webpack/Vite）</strong>的情况下，直接通过 HTML <code>&lt;script type="module"&gt;</code> 引用公网 CDN 上的 WASM 库来完成表格导出。</p>
-        </header>
+      <h1>🌐 CDN 直接引入演示</h1>
+      <p class="subtitle">
+        这个页面展示了如何在<strong>不使用任何构建工具（如 Webpack/Vite）</strong>的情况下，直接通过 HTML
+        <span class="code">&lt;script type="module"&gt;</span> 引用公网 CDN 上的 WASM 库来完成表格导出。
+      </p>
 
-        <section>
-          <h3>1. 示例数据表格</h3>
-          <p>我们将使用 CDN 上的 <code>belobog-stellar-grid</code> 导出下面这个表格：</p>
-          <table id="demo-table" role="grid">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>框架</th>
-                <th>语言</th>
-                <th>Stars</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>1</td>
-                <td>React</td>
-                <td>JavaScript/TypeScript</td>
-                <td>210,000+</td>
-              </tr>
-              <tr>
-                <td>2</td>
-                <td>Vue.js</td>
-                <td>JavaScript/TypeScript</td>
-                <td>205,000+</td>
-              </tr>
-              <tr>
-                <td>3</td>
-                <td>Svelte</td>
-                <td>JavaScript/TypeScript</td>
-                <td>70,000+</td>
-              </tr>
-              <tr>
-                <td>4</td>
-                <td>belobog-stellar-grid</td>
-                <td>Rust/WebAssembly</td>
-                <td>🚀 增长中</td>
-              </tr>
-            </tbody>
-          </table>
+      <h2 class="section-title">1. 示例数据表格</h2>
+      <p class="description">我们将使用 CDN 上的 <span class="code">belobog-stellar-grid</span> 导出下面这个表格：</p>
 
-          <div class="grid">
-            <button id="btn-csv" class="secondary" disabled>导出为 CSV</button>
-            <button id="btn-xlsx" disabled>导出为 XLSX (Excel)</button>
-          </div>
-          <div id="status-msg">
-            <span class="loading"></span> 正在从 unpkg.com 初始化 WebAssembly 模块...
-          </div>
-        </section>
+      <table id="demo-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>框架</th>
+            <th>语言</th>
+            <th>Stars</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>1</td>
+            <td>React</td>
+            <td>JavaScript/TypeScript</td>
+            <td>210,000+</td>
+          </tr>
+          <tr>
+            <td>2</td>
+            <td>Vue.js</td>
+            <td>JavaScript/TypeScript</td>
+            <td>205,000+</td>
+          </tr>
+          <tr>
+            <td>3</td>
+            <td>Svelte</td>
+            <td>JavaScript/TypeScript</td>
+            <td>70,000+</td>
+          </tr>
+          <tr>
+            <td>4</td>
+            <td>belobog-stellar-grid</td>
+            <td>Rust/WebAssembly</td>
+            <td>🚀 增长中</td>
+          </tr>
+        </tbody>
+      </table>
 
-        <section>
-          <h3>2. 核心代码讲解</h3>
-          <p>你只需要在 HTML 中添加一段 <code>&lt;script type="module"&gt;</code>，直接导入 CDN 上的 JS 文件：</p>
-          <pre><code><span class="code-comment">&lt;!-- 需要设置 type="module" 支持 ES Modules --&gt;</span>
+      <div class="button-group">
+        <button id="btn-csv" class="btn-primary" disabled>📄 导出为 CSV</button>
+        <button id="btn-xlsx" class="btn-excel" disabled>📗 导出为 Excel (XLSX)</button>
+      </div>
+
+      <div id="status-msg" class="status-panel">
+        <span class="loading"></span> 正在从 unpkg.com 初始化 WebAssembly 模块...
+      </div>
+
+      <h2 class="section-title">2. 核心代码讲解</h2>
+      <p class="description">
+        你只需要在 HTML 中添加一段 <span class="code">&lt;script type="module"&gt;</span>，直接导入 CDN 上的 JS 文件：
+      </p>
+      <pre><code><span class="code-comment">&lt;!-- 需要设置 type="module" 支持 ES Modules --&gt;</span>
 &lt;script <span class="code-keyword">type</span>="module"&gt;
   <span class="code-comment">// 从 unpkg 引入 JS 包装器。它会自动解析相对路径加载 WASM</span>
   <span class="code-keyword">import</span> init, { export_table, ExportFormat } <span class="code-keyword">from</span> <span class="code-string">"https://unpkg.com/belobog-stellar-grid@1.0.8/pkg/belobog_stellar_grid.js"</span>;
@@ -129,15 +259,17 @@
     <span class="code-function">export_table</span>(<span class="code-string">"demo-table"</span>, <span class="code-string">"CDN_示例.csv"</span>, ExportFormat.Csv);
   };
 &lt;/script&gt;</code></pre>
-          <p><strong>技术原理：</strong>由于包内发布的是标准的 ES Modules，而且 WASM 初始化时使用的是 <code>import.meta.url</code> 来确定 <code>.wasm</code> 后缀文件的路径，因此浏览器能够原生地解析基于同一 CDN 源地址的 WASM 文件依赖，从而实现了开箱即用的 CDN 分发。</p>
-        </section>
-
-      </article>
-    </main>
+      <p class="description">
+        <strong>技术原理：</strong>由于包内发布的是标准的 ES Modules，而且 WASM 初始化时使用的是
+        <span class="code">import.meta.url</span> 来确定
+        <span class="code">.wasm</span> 后缀文件的路径，因此浏览器能够原生地解析基于同一 CDN 源地址的 WASM
+        文件依赖，从而实现了开箱即用的 CDN 分发。
+      </p>
+    </div>
 
     <script type="module">
       // 检测是否在 GitHub Pages 环境下运行，是则使用本地 pkg 路径
-      const isGitHubPages = location.hostname.endsWith('github.io');
+      const isGitHubPages = location.hostname.endsWith("github.io");
       const wasmModuleUrl = isGitHubPages
         ? "../pkg/belobog_stellar_grid.js"
         : "https://unpkg.com/belobog-stellar-grid@1.0.8/pkg/belobog_stellar_grid.js";
@@ -151,7 +283,7 @@
         try {
           // 初始化 WASM
           await init();
-          
+
           // 更新 UI
           statusMsg.innerHTML = '<span class="success">✅ WASM 初始化成功！可以点击按钮导出了。</span>';
           btnCsv.disabled = false;
@@ -159,10 +291,10 @@
 
           // 绑定事件
           btnCsv.onclick = () => {
-             export_table("demo-table", "CDN_示例数据.csv", ExportFormat.Csv);
+            export_table("demo-table", "CDN_示例数据.csv", ExportFormat.Csv);
           };
           btnXlsx.onclick = () => {
-             export_table("demo-table", "CDN_示例数据.xlsx", ExportFormat.Xlsx);
+            export_table("demo-table", "CDN_示例数据.xlsx", ExportFormat.Xlsx);
           };
         } catch (e) {
           statusMsg.innerHTML = `<span class="error">❌ WASM 加载失败：${e.message || e}</span>`;
