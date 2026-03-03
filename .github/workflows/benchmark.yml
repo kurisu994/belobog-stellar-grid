@@ -45,6 +45,8 @@ jobs:
         run: |
           if ! git ls-remote --exit-code --heads origin gh-pages > /dev/null 2>&1; then
             echo "gh-pages 分支不存在，正在创建..."
+            git config user.name "Kurisu"
+            git config user.email "makise_kurisuu@outlook.jp"
             git checkout --orphan gh-pages
             git rm -rf . 2>/dev/null || true
             git commit --allow-empty -m "初始化 gh-pages 分支（Benchmark 数据存储）"
