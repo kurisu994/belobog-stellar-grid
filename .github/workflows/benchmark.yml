@@ -51,7 +51,7 @@ jobs:
             git rm -rf . 2>/dev/null || true
             git commit --allow-empty -m "初始化 gh-pages 分支（Benchmark 数据存储）"
             git push origin gh-pages
-            git checkout -
+            git checkout main
           else
             echo "gh-pages 分支已存在"
           fi
