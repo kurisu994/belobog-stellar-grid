@@ -25,7 +25,7 @@ docs/generated/
 
 # 备份文件
 *.bak
-*.backup
+*.backup0000000000
 
 # 测试覆盖率报告
 tarpaulin-report.html
