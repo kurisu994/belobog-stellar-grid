@@ -1,0 +1,25 @@
+{
+  "name": "@bsg-export/react-example",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "dev": "rsbuild dev",
+    "build": "rsbuild build",
+    "preview": "rsbuild preview"
+  },
+  "dependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "belobog-stellar-grid": "file:../../../pkg",
+    "@bsg-export/react": "file:..",
+    "@bsg-export/types": "file:../../types",
+    "@bsg-export/worker": "file:../../worker"
+  },
+  "devDependencies": {
+    "@rsbuild/core": "^1.0.0",
+    "@rsbuild/plugin-react": "^1.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.0.0"
+  }
+}

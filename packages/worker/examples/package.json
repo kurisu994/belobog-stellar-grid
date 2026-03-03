@@ -1,0 +1,19 @@
+{
+  "name": "@bsg-export/worker-example",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "dev": "rsbuild dev",
+    "build": "rsbuild build",
+    "preview": "rsbuild preview"
+  },
+  "dependencies": {
+    "belobog-stellar-grid": "file:../../../pkg",
+    "@bsg-export/worker": "file:..",
+    "@bsg-export/types": "file:../../types"
+  },
+  "devDependencies": {
+    "@rsbuild/core": "^1.0.0",
+    "typescript": "^5.0.0"
+  }
+}

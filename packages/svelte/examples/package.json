@@ -1,0 +1,22 @@
+{
+  "name": "@bsg-export/svelte-example",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "dev": "rsbuild dev",
+    "build": "rsbuild build",
+    "preview": "rsbuild preview"
+  },
+  "dependencies": {
+    "svelte": "^5.0.0",
+    "belobog-stellar-grid": "file:../../../pkg",
+    "@bsg-export/svelte": "file:..",
+    "@bsg-export/types": "file:../../types",
+    "@bsg-export/worker": "file:../../worker"
+  },
+  "devDependencies": {
+    "@rsbuild/core": "^1.0.0",
+    "@rsbuild/plugin-svelte": "^1.0.0",
+    "typescript": "^5.0.0"
+  }
+}
