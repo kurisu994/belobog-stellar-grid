@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>性能基准测试 - belobog-stellar-grid</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            padding: 40px 20px;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: #e0e0e0;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: #1e293b;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+        }
+        h1 { color: #f1f5f9; margin-bottom: 10px; font-size: 28px; }
+        .subtitle { color: #94a3b8; margin-bottom: 30px; font-size: 14px; }
+        #benchmark-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            display: none;
+        }
+        #benchmark-table th, #benchmark-table td {
+            padding: 6px 10px;
+            text-align: left;
+            border-bottom: 1px solid #334155;
+            font-size: 12px;
+        }
+        #benchmark-table th { background: #334155; color: #e2e8f0; }
+        #results {
+            background: #0f172a;
+            border-radius: 8px;
+            padding: 20px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.8;
+            white-space: pre-wrap;
+            min-height: 200px;
+        }
+        .result-line { margin: 2px 0; }
+        .pass { color: #4ade80; }
+        .fail { color: #f87171; }
+        .info { color: #60a5fa; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>⚡ 性能基准测试</h1>
+        <p class="subtitle">E2E Benchmark：WASM 初始化 / DOM 导出 / 纯数据导出 / 树形数据导出</p>
+
+        <!-- 隐藏的 1000 行基准表格（DOM 导出使用） -->
+        <table id="benchmark-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>姓名</th>
+                    <th>部门</th>
+                    <th>职位</th>
+                    <th>薪资</th>
+                    <th>入职日期</th>
+                    <th>邮箱</th>
+                    <th>电话</th>
+                    <th>城市</th>
+                    <th>状态</th>
+                </tr>
+            </thead>
+            <tbody id="benchmark-tbody"></tbody>
+        </table>
+
+        <div id="results"><span class="info">⏳ 正在初始化 WASM 模块...</span></div>
+    </div>
+
+    <script type="module">
+        import init, { export_table, export_data, generate_data_bytes, ExportFormat } from '../pkg/belobog_stellar_grid.js';
+
+        const resultsEl = document.getElementById('results');
+
+        function log(msg, cls = 'info') {
+            const line = document.createElement('div');
+            line.className = `result-line ${cls}`;
+            line.textContent = msg;
+            resultsEl.appendChild(line);
+        }
+
+        // ===== 生成 1000 行 DOM 表格 =====
+        function generateTableRows(count) {
+            const tbody = document.getElementById('benchmark-tbody');
+            const depts = ['技术部', '市场部', '财务部', '人事部', '运营部'];
+            const titles = ['工程师', '经理', '总监', '实习生', '专员'];
+            const cities = ['北京', '上海', '广州', '深圳', '杭州'];
+            const fragment = document.createDocumentFragment();
+
+            for (let i = 1; i <= count; i++) {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td>${i}</td>` +
+                    `<td>员工_${i}</td>` +
+                    `<td>${depts[i % 5]}</td>` +
+                    `<td>${titles[i % 5]}</td>` +
+                    `<td>${(5000 + Math.floor(Math.random() * 15000)).toFixed(2)}</td>` +
+                    `<td>2020-${String((i % 12) + 1).padStart(2, '0')}-${String((i % 28) + 1).padStart(2, '0')}</td>` +
+                    `<td>emp${i}@company.com</td>` +
+                    `<td>138${String(i).padStart(8, '0')}</td>` +
+                    `<td>${cities[i % 5]}</td>` +
+                    `<td>${i % 3 === 0 ? '离职' : '在职'}</td>`;
+                fragment.appendChild(tr);
+            }
+            tbody.appendChild(fragment);
+            document.getElementById('benchmark-table').style.display = 'table';
+        }
+
+        // ===== 生成纯数据对象数组 =====
+        function generateDataRows(count) {
+            const depts = ['技术部', '市场部', '财务部', '人事部', '运营部'];
+            const titles = ['工程师', '经理', '总监', '实习生', '专员'];
+            const cities = ['北京', '上海', '广州', '深圳', '杭州'];
+            const rows = [];
+            for (let i = 1; i <= count; i++) {
+                rows.push({
+                    id: i,
+                    name: `员工_${i}`,
+                    dept: depts[i % 5],
+                    title: titles[i % 5],
+                    salary: (5000 + Math.floor(Math.random() * 15000)).toFixed(2),
+                    joinDate: `2020-${String((i % 12) + 1).padStart(2, '0')}-${String((i % 28) + 1).padStart(2, '0')}`,
+                    email: `emp${i}@company.com`,
+                    phone: `138${String(i).padStart(8, '0')}`,
+                    city: cities[i % 5],
+                    status: i % 3 === 0 ? '离职' : '在职',
+                });
+            }
+            return rows;
+        }
+
+        // ===== 生成树形数据（3 层，目标约 500 节点）=====
+        function generateTreeData(depth, breadth, prefix = '') {
+            const nodes = [];
+            for (let i = 1; i <= breadth; i++) {
+                const id = `${prefix}${i}`;
+                const node = {
+                    id,
+                    name: `节点_${id}`,
+                    value: Math.floor(Math.random() * 10000),
+                    status: Math.random() > 0.5 ? '启用' : '禁用',
+                };
+                if (depth > 1) {
+                    node.children = generateTreeData(depth - 1, breadth, `${id}-`);
+                }
+                nodes.push(node);
+            }
+            return nodes;
+        }
+
+        const dataColumns = [
+            { title: 'ID', key: 'id' },
+            { title: '姓名', key: 'name' },
+            { title: '部门', key: 'dept' },
+            { title: '职位', key: 'title' },
+            { title: '薪资', key: 'salary' },
+            { title: '入职日期', key: 'joinDate' },
+            { title: '邮箱', key: 'email' },
+            { title: '电话', key: 'phone' },
+            { title: '城市', key: 'city' },
+            { title: '状态', key: 'status' },
+        ];
+
+        const treeColumns = [
+            { title: 'ID', key: 'id' },
+            { title: '名称', key: 'name' },
+            { title: '值', key: 'value' },
+            { title: '状态', key: 'status' },
+        ];
+
+        // ===== Benchmark 运行器：多次运行取中位数 =====
+        function runBenchmark(fn, iterations = 3) {
+            const times = [];
+            for (let i = 0; i < iterations; i++) {
+                const start = performance.now();
+                fn();
+                times.push(performance.now() - start);
+            }
+            times.sort((a, b) => a - b);
+            return {
+                median: times[Math.floor(times.length / 2)],
+                min: times[0],
+                max: times[times.length - 1],
+                times,
+            };
+        }
+
+        // ===== 全局 benchmark 结果容器 =====
+        const benchmarkResults = {};
+
+        // ===== 暴露各场景 benchmark 函数到 window =====
+
+        // 1) WASM 初始化耗时（已在 init() 时记录）
+        window.getWasmInitTime = () => benchmarkResults.wasmInit;
+
+        // 2) DOM 表格 → CSV
+        window.benchmarkDomCsv = function () {
+            const result = runBenchmark(() => {
+                export_table('benchmark-table', 'bench_dom.csv', ExportFormat.Csv);
+            });
+            benchmarkResults.domCsv = result;
+            log(`✅ DOM CSV 1000行: 中位数 ${result.median.toFixed(1)}ms (${result.min.toFixed(1)}~${result.max.toFixed(1)}ms)`, 'pass');
+            return result;
+        };
+
+        // 3) DOM 表格 → XLSX
+        window.benchmarkDomXlsx = function () {
+            const result = runBenchmark(() => {
+                export_table('benchmark-table', 'bench_dom.xlsx', ExportFormat.Xlsx);
+            });
+            benchmarkResults.domXlsx = result;
+            log(`✅ DOM XLSX 1000行: 中位数 ${result.median.toFixed(1)}ms (${result.min.toFixed(1)}~${result.max.toFixed(1)}ms)`, 'pass');
+            return result;
+        };
+
+        // 4) 纯数据 → CSV（使用 generate_data_bytes 避免触发下载）
+        window.benchmarkDataCsv = function () {
+            const data = generateDataRows(1000);
+            const result = runBenchmark(() => {
+                generate_data_bytes(data, {
+                    columns: dataColumns,
+                    filename: 'bench_data.csv',
+                    format: ExportFormat.Csv,
+                });
+            });
+            benchmarkResults.dataCsv = result;
+            log(`✅ Data CSV 1000行: 中位数 ${result.median.toFixed(1)}ms (${result.min.toFixed(1)}~${result.max.toFixed(1)}ms)`, 'pass');
+            return result;
+        };
+
+        // 5) 纯数据 → XLSX（使用 generate_data_bytes 避免触发下载）
+        window.benchmarkDataXlsx = function () {
+            const data = generateDataRows(1000);
+            const result = runBenchmark(() => {
+                generate_data_bytes(data, {
+                    columns: dataColumns,
+                    filename: 'bench_data.xlsx',
+                    format: ExportFormat.Xlsx,
+                });
+            });
+            benchmarkResults.dataXlsx = result;
+            log(`✅ Data XLSX 1000行: 中位数 ${result.median.toFixed(1)}ms (${result.min.toFixed(1)}~${result.max.toFixed(1)}ms)`, 'pass');
+            return result;
+        };
+
+        // 6) 树形数据 → XLSX（3 层 × 8 = 512+ 节点）
+        window.benchmarkTreeXlsx = function () {
+            const treeData = generateTreeData(3, 8); // 8^3 = 512 叶子节点
+            const result = runBenchmark(() => {
+                generate_data_bytes(treeData, {
+                    columns: treeColumns,
+                    filename: 'bench_tree.xlsx',
+                    format: ExportFormat.Xlsx,
+                    indentColumn: 'name',
+                    childrenKey: 'children',
+                });
+            });
+            benchmarkResults.treeXlsx = result;
+            log(`✅ Tree XLSX ~584节点: 中位数 ${result.median.toFixed(1)}ms (${result.min.toFixed(1)}~${result.max.toFixed(1)}ms)`, 'pass');
+            return result;
+        };
+
+        // ===== 获取全部结果 =====
+        window.getAllBenchmarkResults = () => benchmarkResults;
+
+        // ===== 初始化 =====
+        try {
+            resultsEl.textContent = '';
+
+            // 测量 WASM 初始化耗时
+            const initStart = performance.now();
+            await init();
+            const initElapsed = performance.now() - initStart;
+            benchmarkResults.wasmInit = { elapsed: initElapsed };
+            log(`✅ WASM 初始化: ${initElapsed.toFixed(1)}ms`, 'pass');
+
+            // 生成 DOM 测试表格
+            const genStart = performance.now();
+            generateTableRows(1000);
+            const genElapsed = performance.now() - genStart;
+            log(`ℹ️  DOM 表格生成 (1000行×10列): ${genElapsed.toFixed(1)}ms`, 'info');
+
+            log('');
+            log('🎯 Benchmark 就绪，等待测试调用...', 'info');
+            console.log('🚀 Benchmark 页面已初始化');
+        } catch (e) {
+            log(`❌ 初始化失败: ${e}`, 'fail');
+            console.error('Benchmark 初始化失败:', e);
+        }
+    </script>
+</body>
+</html>
