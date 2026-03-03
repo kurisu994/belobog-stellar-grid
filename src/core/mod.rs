@@ -383,7 +383,9 @@ pub(crate) struct ExportDataOptions {
 }
 
 /// 从 options JsValue 对象中解析 export_data 的配置项
-pub(crate) fn parse_export_data_options(options: Option<JsValue>) -> Result<ExportDataOptions, JsValue> {
+pub(crate) fn parse_export_data_options(
+    options: Option<JsValue>,
+) -> Result<ExportDataOptions, JsValue> {
     let options = match options {
         Some(ref opt) if !opt.is_null() && !opt.is_undefined() => opt,
         _ => {

@@ -4,9 +4,7 @@
 /// 采用分块 Blob 片段策略：每个批次生成独立的 CSV 字节片段，
 /// 最后拼接成单个 Blob 下载，降低内存峰值。
 /// 支持合并单元格（colspan/rowspan）
-use crate::core::{
-    RowSpanTracker, get_table_row, process_row_cells, resolve_table,
-};
+use crate::core::{RowSpanTracker, get_table_row, process_row_cells, resolve_table};
 use crate::utils::{ensure_external_tbody, is_element_hidden, report_progress, yield_to_browser};
 use csv::Writer;
 use std::io::Cursor;
