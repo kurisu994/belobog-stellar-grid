@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1772524946521,
+  "lastUpdate": 1772525676577,
   "repoUrl": "https://github.com/kurisu994/belobog-stellar-grid",
   "entries": {
     "Rust Benchmark": [
@@ -83,6 +83,102 @@ window.BENCHMARK_DATA = {
             "name": "xlsx_generation/含合并/1000行x10列",
             "value": 29496519,
             "range": "± 186031",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_escape/普通文本",
+            "value": 6,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_escape/公式文本",
+            "value": 45,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "makise_kurisuu@outlook.jp",
+            "name": "Kurisu",
+            "username": "kurisu994"
+          },
+          "committer": {
+            "email": "makise_kurisuu@outlook.jp",
+            "name": "Kurisu",
+            "username": "kurisu994"
+          },
+          "distinct": true,
+          "id": "d7b135a91196648f06e0008b69f5054b8f76cb36",
+          "message": "🚀 feat(CI/CD): 添加示例页面自动部署\n\n- 新增 GitHub Actions 工作流，在推送到主分支时自动构建 WASM 并部署示例页面到 GitHub Pages\n- 在 README 中添加在线演示和历史性能趋势图表的链接\n- 部署内容包括示例页面、WASM 产物和一个自动跳转的首页",
+          "timestamp": "2026-03-03T16:10:48+08:00",
+          "tree_id": "051fe1049b28d7b91cf220d853648fb0d8fe8931",
+          "url": "https://github.com/kurisu994/belobog-stellar-grid/commit/d7b135a91196648f06e0008b69f5054b8f76cb36"
+        },
+        "date": 1772525675792,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "csv_generation/无BOM/100行x10列",
+            "value": 79012,
+            "range": "± 367",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_generation/无BOM/1000行x10列",
+            "value": 823895,
+            "range": "± 10759",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_generation/无BOM/5000行x10列",
+            "value": 4296978,
+            "range": "± 19307",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_generation/无BOM/1000行x50列",
+            "value": 3999077,
+            "range": "± 17343",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_generation/带BOM/1000行x10列",
+            "value": 842424,
+            "range": "± 5527",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "xlsx_generation/无合并/100行x10列",
+            "value": 2946174,
+            "range": "± 41742",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "xlsx_generation/无合并/1000行x10列",
+            "value": 27503753,
+            "range": "± 536578",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "xlsx_generation/无合并/5000行x10列",
+            "value": 148343755,
+            "range": "± 394788",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "xlsx_generation/无合并/1000行x50列",
+            "value": 172154034,
+            "range": "± 570626",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "xlsx_generation/含合并/1000行x10列",
+            "value": 29070039,
+            "range": "± 149159",
             "unit": "ns/iter"
           },
           {
