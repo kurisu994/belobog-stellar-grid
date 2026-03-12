@@ -570,6 +570,7 @@ belobog-stellar-grid/
 - [ ] **数据验证**: 支持 Excel 下拉列表、数值范围等数据验证规则。
 - [ ] **图片导出**: 支持将图片插入到 Excel 单元格中。
 - [ ] **数据选择与过滤**: 支持选择性导出特定行或列，以及数据预处理/转换。
+- [ ] **Excel 在线预览**: 通过 Rust WASM 解析 xlsx 文件并渲染为 HTML `<table>`，保留原始样式（字体/颜色/边框/合并单元格），只读查看模式。详见 [EXCEL_PREVIEW_PLAN.md](./EXCEL_PREVIEW_PLAN.md)。
 
 ### ⚡ 性能优化
 
