@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1772526566571,
+  "lastUpdate": 1773298568314,
   "repoUrl": "https://github.com/kurisu994/belobog-stellar-grid",
   "entries": {
     "Rust Benchmark": [
@@ -286,6 +286,102 @@ window.BENCHMARK_DATA = {
           {
             "name": "csv_escape/公式文本",
             "value": 45,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "makise_kurisuu@outlook.jp",
+            "name": "Kurisu",
+            "username": "kurisu994"
+          },
+          "committer": {
+            "email": "makise_kurisuu@outlook.jp",
+            "name": "Kurisu",
+            "username": "kurisu994"
+          },
+          "distinct": true,
+          "id": "2c7a41ba6bd4af7fabcd54ee9b11846890c575ec",
+          "message": "📝 docs(plan): 添加 Excel 在线预览功能开发计划\n\n- 新增 EXCEL_PREVIEW_PLAN.md 详细规划 Rust WASM 实现方案\n- 将 Excel 在线预览功能加入 README.md 的待办事项列表\n- 规划分为四个阶段：技术预研、核心解析、前端集成、性能测试\n- 明确功能需求：保持原始样式、只渲染数据区域、只读查看",
+          "timestamp": "2026-03-12T14:52:29+08:00",
+          "tree_id": "3205fade9799262178d237b2b584af166a235cb0",
+          "url": "https://github.com/kurisu994/belobog-stellar-grid/commit/2c7a41ba6bd4af7fabcd54ee9b11846890c575ec"
+        },
+        "date": 1773298567802,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "csv_generation/无BOM/100行x10列",
+            "value": 80977,
+            "range": "± 800",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_generation/无BOM/1000行x10列",
+            "value": 853479,
+            "range": "± 1886",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_generation/无BOM/5000行x10列",
+            "value": 4353504,
+            "range": "± 27498",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_generation/无BOM/1000行x50列",
+            "value": 4041956,
+            "range": "± 7245",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_generation/带BOM/1000行x10列",
+            "value": 850237,
+            "range": "± 4780",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "xlsx_generation/无合并/100行x10列",
+            "value": 2964316,
+            "range": "± 5494",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "xlsx_generation/无合并/1000行x10列",
+            "value": 27855002,
+            "range": "± 93611",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "xlsx_generation/无合并/5000行x10列",
+            "value": 150206095,
+            "range": "± 485721",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "xlsx_generation/无合并/1000行x50列",
+            "value": 173938377,
+            "range": "± 593312",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "xlsx_generation/含合并/1000行x10列",
+            "value": 29528782,
+            "range": "± 108421",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_escape/普通文本",
+            "value": 6,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_escape/公式文本",
+            "value": 43,
             "range": "± 0",
             "unit": "ns/iter"
           }
