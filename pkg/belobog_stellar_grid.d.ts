@@ -346,11 +346,11 @@ export interface InitOutput {
     readonly export_tables_to_xlsx_batch: (a: any, b: number, c: number, d: number, e: number, f: number) => any;
     readonly export_tables_xlsx: (a: any, b: number, c: number, d: number, e: number) => [number, number];
     readonly generate_data_bytes: (a: any, b: number) => [number, number, number];
-    readonly wasm_bindgen__closure__destroy__habb256ac45406edd: (a: number, b: number) => void;
-    readonly wasm_bindgen__closure__destroy__hf64e819177150f59: (a: number, b: number) => void;
-    readonly wasm_bindgen__convert__closures_____invoke__hf9b78c016e6207d4: (a: number, b: number, c: any) => [number, number];
-    readonly wasm_bindgen__convert__closures_____invoke__h31abd3af3792c730: (a: number, b: number, c: any, d: any) => void;
-    readonly wasm_bindgen__convert__closures_____invoke__ha05fc4c096c9be3b: (a: number, b: number) => void;
+    readonly wasm_bindgen__closure__destroy__h4861cf75edd79f33: (a: number, b: number) => void;
+    readonly wasm_bindgen__closure__destroy__hb1f1e222d193ce94: (a: number, b: number) => void;
+    readonly wasm_bindgen__convert__closures_____invoke__h4c21a5017d209281: (a: number, b: number, c: any) => [number, number];
+    readonly wasm_bindgen__convert__closures_____invoke__h00d297b34697abe8: (a: number, b: number, c: any, d: any) => void;
+    readonly wasm_bindgen__convert__closures_____invoke__h5825be643c3396fa: (a: number, b: number) => void;
     readonly __wbindgen_malloc: (a: number, b: number) => number;
     readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
     readonly __wbindgen_exn_store: (a: number) => void;
