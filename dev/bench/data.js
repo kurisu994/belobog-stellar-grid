@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1773371688506,
+  "lastUpdate": 1773641275836,
   "repoUrl": "https://github.com/kurisu994/belobog-stellar-grid",
   "entries": {
     "Rust Benchmark": [
@@ -478,6 +478,102 @@ window.BENCHMARK_DATA = {
           {
             "name": "csv_escape/公式文本",
             "value": 45,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "makise_kurisuu@outlook.jp",
+            "name": "Kurisu",
+            "username": "kurisu994"
+          },
+          "committer": {
+            "email": "makise_kurisuu@outlook.jp",
+            "name": "Kurisu",
+            "username": "kurisu994"
+          },
+          "distinct": true,
+          "id": "94e6ea3a83d877776a0a9dcb5c9496c4c57ba88a",
+          "message": "📦 dep(deps): 更新 Cargo.lock 依赖版本\n\n- 更新 `rand` 依赖版本从 1.0.13 升级至 1.0.14\n- 更新 `syn` 依赖版本从 1.2.56 升级至 1.2.57\n- 更新相应依赖包的校验和\n- 同步项目依赖至最新兼容版本",
+          "timestamp": "2026-03-16T14:04:31+08:00",
+          "tree_id": "cbd8c44b918c9544da1a3cf34037ad8078bf6043",
+          "url": "https://github.com/kurisu994/belobog-stellar-grid/commit/94e6ea3a83d877776a0a9dcb5c9496c4c57ba88a"
+        },
+        "date": 1773641274680,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "csv_generation/无BOM/100行x10列",
+            "value": 67573,
+            "range": "± 513",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_generation/无BOM/1000行x10列",
+            "value": 833246,
+            "range": "± 26730",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_generation/无BOM/5000行x10列",
+            "value": 4506853,
+            "range": "± 25042",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_generation/无BOM/1000行x50列",
+            "value": 4195256,
+            "range": "± 27052",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_generation/带BOM/1000行x10列",
+            "value": 860641,
+            "range": "± 4611",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "xlsx_generation/无合并/100行x10列",
+            "value": 2609145,
+            "range": "± 36954",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "xlsx_generation/无合并/1000行x10列",
+            "value": 24212612,
+            "range": "± 130323",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "xlsx_generation/无合并/5000行x10列",
+            "value": 125559901,
+            "range": "± 739117",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "xlsx_generation/无合并/1000行x50列",
+            "value": 143533724,
+            "range": "± 657714",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "xlsx_generation/含合并/1000行x10列",
+            "value": 25341046,
+            "range": "± 303005",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_escape/普通文本",
+            "value": 7,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_escape/公式文本",
+            "value": 38,
             "range": "± 0",
             "unit": "ns/iter"
           }
