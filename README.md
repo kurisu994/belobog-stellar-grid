@@ -570,7 +570,7 @@ belobog-stellar-grid/
 - [ ] **数据验证**: 支持 Excel 下拉列表、数值范围等数据验证规则。
 - [ ] **图片导出**: 支持将图片插入到 Excel 单元格中。
 - [ ] **数据选择与过滤**: 支持选择性导出特定行或列，以及数据预处理/转换。
-- [ ] **Excel 在线预览**: 通过 Rust WASM 解析 xlsx 文件并渲染为 HTML `<table>`，保留原始样式（字体/颜色/边框/合并单元格），只读查看模式。详见 [EXCEL_PREVIEW_PLAN.md](./EXCEL_PREVIEW_PLAN.md)。
+- [ ] **Excel 在线预览**: 基于 `calamine` 在 WASM 侧解析 xlsx/xls 文件，渲染为 HTML `<table>`，保留原始样式（字体/颜色/边框/合并单元格/主题色），只读查看模式。提供双输出（HTML 直出 + JSON 结构化数据），配套 React/Vue 预览组件。详见 [EXCEL_PREVIEW_PLAN.md](./EXCEL_PREVIEW_PLAN.md)。
 
 ### ⚡ 性能优化
 
@@ -579,7 +579,6 @@ belobog-stellar-grid/
 - [x] **框架集成库**: 提供 React (`@bsg-export/react`)、Vue 3 (`@bsg-export/vue`)、Svelte (`@bsg-export/svelte`)、Solid.js (`@bsg-export/solid`) 官方封装组件。 ✅
 - [x] **严格 TypeScript 类型**: `@bsg-export/types` 提供完整类型安全定义。 ✅
 - [x] **Streaming 导出**: 对超大文件采用流式写入，降低内存峰值占用。 ✅
-- [ ] **WASM 体积优化**: 探索 `wasm-opt` 更激进的优化策略或按功能拆分 WASM 模块。
 - [x] **性能基准测试**: 建立自动化 Benchmark（Criterion + Playwright），持续追踪导出性能回归。 ✅
 
 ### 🌍 生态扩展
