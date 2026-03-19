@@ -82,6 +82,8 @@ pub struct TableData {
     pub merge_ranges: Vec<MergeRange>,
     /// 表头行数（用于 XLSX 冻结窗格），0 表示无表头
     pub header_row_count: usize,
+    /// 可选的样式表（仅 XLSX 导出时使用）
+    pub style_sheet: Option<super::style::StyleSheet>,
 }
 
 impl TableData {
@@ -91,6 +93,7 @@ impl TableData {
             rows: Vec::new(),
             merge_ranges: Vec::new(),
             header_row_count: 0,
+            style_sheet: None,
         }
     }
 
@@ -100,6 +103,7 @@ impl TableData {
             rows: Vec::with_capacity(capacity),
             merge_ranges: Vec::new(),
             header_row_count: 0,
+            style_sheet: None,
         }
     }
 

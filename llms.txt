@@ -7,7 +7,7 @@
 - **高性能**: 基于 Rust 和 WebAssembly，速度极快。
 - **大数据支持**: 支持分批异步导出，处理百万级数据不卡顿。
 - **多格式**: 支持 CSV 和 Excel (Xlsx)。
-- **丰富功能**: 支持合并单元格、多 Sheet 导出、树形数据导出（自动缩进）、冻结窗格。
+- **丰富功能**: 支持合并单元格、多 Sheet 导出、树形数据导出（自动缩进）、冻结窗格、Excel 样式定制。
 - **安全**: 内置文件名安全验证，防止路径遍历攻击，支持公式注入防护。
 - **易用**: 提供统一的 API 和类型支持。
 - **框架集成**: 提供 `@bsg-export/react`、`@bsg-export/vue`、`@bsg-export/svelte`、`@bsg-export/solid` 官方封装组件。
@@ -35,13 +35,15 @@ export_table("my-table-id", "report.xlsx", ExportFormat.Xlsx, false, (progress) 
 
 ### 核心函数
 
-#### `export_table(table_id, filename?, format?, exclude_hidden?, progress_callback?, with_bom?, strict_progress_callback?)`
+#### `export_table(table_id, filename?, format?, exclude_hidden?, progress_callback?, with_bom?, strict_progress_callback?, header_style?, cell_style?)`
 统一导出函数，支持 DOM 表格导出。
 - `table_id`: 表格 ID。
 - `format`: `ExportFormat.Csv` 或 `ExportFormat.Xlsx`。
 - `exclude_hidden`: 是否排除 `display: none` 的行列。
 - `with_bom`: CSV 导出时是否添加 UTF-8 BOM（解决 Excel 中文乱码问题）。
 - `strict_progress_callback`: 是否启用严格进度回调模式（回调失败会中断导出）。
+- `header_style`: 全局表头样式（仅 XLSX 有效），参见样式配置。
+- `cell_style`: 全局数据样式（仅 XLSX 有效），参见样式配置。
 
 #### `export_data(data, options?)`
 直接导出 JS 数据（二维数组或对象数组）。
@@ -57,6 +59,8 @@ export_table("my-table-id", "report.xlsx", ExportFormat.Xlsx, false, (progress) 
   - `strictProgressCallback`: `boolean`，是否启用严格进度回调模式（回调失败会中断导出），默认 false
   - `freezeRows`: `number`，冻结前 N 行（仅 XLSX 有效，默认自动根据表头行数）
   - `freezeCols`: `number`，冻结前 N 列（仅 XLSX 有效，默认 0）
+  - `headerStyle`: `CellStyle`，全局表头样式（仅 XLSX 有效），参见样式配置
+  - `cellStyle`: `CellStyle`，全局数据样式（仅 XLSX 有效），参见样式配置
 - 支持树形数据（通过 `childrenKey` 和 `indentColumn`）。
 - 支持复杂表头和合并单元格（通过 `columns` 配置）。
 
@@ -107,6 +111,35 @@ export_table("my-table-id", "report.xlsx", ExportFormat.Xlsx, false, (progress) 
 #### `ExportFormat`
 - `Csv`: 0
 - `Xlsx`: 1
+
+### 样式配置（仅 XLSX）
+
+三级样式体系：全局样式 → 列级样式 → 单元格样式，高优先级覆盖低优先级。
+
+#### `CellStyle` 对象属性
+- `bold`: boolean — 粗体
+- `italic`: boolean — 斜体
+- `fontSize`: number — 字号
+- `fontName`: string — 字体名
+- `fontColor`: string — 字体颜色 (hex "#RRGGBB"，支持 "#RGB" 简写)
+- `backgroundColor`: string — 背景色 (hex)
+- `align`: "left" | "center" | "right" — 水平对齐
+- `verticalAlign`: "top" | "center" | "bottom" — 垂直对齐
+- `border`: boolean | { top?, bottom?, left?, right? } — 边框（true=四边细线，或分别指定 "thin"/"medium"/"thick"/"dashed"/"dotted"/"double"）
+- `numberFormat`: string — 数字格式（如 "#,##0.00"）
+- `textWrap`: boolean — 自动换行
+
+#### 全局样式
+通过 `options.headerStyle` / `options.cellStyle` 设置。
+
+#### 列级样式
+在 `columns` 配置中: `{ title, key, width?, style?, headerStyle? }`
+- `width`: 列宽
+- `style`: 该列数据单元格样式
+- `headerStyle`: 该列表头样式
+
+#### 单元格样式
+在数据中使用 `{ value, style }` 对象替代普通值。
 
 ## 框架集成包
 

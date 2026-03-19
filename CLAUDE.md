@@ -88,10 +88,11 @@ src/
 ├── resource.rs         # RAII 模式：UrlGuard 自动管理 Blob URL 生命周期
 ├── core/               # 核心业务逻辑
 │   ├── mod.rs          # 统一 API (export_table, export_data, export_tables_xlsx, generate_data_bytes)
+│   ├── style.rs        # Excel 样式模块 (三级样式体系：全局→列级→单元格，CellStyle/StyleSheet)
 │   ├── data_export.rs  # [核心] 纯数据导出逻辑 (处理嵌套表头、树形数据、合并单元格)
 │   ├── table_extractor.rs  # DOM 解析与数据提取 (支持合并单元格、隐藏行列检测)
 │   ├── export_csv.rs   # CSV 格式生成
-│   └── export_xlsx.rs  # XLSX 格式生成 (支持合并单元格、公式导出、多 Sheet)
+│   └── export_xlsx.rs  # XLSX 格式生成 (支持合并单元格、公式导出、多 Sheet、样式)
 ├── batch_export.rs     # CSV 异步分批处理 (分块 Blob 策略，降低内存峰值)
 ├── batch_export_xlsx.rs # XLSX 异步分批处理
 ├── streaming_export.rs # 流式 CSV 数据导出 (分块写入 + Blob 拼接，降低内存峰值)

@@ -19,10 +19,7 @@ fn generate_rows(row_count: usize, col_count: usize) -> Vec<Vec<String>> {
 }
 
 /// 生成包含合并区域的 TableData（模拟嵌套表头场景）
-fn generate_table_data_with_merges(
-    row_count: usize,
-    col_count: usize,
-) -> TableData {
+fn generate_table_data_with_merges(row_count: usize, col_count: usize) -> TableData {
     // 1 行表头 + row_count 行数据
     let mut rows = Vec::with_capacity(row_count + 1);
 
@@ -66,16 +63,11 @@ fn bench_csv_generation(c: &mut Criterion) {
     for (rows, cols, label) in configs {
         let data = generate_rows(rows, cols);
 
-        group.bench_with_input(
-            BenchmarkId::new("无BOM", label),
-            &data,
-            |b, data| {
-                b.iter(|| {
-                    generate_csv_bytes(data.clone(), None, false, false)
-                        .expect("CSV 生成不应失败")
-                })
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("无BOM", label), &data, |b, data| {
+            b.iter(|| {
+                generate_csv_bytes(data.clone(), None, false, false).expect("CSV 生成不应失败")
+            })
+        });
     }
 
     // BOM 对比测试（使用中等数据集）
@@ -85,8 +77,7 @@ fn bench_csv_generation(c: &mut Criterion) {
         &data_bom,
         |b, data| {
             b.iter(|| {
-                generate_csv_bytes(data.clone(), None, false, true)
-                    .expect("CSV 生成不应失败")
+                generate_csv_bytes(data.clone(), None, false, true).expect("CSV 生成不应失败")
             })
         },
     );
@@ -122,10 +113,7 @@ fn bench_xlsx_generation(c: &mut Criterion) {
             BenchmarkId::new("无合并", label),
             &table_data,
             |b, data| {
-                b.iter(|| {
-                    generate_xlsx_bytes(data, None, false, None)
-                        .expect("XLSX 生成不应失败")
-                })
+                b.iter(|| generate_xlsx_bytes(data, None, false, None).expect("XLSX 生成不应失败"))
             },
         );
     }
@@ -137,8 +125,7 @@ fn bench_xlsx_generation(c: &mut Criterion) {
         &merge_data,
         |b, data| {
             b.iter(|| {
-                generate_xlsx_bytes(data, None, false, Some((1, 0)))
-                    .expect("XLSX 生成不应失败")
+                generate_xlsx_bytes(data, None, false, Some((1, 0))).expect("XLSX 生成不应失败")
             })
         },
     );
@@ -157,9 +144,7 @@ fn bench_csv_escape(c: &mut Criterion) {
 
     // 普通文本（无需转义，走零拷贝路径）
     let normal = "普通文本数据";
-    group.bench_function("普通文本", |b| {
-        b.iter(|| escape_csv_injection(normal))
-    });
+    group.bench_function("普通文本", |b| b.iter(|| escape_csv_injection(normal)));
 
     // 需要转义的文本
     let dangerous = "=SUM(A1:A10)";

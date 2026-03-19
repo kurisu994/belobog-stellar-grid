@@ -1,3 +1,5 @@
+use crate::core::export_xlsx::{apply_column_widths, apply_merge_ranges, write_cell};
+use crate::core::style::{StyleSheet, parse_cell_style};
 /// XLSX 分批异步导出功能模块
 ///
 /// 提供大数据量表格的分批处理功能，避免阻塞主线程
@@ -7,7 +9,7 @@ use crate::core::{
     process_row_cells, resolve_table,
 };
 use crate::utils::{ensure_external_tbody, is_element_hidden, report_progress, yield_to_browser};
-use rust_xlsxwriter::{Format, Workbook};
+use rust_xlsxwriter::Workbook;
 use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::*;
 use web_sys::HtmlTableSectionElement;
@@ -45,6 +47,7 @@ use web_sys::HtmlTableSectionElement;
 /// );
 /// ```
 #[wasm_bindgen]
+#[allow(clippy::too_many_arguments)]
 pub async fn export_table_to_xlsx_batch(
     table_id: String,
     tbody_id: Option<String>,
@@ -53,6 +56,8 @@ pub async fn export_table_to_xlsx_batch(
     exclude_hidden: Option<bool>,
     progress_callback: Option<js_sys::Function>,
     strict_progress_callback: Option<bool>,
+    header_style: Option<JsValue>,
+    cell_style: Option<JsValue>,
 ) -> Result<JsValue, JsValue> {
     // 输入验证
     if table_id.is_empty() {
@@ -66,13 +71,16 @@ pub async fn export_table_to_xlsx_batch(
         return Err(JsValue::from_str("批次大小必须大于 0"));
     }
 
+    // 解析样式配置
+    let style_sheet = build_global_style_sheet(header_style.as_ref(), cell_style.as_ref());
+
     // 报告初始进度
     if let Some(ref callback) = progress_callback {
         report_progress(callback, 0.0, strict)?;
     }
 
     // 阶段一：分批读取 DOM 数据（0% - 80% 进度）
-    let table_data = extract_table_data_batch(
+    let mut table_data = extract_table_data_batch(
         &table_id,
         tbody_id.as_deref(),
         batch_size,
@@ -81,6 +89,9 @@ pub async fn export_table_to_xlsx_batch(
         strict,
     )
     .await?;
+
+    // 注入样式表
+    table_data.style_sheet = style_sheet;
 
     // 阶段二：同步生成 XLSX 文件（80% - 100% 进度）
     generate_and_download_xlsx(table_data, filename, &progress_callback, strict)?;
@@ -124,10 +135,14 @@ fn generate_and_download_xlsx(
     strict: bool,
 ) -> Result<(), JsValue> {
     let total_rows = table_data.rows.len();
+    let style_sheet = table_data.style_sheet.as_ref();
 
     // 创建工作簿与工作表
     let mut workbook = Workbook::new();
     let worksheet = workbook.add_worksheet();
+
+    // 应用列宽
+    apply_column_widths(worksheet, style_sheet)?;
 
     // 写入所有数据
     for (i, row_data) in table_data.rows.iter().enumerate() {
@@ -135,9 +150,14 @@ fn generate_and_download_xlsx(
             if j > 16383 {
                 return Err(JsValue::from_str("列数超过 Excel 限制 (16384)"));
             }
-            worksheet
-                .write_string(i as u32, j as u16, cell_text)
-                .map_err(|e| JsValue::from_str(&format!("写入 Excel 单元格失败: {}", e)))?;
+            write_cell(
+                worksheet,
+                i as u32,
+                j as u16,
+                cell_text,
+                style_sheet,
+                table_data.header_row_count,
+            )?;
         }
 
         // 定期报告进度（XLSX 生成阶段占 80% - 95%）
@@ -149,26 +169,8 @@ fn generate_and_download_xlsx(
         }
     }
 
-    // 应用合并单元格（需要传入首单元格文本，因为 merge_range 会覆盖内容）
-    let merge_format = Format::new();
-    for merge in &table_data.merge_ranges {
-        let text = table_data
-            .rows
-            .get(merge.first_row as usize)
-            .and_then(|row| row.get(merge.first_col as usize))
-            .map(|s| s.as_str())
-            .unwrap_or("");
-        worksheet
-            .merge_range(
-                merge.first_row,
-                merge.first_col,
-                merge.last_row,
-                merge.last_col,
-                text,
-                &merge_format,
-            )
-            .map_err(|e| JsValue::from_str(&format!("合并单元格失败: {}", e)))?;
-    }
+    // 应用合并单元格
+    apply_merge_ranges(worksheet, &table_data, style_sheet)?;
 
     // 应用冻结窗格：自动根据表头行数冻结
     if table_data.header_row_count > 0 {
@@ -300,6 +302,8 @@ pub async fn export_tables_to_xlsx_batch(
     batch_size: Option<u32>,
     progress_callback: Option<js_sys::Function>,
     strict_progress_callback: Option<bool>,
+    header_style: Option<JsValue>,
+    cell_style: Option<JsValue>,
 ) -> Result<JsValue, JsValue> {
     // 解析工作表配置
     let configs = parse_batch_sheet_configs(&sheets)?;
@@ -309,6 +313,9 @@ pub async fn export_tables_to_xlsx_batch(
     if batch_size == 0 {
         return Err(JsValue::from_str("批次大小必须大于 0"));
     }
+
+    // 解析样式配置
+    let style_sheet = build_global_style_sheet(header_style.as_ref(), cell_style.as_ref());
 
     let total_sheets = configs.len();
 
@@ -330,7 +337,7 @@ pub async fn export_tables_to_xlsx_batch(
             .as_ref()
             .map(|cb| (cb.clone(), sheet_progress_start, sheet_progress_range));
 
-        let table_data = extract_table_data_batch_with_offset(
+        let mut table_data = extract_table_data_batch_with_offset(
             &config.table_id,
             config.tbody_id.as_deref(),
             batch_size,
@@ -344,6 +351,9 @@ pub async fn export_tables_to_xlsx_batch(
             .sheet_name
             .clone()
             .unwrap_or_else(|| format!("Sheet{}", sheet_idx + 1));
+
+        // 注入样式表
+        table_data.style_sheet = style_sheet.clone();
 
         all_sheets_data.push((sheet_name, table_data));
     }
@@ -529,14 +539,17 @@ fn generate_and_download_xlsx_multi(
     let total_sheets = all_sheets_data.len();
 
     let mut workbook = Workbook::new();
-    let merge_format = Format::new();
 
     for (sheet_idx, (sheet_name, table_data)) in all_sheets_data.iter().enumerate() {
         let worksheet = workbook.add_worksheet();
+        let style_sheet = table_data.style_sheet.as_ref();
 
         worksheet
             .set_name(sheet_name)
             .map_err(|e| JsValue::from_str(&format!("设置工作表名称失败: {}", e)))?;
+
+        // 应用列宽
+        apply_column_widths(worksheet, style_sheet)?;
 
         let total_rows = table_data.rows.len();
 
@@ -546,9 +559,14 @@ fn generate_and_download_xlsx_multi(
                 if j > 16383 {
                     return Err(JsValue::from_str("列数超过 Excel 限制 (16384)"));
                 }
-                worksheet
-                    .write_string(i as u32, j as u16, cell_text)
-                    .map_err(|e| JsValue::from_str(&format!("写入 Excel 单元格失败: {}", e)))?;
+                write_cell(
+                    worksheet,
+                    i as u32,
+                    j as u16,
+                    cell_text,
+                    style_sheet,
+                    table_data.header_row_count,
+                )?;
             }
 
             // 报告进度（XLSX 生成阶段占 80% - 95%，按 sheet 均分）
@@ -564,25 +582,8 @@ fn generate_and_download_xlsx_multi(
             }
         }
 
-        // 应用合并单元格（需要传入首单元格文本，因为 merge_range 会覆盖内容）
-        for merge in &table_data.merge_ranges {
-            let text = table_data
-                .rows
-                .get(merge.first_row as usize)
-                .and_then(|row| row.get(merge.first_col as usize))
-                .map(|s| s.as_str())
-                .unwrap_or("");
-            worksheet
-                .merge_range(
-                    merge.first_row,
-                    merge.first_col,
-                    merge.last_row,
-                    merge.last_col,
-                    text,
-                    &merge_format,
-                )
-                .map_err(|e| JsValue::from_str(&format!("合并单元格失败: {}", e)))?;
-        }
+        // 应用合并单元格
+        apply_merge_ranges(worksheet, table_data, style_sheet)?;
 
         // 应用冻结窗格：自动根据各 sheet 的表头行数冻结
         if table_data.header_row_count > 0 {
@@ -606,4 +607,23 @@ fn generate_and_download_xlsx_multi(
     }
 
     create_and_download_xlsx(&xlsx_bytes, filename)
+}
+
+/// 从全局 headerStyle 和 cellStyle JsValue 构建 StyleSheet
+fn build_global_style_sheet(
+    header_style: Option<&JsValue>,
+    cell_style: Option<&JsValue>,
+) -> Option<StyleSheet> {
+    let hs = header_style.and_then(parse_cell_style);
+    let cs = cell_style.and_then(parse_cell_style);
+
+    if hs.is_none() && cs.is_none() {
+        return None;
+    }
+
+    Some(StyleSheet {
+        header_style: hs,
+        data_style: cs,
+        ..Default::default()
+    })
 }

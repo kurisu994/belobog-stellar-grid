@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎨 Excel 样式自定义导出 - belobog-stellar-grid</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            padding: 40px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 960px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 { color: #333; margin-bottom: 10px; font-size: 32px; }
+        .subtitle { color: #666; margin-bottom: 30px; font-size: 14px; }
+        .section { margin-bottom: 40px; }
+        .section h2 {
+            color: #444; margin-bottom: 15px; font-size: 20px;
+            border-left: 4px solid #667eea; padding-left: 12px;
+        }
+        .section p { color: #666; margin-bottom: 15px; line-height: 1.6; font-size: 14px; }
+
+        /* 状态栏 */
+        .status {
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .status.loading {
+            background: #fff3e0; color: #e65100;
+            border-left: 4px solid #ff9800;
+        }
+        .status.ready {
+            background: #e8f5e9; color: #2e7d32;
+            border-left: 4px solid #4caf50;
+        }
+        .status.error {
+            background: #ffebee; color: #c62828;
+            border-left: 4px solid #f44336;
+        }
+
+        /* 信息框 */
+        .info-box {
+            background: #e7f3ff;
+            border-left: 4px solid #2196F3;
+            padding: 15px;
+            margin-bottom: 30px;
+            border-radius: 4px;
+        }
+        .info-box h3 { color: #2196F3; margin-bottom: 8px; font-size: 16px; }
+        .info-box p { color: #555; line-height: 1.6; font-size: 14px; margin-bottom: 0; }
+        .info-box code {
+            background: #f5f5f5; padding: 2px 6px;
+            border-radius: 3px; font-size: 13px; color: #d63384;
+        }
+
+        /* 表格样式 */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+            background: white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            overflow: hidden;
+            font-size: 14px;
+        }
+        th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 15px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 13px;
+        }
+        td {
+            padding: 10px 15px;
+            border-bottom: 1px solid #f0f0f0;
+            color: #555;
+        }
+        tr:last-child td { border-bottom: none; }
+        tr:hover { background-color: #f8f9fa; }
+
+        /* 特殊单元格样式（仅用于 HTML 预览） */
+        .cell-green { background: #C6EFCE; color: #006100; font-weight: 600; }
+        .cell-red { background: #FFC7CE; color: #9C0006; font-weight: 600; }
+        .cell-bold { font-weight: 700; }
+        .cell-right { text-align: right; }
+        .cell-center { text-align: center; }
+        .row-total { background: #D9E2F3; font-weight: 700; }
+
+        /* 按钮样式 */
+        button {
+            padding: 12px 24px;
+            font-size: 14px;
+            font-weight: 600;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            color: white;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        button:active { transform: translateY(0); }
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+            background: #ccc;
+        }
+        .btn-excel {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        }
+        .btn-excel:hover {
+            box-shadow: 0 4px 12px rgba(40,167,69,0.4);
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .btn-primary:hover {
+            box-shadow: 0 4px 12px rgba(102,126,234,0.4);
+        }
+        .btn-orange {
+            background: linear-gradient(135deg, #ff9966 0%, #ff5e62 100%);
+        }
+        .btn-orange:hover {
+            box-shadow: 0 4px 12px rgba(255,94,98,0.4);
+        }
+        .btn-pink {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+        .btn-pink:hover {
+            box-shadow: 0 4px 12px rgba(245,87,108,0.4);
+        }
+        .btn-teal {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+        }
+        .btn-teal:hover {
+            box-shadow: 0 4px 12px rgba(17,153,142,0.4);
+        }
+        .button-group {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin: 20px 0;
+        }
+
+        /* 样式层级标签 */
+        .level-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-right: 6px;
+            color: white;
+        }
+        .level-global { background: #667eea; }
+        .level-column { background: #28a745; }
+        .level-cell { background: #ff5e62; }
+
+        /* 响应式 */
+        @media (max-width: 768px) {
+            body { padding: 20px 10px; }
+            .container { padding: 20px; }
+            h1 { font-size: 24px; }
+            .button-group { flex-direction: column; }
+            button { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎨 Excel 样式自定义导出</h1>
+        <p class="subtitle">演示三级样式系统：全局样式 → 列级样式 → 单元格样式，优先级依次递增</p>
+
+        <!-- 状态栏 -->
+        <div class="status loading" id="status">⏳ 正在加载 WASM 模块...</div>
+
+        <!-- 功能说明 -->
+        <div class="info-box">
+            <h3>💡 样式层级说明</h3>
+            <p>
+                <span class="level-badge level-global">全局</span>
+                通过 <code>headerStyle</code> / <code>cellStyle</code> 设置所有单元格的基础样式<br>
+                <span class="level-badge level-column">列级</span>
+                通过列配置的 <code>style</code> / <code>headerStyle</code> 覆盖特定列<br>
+                <span class="level-badge level-cell">单元格</span>
+                通过 <code>{ value, style }</code> 数据格式覆盖特定单元格<br>
+                优先级：单元格 &gt; 列级 &gt; 全局（高优先级样式属性会覆盖低优先级的同名属性）
+            </p>
+        </div>
+
+        <!-- ========== 第 1 节：全局样式 ========== -->
+        <div class="section">
+            <h2>📊 第 1 节：全局样式导出</h2>
+            <p>
+                <span class="level-badge level-global">全局</span>
+                使用 <code>headerStyle</code> 和 <code>cellStyle</code> 为所有表头和数据单元格设置统一样式。
+            </p>
+
+            <table>
+                <thead>
+                    <tr><th>姓名</th><th>部门</th><th>薪资</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>张三</td><td>技术部</td><td>15000</td></tr>
+                    <tr><td>李四</td><td>市场部</td><td>12000</td></tr>
+                    <tr><td>王五</td><td>财务部</td><td>13000</td></tr>
+                    <tr><td>赵六</td><td>技术部</td><td>16000</td></tr>
+                </tbody>
+            </table>
+
+            <div class="button-group">
+                <button class="btn-excel" id="btn-global-style-xlsx" onclick="exportGlobalStyle()">
+                    📊 全局样式导出 XLSX
+                </button>
+            </div>
+        </div>
+
+        <!-- ========== 第 2 节：列级样式 ========== -->
+        <div class="section">
+            <h2>📋 第 2 节：列级样式导出</h2>
+            <p>
+                <span class="level-badge level-column">列级</span>
+                在列配置中使用 <code>style</code> 为不同列设置独立样式，如数字格式、对齐方式、列宽等。
+            </p>
+
+            <table>
+                <thead>
+                    <tr><th>产品名称</th><th>价格</th><th>库存</th><th>状态</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>笔记本电脑</td><td class="cell-right">8999.00</td><td class="cell-center">120</td><td class="cell-center cell-bold">在售</td></tr>
+                    <tr><td>无线鼠标</td><td class="cell-right">199.00</td><td class="cell-center">500</td><td class="cell-center cell-bold">在售</td></tr>
+                    <tr><td>机械键盘</td><td class="cell-right">599.00</td><td class="cell-center">80</td><td class="cell-center cell-bold">促销</td></tr>
+                    <tr><td>显示器</td><td class="cell-right">2499.00</td><td class="cell-center">45</td><td class="cell-center cell-bold">缺货</td></tr>
+                </tbody>
+            </table>
+
+            <div class="button-group">
+                <button class="btn-excel" id="btn-column-style-xlsx" onclick="exportColumnStyle()">
+                    📋 列级样式导出 XLSX
+                </button>
+            </div>
+        </div>
+
+        <!-- ========== 第 3 节：单元格样式 ========== -->
+        <div class="section">
+            <h2>🎨 第 3 节：单元格级别样式导出</h2>
+            <p>
+                <span class="level-badge level-cell">单元格</span>
+                使用 <code>{ value, style }</code> 格式为特定单元格设置条件样式——分数 ≥ 90 绿色高亮，分数 &lt; 60 红色警告。
+            </p>
+
+            <table>
+                <thead>
+                    <tr><th>学生姓名</th><th>语文</th><th>数学</th><th>英语</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>陈一</td>
+                        <td class="cell-green">95</td>
+                        <td>78</td>
+                        <td class="cell-green">92</td>
+                    </tr>
+                    <tr>
+                        <td>刘二</td>
+                        <td>72</td>
+                        <td class="cell-red">55</td>
+                        <td>81</td>
+                    </tr>
+                    <tr>
+                        <td>周三</td>
+                        <td class="cell-red">48</td>
+                        <td class="cell-green">96</td>
+                        <td class="cell-red">59</td>
+                    </tr>
+                    <tr>
+                        <td>吴四</td>
+                        <td>85</td>
+                        <td>88</td>
+                        <td class="cell-green">91</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="button-group">
+                <button class="btn-orange" id="btn-cell-style-xlsx" onclick="exportCellStyle()">
+                    🎨 单元格样式导出 XLSX
+                </button>
+            </div>
+        </div>
+
+        <!-- ========== 第 4 节：三级样式叠加 ========== -->
+        <div class="section">
+            <h2>🏗️ 第 4 节：三级样式叠加导出</h2>
+            <p>
+                <span class="level-badge level-global">全局</span>
+                <span class="level-badge level-column">列级</span>
+                <span class="level-badge level-cell">单元格</span>
+                综合演示：全局设定基础样式 → 列级覆盖对齐和数字格式 → 单元格级别标记负数为红色、合计行为灰底加粗。
+            </p>
+
+            <table>
+                <thead>
+                    <tr><th>科目</th><th>一月</th><th>二月</th><th>三月</th><th>合计</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>销售收入</td>
+                        <td class="cell-right">50000.00</td>
+                        <td class="cell-right">62000.00</td>
+                        <td class="cell-right">58000.00</td>
+                        <td class="cell-right">170000.00</td>
+                    </tr>
+                    <tr>
+                        <td>运营成本</td>
+                        <td class="cell-right" style="color:#FF0000;">-30000.00</td>
+                        <td class="cell-right" style="color:#FF0000;">-35000.00</td>
+                        <td class="cell-right" style="color:#FF0000;">-32000.00</td>
+                        <td class="cell-right" style="color:#FF0000;">-97000.00</td>
+                    </tr>
+                    <tr>
+                        <td>市场费用</td>
+                        <td class="cell-right" style="color:#FF0000;">-8000.00</td>
+                        <td class="cell-right" style="color:#FF0000;">-10000.00</td>
+                        <td class="cell-right" style="color:#FF0000;">-9000.00</td>
+                        <td class="cell-right" style="color:#FF0000;">-27000.00</td>
+                    </tr>
+                    <tr class="row-total">
+                        <td class="cell-bold">净利润</td>
+                        <td class="cell-right cell-bold">12000.00</td>
+                        <td class="cell-right cell-bold">17000.00</td>
+                        <td class="cell-right cell-bold">17000.00</td>
+                        <td class="cell-right cell-bold">46000.00</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="button-group">
+                <button class="btn-pink" id="btn-combined-style-xlsx" onclick="exportCombinedStyle()">
+                    🏗️ 三级样式叠加导出 XLSX
+                </button>
+            </div>
+        </div>
+
+        <!-- ========== 第 5 节：DOM 表格样式导出 ========== -->
+        <div class="section">
+            <h2>📝 第 5 节：DOM 表格样式导出</h2>
+            <p>
+                <span class="level-badge level-global">全局</span>
+                使用 <code>export_table()</code> 对页面上的 HTML 表格进行样式化导出，通过 <code>headerStyle</code> 和 <code>cellStyle</code> 参数定义导出样式。
+            </p>
+
+            <table id="styled-table">
+                <thead>
+                    <tr><th>项目名称</th><th>负责人</th><th>进度</th><th>截止日期</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>官网重构</td><td>张三</td><td>85%</td><td>2025-03-15</td></tr>
+                    <tr><td>移动端适配</td><td>李四</td><td>60%</td><td>2025-04-01</td></tr>
+                    <tr><td>数据看板</td><td>王五</td><td>30%</td><td>2025-05-20</td></tr>
+                    <tr><td>API 网关升级</td><td>赵六</td><td>95%</td><td>2025-02-28</td></tr>
+                </tbody>
+            </table>
+
+            <div class="button-group">
+                <button class="btn-teal" id="btn-dom-style-xlsx" onclick="exportDomStyle()">
+                    📝 DOM 表格样式导出 XLSX
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import init, { export_data, export_table, ExportFormat } from '../pkg/belobog_stellar_grid.js';
+
+        const statusEl = document.getElementById('status');
+
+        // ============ 初始化 WASM 模块 ============
+        try {
+            await init();
+            statusEl.textContent = '✅ WASM 模块已加载，所有功能就绪';
+            statusEl.className = 'status ready';
+            console.log('🚀 WASM 模块初始化成功');
+        } catch (e) {
+            statusEl.textContent = '❌ WASM 模块加载失败: ' + e;
+            statusEl.className = 'status error';
+            console.error('WASM 初始化失败:', e);
+        }
+
+        // ============ 第 1 节：全局样式导出 ============
+        window.exportGlobalStyle = async function () {
+            try {
+                const data = [
+                    ['张三', '技术部', 15000],
+                    ['李四', '市场部', 12000],
+                    ['王五', '财务部', 13000],
+                    ['赵六', '技术部', 16000],
+                ];
+
+                await export_data(data, {
+                    filename: '全局样式示例',
+                    format: ExportFormat.Xlsx,
+                    columns: [
+                        { title: '姓名', key: '0', width: 15 },
+                        { title: '部门', key: '1', width: 15 },
+                        { title: '薪资', key: '2', width: 15 },
+                    ],
+                    headerStyle: {
+                        bold: true,
+                        fontColor: '#FFFFFF',
+                        backgroundColor: '#4472C4',
+                        align: 'center',
+                        fontSize: 12,
+                    },
+                    cellStyle: {
+                        border: true,
+                        fontSize: 11,
+                    },
+                });
+
+                console.log('✅ 全局样式导出成功');
+            } catch (e) {
+                console.error('❌ 全局样式导出失败:', e);
+            }
+        };
+
+        // ============ 第 2 节：列级样式导出 ============
+        window.exportColumnStyle = async function () {
+            try {
+                const data = [
+                    ['笔记本电脑', 8999, 120, '在售'],
+                    ['无线鼠标', 199, 500, '在售'],
+                    ['机械键盘', 599, 80, '促销'],
+                    ['显示器', 2499, 45, '缺货'],
+                ];
+
+                await export_data(data, {
+                    filename: '列级样式示例',
+                    format: ExportFormat.Xlsx,
+                    columns: [
+                        { title: '产品名称', key: '0', width: 20 },
+                        {
+                            title: '价格',
+                            key: '1',
+                            width: 15,
+                            style: {
+                                align: 'right',
+                                numberFormat: '#,##0.00',
+                            },
+                        },
+                        {
+                            title: '库存',
+                            key: '2',
+                            width: 10,
+                            style: { align: 'center' },
+                        },
+                        {
+                            title: '状态',
+                            key: '3',
+                            width: 12,
+                            style: {
+                                align: 'center',
+                                bold: true,
+                            },
+                        },
+                    ],
+                });
+
+                console.log('✅ 列级样式导出成功');
+            } catch (e) {
+                console.error('❌ 列级样式导出失败:', e);
+            }
+        };
+
+        // ============ 第 3 节：单元格样式导出 ============
+        window.exportCellStyle = async function () {
+            try {
+                // 条件样式辅助函数：根据分数返回带样式的值
+                const scoreStyle = (score) => {
+                    if (score >= 90) {
+                        return {
+                            value: score,
+                            style: {
+                                backgroundColor: '#C6EFCE',
+                                fontColor: '#006100',
+                                bold: true,
+                            },
+                        };
+                    } else if (score < 60) {
+                        return {
+                            value: score,
+                            style: {
+                                backgroundColor: '#FFC7CE',
+                                fontColor: '#9C0006',
+                                bold: true,
+                            },
+                        };
+                    }
+                    return score;
+                };
+
+                const data = [
+                    ['陈一', scoreStyle(95), scoreStyle(78), scoreStyle(92)],
+                    ['刘二', scoreStyle(72), scoreStyle(55), scoreStyle(81)],
+                    ['周三', scoreStyle(48), scoreStyle(96), scoreStyle(59)],
+                    ['吴四', scoreStyle(85), scoreStyle(88), scoreStyle(91)],
+                ];
+
+                await export_data(data, {
+                    filename: '单元格样式示例',
+                    format: ExportFormat.Xlsx,
+                    columns: [
+                        { title: '学生姓名', key: '0', width: 15 },
+                        { title: '语文', key: '1', width: 12 },
+                        { title: '数学', key: '2', width: 12 },
+                        { title: '英语', key: '3', width: 12 },
+                    ],
+                });
+
+                console.log('✅ 单元格样式导出成功');
+            } catch (e) {
+                console.error('❌ 单元格样式导出失败:', e);
+            }
+        };
+
+        // ============ 第 4 节：三级样式叠加导出 ============
+        window.exportCombinedStyle = async function () {
+            try {
+                // 金额单元格辅助函数：负数标红，合计行加粗灰底
+                const amountCell = (value, isTotal) => {
+                    const style = {};
+                    if (value < 0) {
+                        style.fontColor = '#FF0000';
+                    }
+                    if (isTotal) {
+                        style.bold = true;
+                        style.backgroundColor = '#D9E2F3';
+                    }
+                    if (Object.keys(style).length > 0) {
+                        return { value, style };
+                    }
+                    return value;
+                };
+
+                // 科目名称单元格辅助函数
+                const labelCell = (text, isTotal) => {
+                    if (isTotal) {
+                        return { value: text, style: { bold: true, backgroundColor: '#D9E2F3' } };
+                    }
+                    return text;
+                };
+
+                const data = [
+                    [labelCell('销售收入', false), amountCell(50000, false), amountCell(62000, false), amountCell(58000, false), amountCell(170000, false)],
+                    [labelCell('运营成本', false), amountCell(-30000, false), amountCell(-35000, false), amountCell(-32000, false), amountCell(-97000, false)],
+                    [labelCell('市场费用', false), amountCell(-8000, false), amountCell(-10000, false), amountCell(-9000, false), amountCell(-27000, false)],
+                    [labelCell('净利润', true), amountCell(12000, true), amountCell(17000, true), amountCell(17000, true), amountCell(46000, true)],
+                ];
+
+                await export_data(data, {
+                    filename: '三级样式叠加示例',
+                    format: ExportFormat.Xlsx,
+                    columns: [
+                        { title: '科目', key: '0', width: 15 },
+                        {
+                            title: '一月',
+                            key: '1',
+                            width: 15,
+                            style: { align: 'right', numberFormat: '#,##0.00' },
+                        },
+                        {
+                            title: '二月',
+                            key: '2',
+                            width: 15,
+                            style: { align: 'right', numberFormat: '#,##0.00' },
+                        },
+                        {
+                            title: '三月',
+                            key: '3',
+                            width: 15,
+                            style: { align: 'right', numberFormat: '#,##0.00' },
+                        },
+                        {
+                            title: '合计',
+                            key: '4',
+                            width: 15,
+                            style: { align: 'right', numberFormat: '#,##0.00' },
+                        },
+                    ],
+                    headerStyle: {
+                        bold: true,
+                        fontColor: '#FFFFFF',
+                        backgroundColor: '#1F3864',
+                        align: 'center',
+                        fontSize: 12,
+                    },
+                    cellStyle: {
+                        border: true,
+                        fontSize: 11,
+                    },
+                });
+
+                console.log('✅ 三级样式叠加导出成功');
+            } catch (e) {
+                console.error('❌ 三级样式叠加导出失败:', e);
+            }
+        };
+
+        // ============ 第 5 节：DOM 表格样式导出 ============
+        window.exportDomStyle = async function () {
+            try {
+                const headerStyle = {
+                    bold: true,
+                    fontColor: '#FFFFFF',
+                    backgroundColor: '#2E75B6',
+                    align: 'center',
+                    fontSize: 12,
+                };
+                const cellStyle = {
+                    border: true,
+                    fontSize: 11,
+                    textWrap: true,
+                };
+
+                await export_table(
+                    'styled-table',     // tableId
+                    'DOM表格样式示例',   // filename
+                    ExportFormat.Xlsx,   // format
+                    false,               // excludeHidden
+                    null,                // progressCallback
+                    false,               // withBom
+                    false,               // strictProgress
+                    headerStyle,         // headerStyle
+                    cellStyle,           // cellStyle
+                );
+
+                console.log('✅ DOM 表格样式导出成功');
+            } catch (e) {
+                console.error('❌ DOM 表格样式导出失败:', e);
+            }
+        };
+    </script>
+</body>
+</html>

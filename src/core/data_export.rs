@@ -8,6 +8,13 @@ use wasm_bindgen::prelude::*;
 /// 最大递归深度限制，防止恶意构造的深层嵌套数据导致栈溢出
 const MAX_DEPTH: usize = 64;
 
+/// extract_data_rows 返回类型（数据行, 合并区域, 单元格样式覆盖）
+type ExtractedDataRows = (
+    Vec<Vec<String>>,
+    Vec<MergeRange>,
+    std::collections::HashMap<(u32, u16), super::style::CellStyle>,
+);
+
 /// 安全地从 JS 对象中获取属性值
 ///
 /// 与 `Reflect::get(...).unwrap_or(JsValue::NULL)` 不同，本函数会区分
@@ -19,6 +26,7 @@ fn get_object_property(obj: &JsValue, key: &str) -> Result<JsValue, JsValue> {
 }
 
 /// 解析后的列节点
+#[derive(Default)]
 struct ColumnNode {
     /// 表头标题
     title: String,
@@ -26,6 +34,12 @@ struct ColumnNode {
     key: Option<String>,
     /// 子列（分组列才有）
     children: Vec<ColumnNode>,
+    /// 列宽（仅叶子节点有效）
+    width: Option<f64>,
+    /// 数据单元格样式（仅叶子节点有效）
+    style: Option<super::style::CellStyle>,
+    /// 表头单元格样式（仅叶子节点有效）
+    header_style: Option<super::style::CellStyle>,
 }
 
 /// 从 JsValue 递归解析列配置
@@ -106,10 +120,28 @@ fn parse_column_node_with_depth(
         )));
     }
 
+    // 解析列宽
+    let width = js_sys::Reflect::get(item, &JsValue::from_str("width"))
+        .ok()
+        .and_then(|v| v.as_f64());
+
+    // 解析数据单元格样式
+    let style = js_sys::Reflect::get(item, &JsValue::from_str("style"))
+        .ok()
+        .and_then(|v| super::style::parse_cell_style(&v));
+
+    // 解析表头单元格样式
+    let header_style = js_sys::Reflect::get(item, &JsValue::from_str("headerStyle"))
+        .ok()
+        .and_then(|v| super::style::parse_cell_style(&v));
+
     Ok(ColumnNode {
         title,
         key,
         children,
+        width,
+        style,
+        header_style,
     })
 }
 
@@ -151,6 +183,33 @@ fn collect_leaf_keys(nodes: &[ColumnNode]) -> Vec<String> {
         }
     }
     keys
+}
+
+/// 叶子列的样式信息
+struct LeafColumnStyle {
+    /// 列宽
+    width: Option<f64>,
+    /// 数据单元格样式
+    style: Option<super::style::CellStyle>,
+    /// 表头单元格样式
+    header_style: Option<super::style::CellStyle>,
+}
+
+/// 按顺序收集所有叶子节点的样式配置
+fn collect_leaf_styles(nodes: &[ColumnNode]) -> Vec<LeafColumnStyle> {
+    let mut styles = Vec::new();
+    for node in nodes {
+        if node.children.is_empty() {
+            styles.push(LeafColumnStyle {
+                width: node.width,
+                style: node.style.clone(),
+                header_style: node.header_style.clone(),
+            });
+        } else {
+            styles.extend(collect_leaf_styles(&node.children));
+        }
+    }
+    styles
 }
 
 /// 构建多行表头和合并区域
@@ -268,6 +327,8 @@ struct CellInfo {
     col_span: u32,
     /// 行跨度（默认 1，0 表示被上方单元格覆盖）
     row_span: u32,
+    /// 单元格级别样式覆盖
+    style: Option<super::style::CellStyle>,
 }
 
 /// 解析单元格值，支持普通值和带 colSpan/rowSpan 的对象
@@ -315,10 +376,16 @@ fn parse_cell_value(val: &JsValue) -> CellInfo {
                 .map(|n| n as u32)
                 .unwrap_or(1);
 
+            // 解析单元格级别样式
+            let style = js_sys::Reflect::get(val, &JsValue::from_str("style"))
+                .ok()
+                .and_then(|v| super::style::parse_cell_style(&v));
+
             return CellInfo {
                 value,
                 col_span,
                 row_span,
+                style,
             };
         }
     }
@@ -328,10 +395,11 @@ fn parse_cell_value(val: &JsValue) -> CellInfo {
         value: js_value_to_string(val),
         col_span: 1,
         row_span: 1,
+        style: None,
     }
 }
 
-/// 从 JS 对象数组中按 key 顺序提取数据行，支持 colSpan/rowSpan
+/// 从 JS 对象数组中按 key 顺序提取数据行，支持 colSpan/rowSpan 和单元格样式
 ///
 /// # 参数
 /// * `data` - JS 对象数组
@@ -339,21 +407,22 @@ fn parse_cell_value(val: &JsValue) -> CellInfo {
 /// * `header_row_count` - 表头行数（用于 MergeRange 的行偏移）
 ///
 /// # 返回值
-/// (二维字符串数组, 数据区域的合并区域列表)
+/// (二维字符串数组, 数据区域的合并区域列表, 单元格级样式覆盖)
 fn extract_data_rows(
     data: &JsValue,
     keys: &[String],
     header_row_count: usize,
-) -> Result<(Vec<Vec<String>>, Vec<MergeRange>), JsValue> {
+) -> Result<ExtractedDataRows, JsValue> {
     let array = js_sys::Array::from(data);
     let length = array.length();
 
     if length == 0 {
-        return Ok((Vec::new(), Vec::new()));
+        return Ok((Vec::new(), Vec::new(), std::collections::HashMap::new()));
     }
 
     let mut rows = Vec::with_capacity(length as usize);
     let mut merge_ranges = Vec::new();
+    let mut cell_overrides = std::collections::HashMap::new();
 
     for i in 0..length {
         let item = array.get(i);
@@ -368,6 +437,12 @@ fn extract_data_rows(
                 row.push(String::new());
             } else {
                 row.push(cell_info.value);
+
+                // 收集单元格级样式
+                if let Some(style) = cell_info.style {
+                    let abs_row = (i as usize + header_row_count) as u32;
+                    cell_overrides.insert((abs_row, col_idx as u16), style);
+                }
 
                 // 生成合并区域（colSpan>1 或 rowSpan>1）
                 // 增加防护：确保 row_span 和 col_span 至少为 1，防止计算下溢
@@ -387,7 +462,7 @@ fn extract_data_rows(
         rows.push(row);
     }
 
-    Ok((rows, merge_ranges))
+    Ok((rows, merge_ranges, cell_overrides))
 }
 
 /// 将 JS 值转换为字符串
@@ -499,8 +574,9 @@ pub fn build_table_data_from_tree(
     // 3. 构建多行表头和合并区域
     let (header_rows, merge_ranges) = build_header_rows(&column_nodes, max_depth)?;
 
-    // 4. 收集叶子 key
+    // 4. 收集叶子 key 和样式
     let leaf_keys = collect_leaf_keys(&column_nodes);
+    let leaf_styles = collect_leaf_styles(&column_nodes);
 
     // 5. 递归拍平树形数据
     let mut data_rows = Vec::new();
@@ -517,10 +593,14 @@ pub fn build_table_data_from_tree(
     let mut rows = header_rows;
     rows.extend(data_rows);
 
+    // 7. 构建 StyleSheet（来自列配置）
+    let style_sheet = build_column_style_sheet(&leaf_styles);
+
     Ok(TableData {
         rows,
         merge_ranges,
         header_row_count: max_depth,
+        style_sheet,
     })
 }
 
@@ -551,11 +631,13 @@ pub fn build_table_data_from_array(
     let (header_rows, mut merge_ranges) = build_header_rows(&column_nodes, max_depth)?;
     let header_row_count = header_rows.len();
 
-    // 4. 收集叶子 key
+    // 4. 收集叶子 key 和样式
     let leaf_keys = collect_leaf_keys(&column_nodes);
+    let leaf_styles = collect_leaf_styles(&column_nodes);
 
-    // 5. 提取数据行（含数据区域合并信息）
-    let (data_rows, data_merge_ranges) = extract_data_rows(data, &leaf_keys, header_row_count)?;
+    // 5. 提取数据行（含数据区域合并信息和单元格样式）
+    let (data_rows, data_merge_ranges, cell_overrides) =
+        extract_data_rows(data, &leaf_keys, header_row_count)?;
 
     // 6. 合并表头行和数据行
     let mut rows = header_rows;
@@ -564,10 +646,55 @@ pub fn build_table_data_from_array(
     // 7. 合并表头合并区域和数据合并区域
     merge_ranges.extend(data_merge_ranges);
 
+    // 8. 构建 StyleSheet（来自列配置 + 单元格级覆盖）
+    let style_sheet = build_column_style_sheet_with_overrides(&leaf_styles, cell_overrides);
+
     Ok(TableData {
         rows,
         merge_ranges,
         header_row_count: max_depth,
+        style_sheet,
+    })
+}
+
+/// 从叶子列样式构建 StyleSheet（不含单元格级覆盖）
+fn build_column_style_sheet(leaf_styles: &[LeafColumnStyle]) -> Option<super::style::StyleSheet> {
+    let has_any = leaf_styles
+        .iter()
+        .any(|s| s.width.is_some() || s.style.is_some() || s.header_style.is_some());
+
+    if !has_any {
+        return None;
+    }
+
+    Some(super::style::StyleSheet {
+        column_widths: leaf_styles.iter().map(|s| s.width).collect(),
+        column_styles: leaf_styles.iter().map(|s| s.style.clone()).collect(),
+        column_header_styles: leaf_styles.iter().map(|s| s.header_style.clone()).collect(),
+        ..Default::default()
+    })
+}
+
+/// 从叶子列样式和单元格级覆盖构建 StyleSheet
+fn build_column_style_sheet_with_overrides(
+    leaf_styles: &[LeafColumnStyle],
+    cell_overrides: std::collections::HashMap<(u32, u16), super::style::CellStyle>,
+) -> Option<super::style::StyleSheet> {
+    let has_columns = leaf_styles
+        .iter()
+        .any(|s| s.width.is_some() || s.style.is_some() || s.header_style.is_some());
+    let has_overrides = !cell_overrides.is_empty();
+
+    if !has_columns && !has_overrides {
+        return None;
+    }
+
+    Some(super::style::StyleSheet {
+        column_widths: leaf_styles.iter().map(|s| s.width).collect(),
+        column_styles: leaf_styles.iter().map(|s| s.style.clone()).collect(),
+        column_header_styles: leaf_styles.iter().map(|s| s.header_style.clone()).collect(),
+        cell_overrides,
+        ..Default::default()
     })
 }
 
@@ -583,11 +710,13 @@ mod tests {
                 title: "A".to_string(),
                 key: Some("a".to_string()),
                 children: vec![],
+                ..Default::default()
             },
             ColumnNode {
                 title: "B".to_string(),
                 key: Some("b".to_string()),
                 children: vec![],
+                ..Default::default()
             },
         ];
         assert_eq!(calc_depth(&nodes), 1);
@@ -600,6 +729,7 @@ mod tests {
                 title: "A".to_string(),
                 key: Some("a".to_string()),
                 children: vec![],
+                ..Default::default()
             },
             ColumnNode {
                 title: "Group".to_string(),
@@ -609,13 +739,16 @@ mod tests {
                         title: "B".to_string(),
                         key: Some("b".to_string()),
                         children: vec![],
+                        ..Default::default()
                     },
                     ColumnNode {
                         title: "C".to_string(),
                         key: Some("c".to_string()),
                         children: vec![],
+                        ..Default::default()
                     },
                 ],
+                ..Default::default()
             },
         ];
         assert_eq!(calc_depth(&nodes), 2);
@@ -633,8 +766,11 @@ mod tests {
                     title: "L3".to_string(),
                     key: Some("l3".to_string()),
                     children: vec![],
+                    ..Default::default()
                 }],
+                ..Default::default()
             }],
+            ..Default::default()
         }];
         assert_eq!(calc_depth(&nodes), 3);
     }
@@ -650,13 +786,16 @@ mod tests {
                     title: "A".to_string(),
                     key: Some("a".to_string()),
                     children: vec![],
+                    ..Default::default()
                 },
                 ColumnNode {
                     title: "B".to_string(),
                     key: Some("b".to_string()),
                     children: vec![],
+                    ..Default::default()
                 },
             ],
+            ..Default::default()
         };
         assert_eq!(calc_leaf_count(&node), 2);
     }
@@ -669,6 +808,7 @@ mod tests {
                 title: "姓名".to_string(),
                 key: Some("name".to_string()),
                 children: vec![],
+                ..Default::default()
             },
             ColumnNode {
                 title: "其他".to_string(),
@@ -678,13 +818,16 @@ mod tests {
                         title: "年龄".to_string(),
                         key: Some("age".to_string()),
                         children: vec![],
+                        ..Default::default()
                     },
                     ColumnNode {
                         title: "住址".to_string(),
                         key: Some("address".to_string()),
                         children: vec![],
+                        ..Default::default()
                     },
                 ],
+                ..Default::default()
             },
         ];
         assert_eq!(collect_leaf_keys(&nodes), vec!["name", "age", "address"]);
@@ -698,11 +841,13 @@ mod tests {
                 title: "A".to_string(),
                 key: Some("a".to_string()),
                 children: vec![],
+                ..Default::default()
             },
             ColumnNode {
                 title: "B".to_string(),
                 key: Some("b".to_string()),
                 children: vec![],
+                ..Default::default()
             },
         ];
         let (rows, merges) = build_header_rows(&nodes, 1).unwrap();
@@ -718,6 +863,7 @@ mod tests {
                 title: "姓名".to_string(),
                 key: Some("name".to_string()),
                 children: vec![],
+                ..Default::default()
             },
             ColumnNode {
                 title: "其他".to_string(),
@@ -727,13 +873,16 @@ mod tests {
                         title: "年龄".to_string(),
                         key: Some("age".to_string()),
                         children: vec![],
+                        ..Default::default()
                     },
                     ColumnNode {
                         title: "住址".to_string(),
                         key: Some("address".to_string()),
                         children: vec![],
+                        ..Default::default()
                     },
                 ],
+                ..Default::default()
             },
         ];
 
@@ -771,6 +920,7 @@ mod tests {
                 title: "ID".to_string(),
                 key: Some("id".to_string()),
                 children: vec![],
+                ..Default::default()
             },
             ColumnNode {
                 title: "基本信息".to_string(),
@@ -780,6 +930,7 @@ mod tests {
                         title: "姓名".to_string(),
                         key: Some("name".to_string()),
                         children: vec![],
+                        ..Default::default()
                     },
                     ColumnNode {
                         title: "联系方式".to_string(),
@@ -789,20 +940,25 @@ mod tests {
                                 title: "电话".to_string(),
                                 key: Some("phone".to_string()),
                                 children: vec![],
+                                ..Default::default()
                             },
                             ColumnNode {
                                 title: "邮箱".to_string(),
                                 key: Some("email".to_string()),
                                 children: vec![],
+                                ..Default::default()
                             },
                         ],
+                        ..Default::default()
                     },
                 ],
+                ..Default::default()
             },
             ColumnNode {
                 title: "部门".to_string(),
                 key: Some("dept".to_string()),
                 children: vec![],
+                ..Default::default()
             },
         ];
 
@@ -828,6 +984,7 @@ mod tests {
                 title: "A".to_string(),
                 key: Some("a".to_string()),
                 children: vec![],
+                ..Default::default()
             },
             ColumnNode {
                 title: "Group".to_string(),
@@ -837,13 +994,16 @@ mod tests {
                         title: "B".to_string(),
                         key: Some("b".to_string()),
                         children: vec![],
+                        ..Default::default()
                     },
                     ColumnNode {
                         title: "C".to_string(),
                         key: Some("c".to_string()),
                         children: vec![],
+                        ..Default::default()
                     },
                 ],
+                ..Default::default()
             },
         ];
 
@@ -873,6 +1033,7 @@ mod tests {
                     title: "A".to_string(),
                     key: Some("a".to_string()),
                     children: vec![],
+                    ..Default::default()
                 },
                 ColumnNode {
                     title: "Sub".to_string(),
@@ -882,15 +1043,19 @@ mod tests {
                             title: "B".to_string(),
                             key: Some("b".to_string()),
                             children: vec![],
+                            ..Default::default()
                         },
                         ColumnNode {
                             title: "C".to_string(),
                             key: Some("c".to_string()),
                             children: vec![],
+                            ..Default::default()
                         },
                     ],
+                    ..Default::default()
                 },
             ],
+            ..Default::default()
         };
         assert_eq!(calc_leaf_count(&node), 3);
     }

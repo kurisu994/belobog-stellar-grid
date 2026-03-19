@@ -17,6 +17,8 @@ pub fn export_table(
     progress_callback: Option<js_sys::Function>,
     with_bom: Option<bool>,
     strict_progress_callback: Option<bool>,
+    header_style: Option<JsValue>,
+    cell_style: Option<JsValue>,
 ) -> Result<(), JsValue>
 ```
 
@@ -29,6 +31,8 @@ pub fn export_table(
 - `progress_callback`: 进度回调函数（可选）。接收一个 0-100 的数字。
 - `with_bom`: CSV 导出时是否添加 UTF-8 BOM（可选）。默认为 `false`。添加 BOM 可解决 Excel 打开 CSV 中文乱码问题。
 - `strict_progress_callback`: 是否启用严格进度回调模式（可选）。默认为 `false`。启用后，进度回调失败将中止导出并返回错误；未启用时仅 `console.warn`。
+- `header_style`: 全局表头样式（可选，仅 XLSX 有效）。参见 [样式配置](#样式配置)。
+- `cell_style`: 全局数据单元格样式（可选，仅 XLSX 有效）。参见 [样式配置](#样式配置)。
 
 **返回值**
 
@@ -72,6 +76,8 @@ pub fn export_data(data: JsValue, options: Option<JsValue>) -> Result<(), JsValu
   - `strictProgressCallback`: 是否启用严格进度回调模式。默认 `false`。启用后进度回调失败将中止导出。
   - `freezeRows`: 冻结前 N 行（仅 XLSX 有效）。默认自动根据表头行数冻结（有 `columns` 时冻结表头，无 `columns` 时不冻结）。
   - `freezeCols`: 冻结前 N 列（仅 XLSX 有效）。默认 `0`。
+  - `headerStyle`: 全局表头样式（仅 XLSX 有效）。参见 [样式配置](#样式配置)。
+  - `cellStyle`: 全局数据单元格样式（仅 XLSX 有效）。参见 [样式配置](#样式配置)。
 
 **返回值**
 
@@ -237,6 +243,113 @@ pub async fn export_tables_to_xlsx_batch(
 import { ExportFormat } from "belobog-stellar-grid";
 console.log(ExportFormat.Csv); // 0
 console.log(ExportFormat.Xlsx); // 1
+```
+
+---
+
+## 样式配置
+
+XLSX 导出支持三级样式体系：**全局样式 → 列级样式 → 单元格样式**，优先级从低到高依次覆盖。CSV 导出时样式配置将被静默忽略。
+
+### CellStyle 对象
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| `bold` | `boolean` | 粗体 |
+| `italic` | `boolean` | 斜体 |
+| `fontSize` | `number` | 字号（如 `12`） |
+| `fontName` | `string` | 字体名（如 `"Arial"`） |
+| `fontColor` | `string` | 字体颜色，hex 格式（如 `"#FF0000"`，支持 3 位简写 `"#F00"`） |
+| `backgroundColor` | `string` | 背景色，hex 格式（如 `"#F2F2F2"`） |
+| `align` | `string` | 水平对齐：`"left"` / `"center"` / `"right"` |
+| `verticalAlign` | `string` | 垂直对齐：`"top"` / `"center"` / `"bottom"` |
+| `border` | `boolean \| object` | `true` 为四边细线；或 `{ top, bottom, left, right }` 分别指定 |
+| `numberFormat` | `string` | 数字格式（如 `"#,##0.00"`、`"yyyy-mm-dd"`） |
+| `textWrap` | `boolean` | 自动换行 |
+
+**边框线条类型**：`"thin"` / `"medium"` / `"thick"` / `"dashed"` / `"dotted"` / `"double"`
+
+### 全局样式
+
+通过 `options.headerStyle` 和 `options.cellStyle` 设置，应用于所有表头/数据单元格。
+
+```javascript
+export_data(data, {
+  format: ExportFormat.Xlsx,
+  columns: [...],
+  headerStyle: {
+    bold: true,
+    fontColor: '#FFFFFF',
+    backgroundColor: '#4472C4',
+    align: 'center',
+  },
+  cellStyle: {
+    border: true,
+    fontSize: 11,
+  },
+});
+```
+
+### 列级样式
+
+在 `columns` 配置中为特定列设置 `style`（数据样式）、`headerStyle`（表头样式）和 `width`（列宽）。
+
+```javascript
+const columns = [
+  { title: '姓名', key: 'name', width: 20 },
+  {
+    title: '金额',
+    key: 'amount',
+    width: 15,
+    style: { align: 'right', numberFormat: '#,##0.00' },
+    headerStyle: { bold: true, backgroundColor: '#D9E2F3' },
+  },
+];
+```
+
+### 单元格样式
+
+在数据中使用 `{ value, style }` 对象替代普通值，为特定单元格设置样式。
+
+```javascript
+const data = [
+  { name: '张三', score: { value: 95, style: { fontColor: '#006100', backgroundColor: '#C6EFCE' } } },
+  { name: '李四', score: { value: 42, style: { fontColor: '#9C0006', backgroundColor: '#FFC7CE' } } },
+];
+```
+
+### 三级样式叠加
+
+三个层级的样式按 **全局 → 列级 → 单元格** 的顺序合并，高优先级覆盖低优先级的同名属性。
+
+```javascript
+export_data(data, {
+  format: ExportFormat.Xlsx,
+  columns: [
+    { title: '项目', key: 'name', width: 25 },
+    { title: '金额', key: 'amount', style: { align: 'right', numberFormat: '#,##0.00' } },
+  ],
+  headerStyle: { bold: true, backgroundColor: '#1F3864', fontColor: '#FFFFFF' },
+  cellStyle: { border: true, fontSize: 11 },
+});
+```
+
+### DOM 表格样式
+
+`export_table` 支持通过末尾两个参数传入全局样式（不支持列级和单元格级样式）：
+
+```javascript
+export_table(
+  'my-table',           // tableId
+  '报表',              // filename
+  ExportFormat.Xlsx,    // format
+  false,                // excludeHidden
+  null,                 // progressCallback
+  false,                // withBom
+  false,                // strictProgress
+  { bold: true, backgroundColor: '#4472C4', fontColor: '#FFFFFF' },  // headerStyle
+  { border: true, fontSize: 11 },                                     // cellStyle
+);
 ```
 
 ---

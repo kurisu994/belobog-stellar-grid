@@ -11,6 +11,16 @@
 
 ### ✨ 新增
 
+- 🆕 **Excel 样式定制**: 支持三级样式体系（全局→列级→单元格），覆盖所有 XLSX 导出路径
+  - **全局样式**: `options.headerStyle` / `options.cellStyle` 设置所有表头/数据单元格的默认样式
+  - **列级样式**: 列配置支持 `width`（列宽）、`style`（数据样式）、`headerStyle`（表头样式）
+  - **单元格样式**: 数据中使用 `{ value, style }` 对象为特定单元格设置独立样式
+  - **样式属性**: 支持 bold、italic、fontSize、fontName、fontColor、backgroundColor、align、verticalAlign、border（四边/分别指定）、numberFormat、textWrap
+  - **覆盖路径**: `export_data`、`generate_data_bytes`、`export_table`、`export_tables_xlsx`、批量导出、流式导出均已支持
+  - 新增 `examples/style-export.html` 样式定制示例页面（5 个演示场景）
+  - 新增 `e2e/tests/style-export.spec.ts` 样式导出 E2E 测试（7 个测试用例）
+  - 新增 `src/core/style.rs` 样式核心模块（14 个单元测试）
+
 - 🆕 **性能基准测试体系**: 建立两层自动化 Benchmark，持续追踪导出性能回归
   - **Rust 原生 Benchmark**（Criterion）：覆盖 CSV/XLSX 生成（4 种数据规模）、合并单元格场景、CSV 注入转义
   - **E2E 性能 Benchmark**（Playwright）：6 个端到端性能测试场景

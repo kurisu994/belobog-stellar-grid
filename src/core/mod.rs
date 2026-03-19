@@ -4,6 +4,7 @@
 mod data_export;
 pub(crate) mod export_csv;
 pub(crate) mod export_xlsx;
+pub(crate) mod style;
 pub(crate) mod table_extractor;
 
 pub(crate) use data_export::{build_table_data_from_array, build_table_data_from_tree};
@@ -66,6 +67,7 @@ pub enum ExportFormat {
 /// });
 /// ```
 #[wasm_bindgen]
+#[allow(clippy::too_many_arguments)]
 pub fn export_table(
     table_id: &str,
     filename: Option<String>,
@@ -74,6 +76,8 @@ pub fn export_table(
     progress_callback: Option<js_sys::Function>,
     with_bom: Option<bool>,
     strict_progress_callback: Option<bool>,
+    header_style: Option<JsValue>,
+    cell_style: Option<JsValue>,
 ) -> Result<(), JsValue> {
     let format = format.unwrap_or_default();
     let exclude_hidden = exclude_hidden.unwrap_or(false);
@@ -84,6 +88,10 @@ pub fn export_table(
     if table_id.is_empty() {
         return Err(JsValue::from_str("表格 ID 不能为空"));
     }
+
+    // 解析全局样式
+    let hs = header_style.as_ref().and_then(style::parse_cell_style);
+    let cs = cell_style.as_ref().and_then(style::parse_cell_style);
 
     // 根据格式导出
     match format {
@@ -100,7 +108,17 @@ pub fn export_table(
         }
         ExportFormat::Xlsx => {
             // XLSX 支持合并单元格，提取完整数据
-            let table_data = extract_table_data_with_merge(table_id, exclude_hidden)?;
+            let mut table_data = extract_table_data_with_merge(table_id, exclude_hidden)?;
+
+            // 注入全局样式
+            if hs.is_some() || cs.is_some() {
+                table_data.style_sheet = Some(style::StyleSheet {
+                    header_style: hs,
+                    data_style: cs,
+                    ..Default::default()
+                });
+            }
+
             export_as_xlsx(
                 table_data,
                 filename,
@@ -205,8 +223,23 @@ pub fn export_tables_xlsx(
     filename: Option<String>,
     progress_callback: Option<js_sys::Function>,
     strict_progress_callback: Option<bool>,
+    header_style: Option<JsValue>,
+    cell_style: Option<JsValue>,
 ) -> Result<(), JsValue> {
     let strict_progress = strict_progress_callback.unwrap_or(false);
+
+    // 解析全局样式
+    let hs = header_style.as_ref().and_then(style::parse_cell_style);
+    let cs = cell_style.as_ref().and_then(style::parse_cell_style);
+    let global_ss = if hs.is_some() || cs.is_some() {
+        Some(style::StyleSheet {
+            header_style: hs,
+            data_style: cs,
+            ..Default::default()
+        })
+    } else {
+        None
+    };
 
     // 解析配置
     let configs = parse_sheet_configs(&sheets)?;
@@ -221,7 +254,11 @@ pub fn export_tables_xlsx(
             .clone()
             .unwrap_or_else(|| format!("Sheet{}", idx + 1));
 
-        let table_data = extract_table_data_with_merge(&config.table_id, config.exclude_hidden)?;
+        let mut table_data =
+            extract_table_data_with_merge(&config.table_id, config.exclude_hidden)?;
+
+        // 注入全局样式
+        table_data.style_sheet = global_ss.clone();
 
         sheets_data.push((sheet_name, table_data));
     }
@@ -380,6 +417,10 @@ pub(crate) struct ExportDataOptions {
     pub(crate) freeze_rows: Option<u32>,
     /// 冻结列数（XLSX 有效，默认 0）
     pub(crate) freeze_cols: Option<u16>,
+    /// 表头全局样式（XLSX 有效）
+    pub(crate) header_style: Option<style::CellStyle>,
+    /// 数据行全局样式（XLSX 有效）
+    pub(crate) cell_style: Option<style::CellStyle>,
 }
 
 /// 从 options JsValue 对象中解析 export_data 的配置项
@@ -400,6 +441,8 @@ pub(crate) fn parse_export_data_options(
                 strict_progress: false,
                 freeze_rows: None,
                 freeze_cols: None,
+                header_style: None,
+                cell_style: None,
             });
         }
     };
@@ -482,6 +525,16 @@ pub(crate) fn parse_export_data_options(
         .and_then(|v| v.as_f64())
         .map(|n| n as u16);
 
+    // 解析 headerStyle（全局表头样式）
+    let header_style = js_sys::Reflect::get(options, &JsValue::from_str("headerStyle"))
+        .ok()
+        .and_then(|v| style::parse_cell_style(&v));
+
+    // 解析 cellStyle（全局数据行样式）
+    let cell_style = js_sys::Reflect::get(options, &JsValue::from_str("cellStyle"))
+        .ok()
+        .and_then(|v| style::parse_cell_style(&v));
+
     Ok(ExportDataOptions {
         columns,
         filename,
@@ -493,6 +546,8 @@ pub(crate) fn parse_export_data_options(
         strict_progress,
         freeze_rows,
         freeze_cols,
+        header_style,
+        cell_style,
     })
 }
 
@@ -508,14 +563,23 @@ pub(crate) fn export_data_impl(data: JsValue, opts: ExportDataOptions) -> Result
         (None, None) => None, // 自动根据 header_row_count 决定
     };
 
+    // 全局样式配置
+    let global_header_style = opts.header_style;
+    let global_cell_style = opts.cell_style;
+
     // 根据是否提供 columns 决定处理方式
     // 注意：parse_export_data_options 已过滤 null/undefined 的 columns，
     // 进入此分支时 cols 一定是有效的 JsValue
     if let Some(cols) = opts.columns {
         // 判断是否为树形数据模式（提供了 children_key）
         if let Some(ck) = opts.children_key {
-            let table_data =
+            let mut table_data =
                 build_table_data_from_tree(&cols, &data, opts.indent_column.as_deref(), &ck)?;
+            merge_global_styles(
+                &mut table_data,
+                global_header_style.clone(),
+                global_cell_style.clone(),
+            );
             return match opts.format {
                 ExportFormat::Csv => export_as_csv(
                     table_data.rows,
@@ -535,7 +599,8 @@ pub(crate) fn export_data_impl(data: JsValue, opts: ExportDataOptions) -> Result
         }
 
         // 有 columns 配置：使用 data_export 模块解析嵌套表头
-        let table_data = build_table_data_from_array(&cols, &data)?;
+        let mut table_data = build_table_data_from_array(&cols, &data)?;
+        merge_global_styles(&mut table_data, global_header_style, global_cell_style);
 
         return match opts.format {
             ExportFormat::Csv => {
@@ -572,10 +637,22 @@ pub(crate) fn export_data_impl(data: JsValue, opts: ExportDataOptions) -> Result
             sp,
         ),
         ExportFormat::Xlsx => {
+            // 构建全局样式表
+            let style_sheet = if global_header_style.is_some() || global_cell_style.is_some() {
+                Some(style::StyleSheet {
+                    header_style: global_header_style,
+                    data_style: global_cell_style,
+                    ..Default::default()
+                })
+            } else {
+                None
+            };
+
             let table_data = table_extractor::TableData {
                 rows,
                 merge_ranges: Vec::new(),
                 header_row_count: 0,
+                style_sheet,
             };
             export_as_xlsx(
                 table_data,
@@ -584,6 +661,40 @@ pub(crate) fn export_data_impl(data: JsValue, opts: ExportDataOptions) -> Result
                 sp,
                 freeze_pane,
             )
+        }
+    }
+}
+
+/// 将全局样式（headerStyle / cellStyle）合并到 TableData 的 StyleSheet 中
+///
+/// 如果 TableData 已有 StyleSheet（来自列配置），将全局样式注入为 header_style / data_style；
+/// 否则新建一个仅包含全局样式的 StyleSheet。
+fn merge_global_styles(
+    table_data: &mut table_extractor::TableData,
+    header_style: Option<style::CellStyle>,
+    cell_style: Option<style::CellStyle>,
+) {
+    if header_style.is_none() && cell_style.is_none() {
+        return;
+    }
+
+    match table_data.style_sheet.as_mut() {
+        Some(ss) => {
+            // 全局样式注入到已有的 StyleSheet
+            if header_style.is_some() {
+                ss.header_style = header_style;
+            }
+            if cell_style.is_some() {
+                ss.data_style = cell_style;
+            }
+        }
+        None => {
+            // 新建 StyleSheet
+            table_data.style_sheet = Some(style::StyleSheet {
+                header_style,
+                data_style: cell_style,
+                ..Default::default()
+            });
         }
     }
 }
@@ -622,9 +733,11 @@ pub fn generate_data_bytes(
 ) -> Result<js_sys::Uint8Array, JsValue> {
     let opts = parse_export_data_options(options)?;
     let sp = opts.strict_progress;
+    let global_header_style = opts.header_style;
+    let global_cell_style = opts.cell_style;
 
     // 根据是否提供 columns 决定处理方式
-    let (table_data, format, with_bom) = if let Some(cols) = opts.columns {
+    let (mut table_data, format, with_bom) = if let Some(cols) = opts.columns {
         if let Some(ck) = opts.children_key {
             // 树形数据模式
             let td = build_table_data_from_tree(&cols, &data, opts.indent_column.as_deref(), &ck)?;
@@ -637,13 +750,26 @@ pub fn generate_data_bytes(
     } else {
         // 二维数组模式
         let rows = parse_js_array_data(&data)?;
+        let style_sheet = if global_header_style.is_some() || global_cell_style.is_some() {
+            Some(style::StyleSheet {
+                header_style: global_header_style.clone(),
+                data_style: global_cell_style.clone(),
+                ..Default::default()
+            })
+        } else {
+            None
+        };
         let td = table_extractor::TableData {
             rows,
             merge_ranges: Vec::new(),
             header_row_count: 0,
+            style_sheet,
         };
         (td, opts.format, opts.with_bom)
     };
+
+    // 合并全局样式到 table_data
+    merge_global_styles(&mut table_data, global_header_style, global_cell_style);
 
     // 构建冻结窗格配置
     let freeze_pane = match (opts.freeze_rows, opts.freeze_cols) {

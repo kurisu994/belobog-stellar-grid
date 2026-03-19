@@ -1,6 +1,7 @@
 /// Excel XLSX 导出模块
 ///
-/// 提供 Excel XLSX 格式的表格导出功能
+/// 提供 Excel XLSX 格式的表格导出功能，支持单元格样式
+use super::style::StyleSheet;
 use super::table_extractor::TableData;
 use crate::utils::report_progress;
 use crate::validation::{ensure_extension, validate_filename};
@@ -8,12 +9,94 @@ use rust_xlsxwriter::{Format, Workbook};
 use wasm_bindgen::prelude::*;
 use web_sys::{Blob, HtmlAnchorElement, Url};
 
+/// 写入单元格数据，根据样式表决定是否带格式
+///
+/// 统一使用 write_string 防止公式注入
+pub(crate) fn write_cell(
+    worksheet: &mut rust_xlsxwriter::Worksheet,
+    row: u32,
+    col: u16,
+    text: &str,
+    style_sheet: Option<&StyleSheet>,
+    header_row_count: usize,
+) -> Result<(), JsValue> {
+    if let Some(ss) = style_sheet
+        && let Some(format) = ss.resolve(row, col, header_row_count)
+    {
+        worksheet
+            .write_string_with_format(row, col, text, &format)
+            .map_err(|e| JsValue::from_str(&format!("写入 Excel 单元格失败: {}", e)))?;
+    } else {
+        worksheet
+            .write_string(row, col, text)
+            .map_err(|e| JsValue::from_str(&format!("写入 Excel 单元格失败: {}", e)))?;
+    }
+    Ok(())
+}
+
+/// 应用列宽配置
+pub(crate) fn apply_column_widths(
+    worksheet: &mut rust_xlsxwriter::Worksheet,
+    style_sheet: Option<&StyleSheet>,
+) -> Result<(), JsValue> {
+    if let Some(ss) = style_sheet {
+        for (col_idx, width) in ss.column_widths.iter().enumerate() {
+            if let Some(w) = width {
+                worksheet
+                    .set_column_width(col_idx as u16, *w)
+                    .map_err(|e| JsValue::from_str(&format!("设置列宽失败: {}", e)))?;
+            }
+        }
+    }
+    Ok(())
+}
+
+/// 应用合并单元格，并保留样式
+pub(crate) fn apply_merge_ranges(
+    worksheet: &mut rust_xlsxwriter::Worksheet,
+    table_data: &TableData,
+    style_sheet: Option<&StyleSheet>,
+) -> Result<(), JsValue> {
+    for merge in &table_data.merge_ranges {
+        let text = table_data
+            .rows
+            .get(merge.first_row as usize)
+            .and_then(|row| row.get(merge.first_col as usize))
+            .map(|s| s.as_str())
+            .unwrap_or("");
+
+        // 获取合并区域首单元格的样式
+        let merge_format = if let Some(ss) = style_sheet {
+            ss.resolve(
+                merge.first_row,
+                merge.first_col,
+                table_data.header_row_count,
+            )
+            .unwrap_or_else(Format::new)
+        } else {
+            Format::new()
+        };
+
+        worksheet
+            .merge_range(
+                merge.first_row,
+                merge.first_col,
+                merge.last_row,
+                merge.last_col,
+                text,
+                &merge_format,
+            )
+            .map_err(|e| JsValue::from_str(&format!("合并单元格失败: {}", e)))?;
+    }
+    Ok(())
+}
+
 /// 生成 XLSX 文件字节（不触发下载）
 ///
 /// 仅生成 Excel 格式的字节数据，供 Worker 等场景使用。
 ///
 /// # 参数
-/// * `table_data` - 表格数据（包含单元格数据和合并区域信息）
+/// * `table_data` - 表格数据（包含单元格数据、合并区域和可选样式表）
 /// * `progress_callback` - 可选的进度回调函数
 /// * `strict_progress` - 是否启用严格进度回调模式
 /// * `freeze_pane` - 可选的冻结窗格位置 (freeze_row, freeze_col)，为 None 时自动根据 header_row_count 冻结
@@ -28,6 +111,7 @@ pub fn generate_xlsx_bytes(
     freeze_pane: Option<(u32, u16)>,
 ) -> Result<Vec<u8>, JsValue> {
     let total_rows = table_data.rows.len();
+    let style_sheet = table_data.style_sheet.as_ref();
 
     // 报告初始进度
     if let Some(callback) = progress_callback {
@@ -38,6 +122,9 @@ pub fn generate_xlsx_bytes(
     let mut workbook = Workbook::new();
     let worksheet = workbook.add_worksheet();
 
+    // 应用列宽
+    apply_column_widths(worksheet, style_sheet)?;
+
     // 写入所有数据，并报告进度
     // 安全策略：所有单元格统一使用 write_string，禁用公式自动执行，防止公式注入攻击
     for (i, row_data) in table_data.rows.iter().enumerate() {
@@ -45,9 +132,14 @@ pub fn generate_xlsx_bytes(
             if j > 16383 {
                 return Err(JsValue::from_str("列数超过 Excel 限制 (16384)"));
             }
-            worksheet
-                .write_string(i as u32, j as u16, cell_text)
-                .map_err(|e| JsValue::from_str(&format!("写入 Excel 单元格失败: {}", e)))?;
+            write_cell(
+                worksheet,
+                i as u32,
+                j as u16,
+                cell_text,
+                style_sheet,
+                table_data.header_row_count,
+            )?;
         }
 
         // 定期报告进度（每10行或最后一行）（数据写入阶段占 0% - 80%）
@@ -59,27 +151,8 @@ pub fn generate_xlsx_bytes(
         }
     }
 
-    // 应用合并单元格（merge_range 会覆盖首单元格内容，需传入实际文本）
-    let merge_format = Format::new();
-    for merge in &table_data.merge_ranges {
-        let text = table_data
-            .rows
-            .get(merge.first_row as usize)
-            .and_then(|row| row.get(merge.first_col as usize))
-            .map(|s| s.as_str())
-            .unwrap_or("");
-
-        worksheet
-            .merge_range(
-                merge.first_row,
-                merge.first_col,
-                merge.last_row,
-                merge.last_col,
-                text,
-                &merge_format,
-            )
-            .map_err(|e| JsValue::from_str(&format!("合并单元格失败: {}", e)))?;
-    }
+    // 应用合并单元格（merge_range 会覆盖首单元格内容，需传入实际文本和样式）
+    apply_merge_ranges(worksheet, table_data, style_sheet)?;
 
     // 应用冻结窗格：用户配置优先，否则自动根据表头行数冻结
     let effective_freeze = freeze_pane.unwrap_or({
@@ -115,7 +188,7 @@ pub fn generate_xlsx_bytes(
 /// 导出为 Excel XLSX 格式（生成文件并触发下载）
 ///
 /// # 参数
-/// * `table_data` - 表格数据（包含单元格数据和合并区域信息）
+/// * `table_data` - 表格数据（包含单元格数据、合并区域和可选样式表）
 /// * `filename` - 可选的导出文件名
 /// * `progress_callback` - 可选的进度回调函数
 /// * `strict_progress` - 是否启用严格进度回调模式
@@ -173,14 +246,17 @@ pub fn generate_xlsx_multi_bytes(
     let mut workbook = Workbook::new();
 
     // 逐个工作表写入数据
-    let merge_format = Format::new();
     for (sheet_idx, (sheet_name, table_data)) in sheets_data.iter().enumerate() {
         let worksheet = workbook.add_worksheet();
+        let style_sheet = table_data.style_sheet.as_ref();
 
         // 设置工作表名称
         worksheet
             .set_name(sheet_name)
             .map_err(|e| JsValue::from_str(&format!("设置工作表名称失败: {}", e)))?;
+
+        // 应用列宽
+        apply_column_widths(worksheet, style_sheet)?;
 
         let total_rows = table_data.rows.len();
 
@@ -190,9 +266,14 @@ pub fn generate_xlsx_multi_bytes(
                 if j > 16383 {
                     return Err(JsValue::from_str("列数超过 Excel 限制 (16384)"));
                 }
-                worksheet
-                    .write_string(i as u32, j as u16, cell_text)
-                    .map_err(|e| JsValue::from_str(&format!("写入 Excel 单元格失败: {}", e)))?;
+                write_cell(
+                    worksheet,
+                    i as u32,
+                    j as u16,
+                    cell_text,
+                    style_sheet,
+                    table_data.header_row_count,
+                )?;
             }
 
             // 报告进度（数据写入阶段占 0% - 80%，按 sheet 均分）
@@ -208,26 +289,8 @@ pub fn generate_xlsx_multi_bytes(
             }
         }
 
-        // 应用合并单元格（merge_range 会覆盖首单元格内容，需传入实际文本）
-        for merge in &table_data.merge_ranges {
-            let text = table_data
-                .rows
-                .get(merge.first_row as usize)
-                .and_then(|row| row.get(merge.first_col as usize))
-                .map(|s| s.as_str())
-                .unwrap_or("");
-
-            worksheet
-                .merge_range(
-                    merge.first_row,
-                    merge.first_col,
-                    merge.last_row,
-                    merge.last_col,
-                    text,
-                    &merge_format,
-                )
-                .map_err(|e| JsValue::from_str(&format!("合并单元格失败: {}", e)))?;
-        }
+        // 应用合并单元格
+        apply_merge_ranges(worksheet, table_data, style_sheet)?;
 
         // 应用冻结窗格：用户配置优先，否则自动根据各 sheet 的表头行数冻结
         let effective_freeze = freeze_pane.unwrap_or({
