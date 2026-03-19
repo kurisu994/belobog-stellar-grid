@@ -42,6 +42,7 @@ fn generate_table_data_with_merges(row_count: usize, col_count: usize) -> TableD
         rows,
         merge_ranges,
         header_row_count: 1,
+        style_sheet: None,
     }
 }
 
@@ -107,6 +108,7 @@ fn bench_xlsx_generation(c: &mut Criterion) {
             rows: generate_rows(rows, cols),
             merge_ranges: Vec::new(),
             header_row_count: 0,
+            style_sheet: None,
         };
 
         group.bench_with_input(
