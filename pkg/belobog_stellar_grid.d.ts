@@ -166,7 +166,7 @@ export function export_data_streaming(data: any, options?: any | null): Promise<
  * });
  * ```
  */
-export function export_table(table_id: string, filename?: string | null, format?: ExportFormat | null, exclude_hidden?: boolean | null, progress_callback?: Function | null, with_bom?: boolean | null, strict_progress_callback?: boolean | null): void;
+export function export_table(table_id: string, filename?: string | null, format?: ExportFormat | null, exclude_hidden?: boolean | null, progress_callback?: Function | null, with_bom?: boolean | null, strict_progress_callback?: boolean | null, header_style?: any | null, cell_style?: any | null): void;
 
 /**
  * 分批异步导出 HTML 表格到 CSV 文件
@@ -244,7 +244,7 @@ export function export_table_to_csv_batch(table_id: string, tbody_id?: string | 
  * );
  * ```
  */
-export function export_table_to_xlsx_batch(table_id: string, tbody_id?: string | null, filename?: string | null, batch_size?: number | null, exclude_hidden?: boolean | null, progress_callback?: Function | null, strict_progress_callback?: boolean | null): Promise<any>;
+export function export_table_to_xlsx_batch(table_id: string, tbody_id?: string | null, filename?: string | null, batch_size?: number | null, exclude_hidden?: boolean | null, progress_callback?: Function | null, strict_progress_callback?: boolean | null, header_style?: any | null, cell_style?: any | null): Promise<any>;
 
 /**
  * 多工作表分批异步导出 HTML 表格到 XLSX 文件
@@ -275,7 +275,7 @@ export function export_table_to_xlsx_batch(table_id: string, tbody_id?: string |
  * );
  * ```
  */
-export function export_tables_to_xlsx_batch(sheets: any, filename?: string | null, batch_size?: number | null, progress_callback?: Function | null, strict_progress_callback?: boolean | null): Promise<any>;
+export function export_tables_to_xlsx_batch(sheets: any, filename?: string | null, batch_size?: number | null, progress_callback?: Function | null, strict_progress_callback?: boolean | null, header_style?: any | null, cell_style?: any | null): Promise<any>;
 
 /**
  * 多工作表导出为 Excel XLSX 文件
@@ -301,7 +301,7 @@ export function export_tables_to_xlsx_batch(sheets: any, filename?: string | nul
  * );
  * ```
  */
-export function export_tables_xlsx(sheets: any, filename?: string | null, progress_callback?: Function | null, strict_progress_callback?: boolean | null): void;
+export function export_tables_xlsx(sheets: any, filename?: string | null, progress_callback?: Function | null, strict_progress_callback?: boolean | null, header_style?: any | null, cell_style?: any | null): void;
 
 /**
  * 从 JavaScript 数组生成文件字节（不触发下载，供 Web Worker 使用）
@@ -340,11 +340,11 @@ export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly export_data: (a: any, b: number) => [number, number];
     readonly export_data_streaming: (a: any, b: number) => any;
-    readonly export_table: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => [number, number];
+    readonly export_table: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number) => [number, number];
     readonly export_table_to_csv_batch: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number) => any;
-    readonly export_table_to_xlsx_batch: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => any;
-    readonly export_tables_to_xlsx_batch: (a: any, b: number, c: number, d: number, e: number, f: number) => any;
-    readonly export_tables_xlsx: (a: any, b: number, c: number, d: number, e: number) => [number, number];
+    readonly export_table_to_xlsx_batch: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number) => any;
+    readonly export_tables_to_xlsx_batch: (a: any, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => any;
+    readonly export_tables_xlsx: (a: any, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number];
     readonly generate_data_bytes: (a: any, b: number) => [number, number, number];
     readonly wasm_bindgen__closure__destroy__h4861cf75edd79f33: (a: number, b: number) => void;
     readonly wasm_bindgen__closure__destroy__hb1f1e222d193ce94: (a: number, b: number) => void;

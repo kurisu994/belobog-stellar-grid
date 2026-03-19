@@ -185,13 +185,15 @@ export function export_data_streaming(data, options) {
  * @param {Function | null} [progress_callback]
  * @param {boolean | null} [with_bom]
  * @param {boolean | null} [strict_progress_callback]
+ * @param {any | null} [header_style]
+ * @param {any | null} [cell_style]
  */
-export function export_table(table_id, filename, format, exclude_hidden, progress_callback, with_bom, strict_progress_callback) {
+export function export_table(table_id, filename, format, exclude_hidden, progress_callback, with_bom, strict_progress_callback, header_style, cell_style) {
     const ptr0 = passStringToWasm0(table_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     const len0 = WASM_VECTOR_LEN;
     var ptr1 = isLikeNone(filename) ? 0 : passStringToWasm0(filename, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     var len1 = WASM_VECTOR_LEN;
-    const ret = wasm.export_table(ptr0, len0, ptr1, len1, isLikeNone(format) ? 2 : format, isLikeNone(exclude_hidden) ? 0xFFFFFF : exclude_hidden ? 1 : 0, isLikeNone(progress_callback) ? 0 : addToExternrefTable0(progress_callback), isLikeNone(with_bom) ? 0xFFFFFF : with_bom ? 1 : 0, isLikeNone(strict_progress_callback) ? 0xFFFFFF : strict_progress_callback ? 1 : 0);
+    const ret = wasm.export_table(ptr0, len0, ptr1, len1, isLikeNone(format) ? 2 : format, isLikeNone(exclude_hidden) ? 0xFFFFFF : exclude_hidden ? 1 : 0, isLikeNone(progress_callback) ? 0 : addToExternrefTable0(progress_callback), isLikeNone(with_bom) ? 0xFFFFFF : with_bom ? 1 : 0, isLikeNone(strict_progress_callback) ? 0xFFFFFF : strict_progress_callback ? 1 : 0, isLikeNone(header_style) ? 0 : addToExternrefTable0(header_style), isLikeNone(cell_style) ? 0 : addToExternrefTable0(cell_style));
     if (ret[1]) {
         throw takeFromExternrefTable0(ret[0]);
     }
@@ -297,16 +299,18 @@ export function export_table_to_csv_batch(table_id, tbody_id, filename, batch_si
  * @param {boolean | null} [exclude_hidden]
  * @param {Function | null} [progress_callback]
  * @param {boolean | null} [strict_progress_callback]
+ * @param {any | null} [header_style]
+ * @param {any | null} [cell_style]
  * @returns {Promise<any>}
  */
-export function export_table_to_xlsx_batch(table_id, tbody_id, filename, batch_size, exclude_hidden, progress_callback, strict_progress_callback) {
+export function export_table_to_xlsx_batch(table_id, tbody_id, filename, batch_size, exclude_hidden, progress_callback, strict_progress_callback, header_style, cell_style) {
     const ptr0 = passStringToWasm0(table_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     const len0 = WASM_VECTOR_LEN;
     var ptr1 = isLikeNone(tbody_id) ? 0 : passStringToWasm0(tbody_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     var len1 = WASM_VECTOR_LEN;
     var ptr2 = isLikeNone(filename) ? 0 : passStringToWasm0(filename, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     var len2 = WASM_VECTOR_LEN;
-    const ret = wasm.export_table_to_xlsx_batch(ptr0, len0, ptr1, len1, ptr2, len2, isLikeNone(batch_size) ? 0x100000001 : (batch_size) >>> 0, isLikeNone(exclude_hidden) ? 0xFFFFFF : exclude_hidden ? 1 : 0, isLikeNone(progress_callback) ? 0 : addToExternrefTable0(progress_callback), isLikeNone(strict_progress_callback) ? 0xFFFFFF : strict_progress_callback ? 1 : 0);
+    const ret = wasm.export_table_to_xlsx_batch(ptr0, len0, ptr1, len1, ptr2, len2, isLikeNone(batch_size) ? 0x100000001 : (batch_size) >>> 0, isLikeNone(exclude_hidden) ? 0xFFFFFF : exclude_hidden ? 1 : 0, isLikeNone(progress_callback) ? 0 : addToExternrefTable0(progress_callback), isLikeNone(strict_progress_callback) ? 0xFFFFFF : strict_progress_callback ? 1 : 0, isLikeNone(header_style) ? 0 : addToExternrefTable0(header_style), isLikeNone(cell_style) ? 0 : addToExternrefTable0(cell_style));
     return ret;
 }
 
@@ -343,12 +347,14 @@ export function export_table_to_xlsx_batch(table_id, tbody_id, filename, batch_s
  * @param {number | null} [batch_size]
  * @param {Function | null} [progress_callback]
  * @param {boolean | null} [strict_progress_callback]
+ * @param {any | null} [header_style]
+ * @param {any | null} [cell_style]
  * @returns {Promise<any>}
  */
-export function export_tables_to_xlsx_batch(sheets, filename, batch_size, progress_callback, strict_progress_callback) {
+export function export_tables_to_xlsx_batch(sheets, filename, batch_size, progress_callback, strict_progress_callback, header_style, cell_style) {
     var ptr0 = isLikeNone(filename) ? 0 : passStringToWasm0(filename, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     var len0 = WASM_VECTOR_LEN;
-    const ret = wasm.export_tables_to_xlsx_batch(sheets, ptr0, len0, isLikeNone(batch_size) ? 0x100000001 : (batch_size) >>> 0, isLikeNone(progress_callback) ? 0 : addToExternrefTable0(progress_callback), isLikeNone(strict_progress_callback) ? 0xFFFFFF : strict_progress_callback ? 1 : 0);
+    const ret = wasm.export_tables_to_xlsx_batch(sheets, ptr0, len0, isLikeNone(batch_size) ? 0x100000001 : (batch_size) >>> 0, isLikeNone(progress_callback) ? 0 : addToExternrefTable0(progress_callback), isLikeNone(strict_progress_callback) ? 0xFFFFFF : strict_progress_callback ? 1 : 0, isLikeNone(header_style) ? 0 : addToExternrefTable0(header_style), isLikeNone(cell_style) ? 0 : addToExternrefTable0(cell_style));
     return ret;
 }
 
@@ -379,11 +385,13 @@ export function export_tables_to_xlsx_batch(sheets, filename, batch_size, progre
  * @param {string | null} [filename]
  * @param {Function | null} [progress_callback]
  * @param {boolean | null} [strict_progress_callback]
+ * @param {any | null} [header_style]
+ * @param {any | null} [cell_style]
  */
-export function export_tables_xlsx(sheets, filename, progress_callback, strict_progress_callback) {
+export function export_tables_xlsx(sheets, filename, progress_callback, strict_progress_callback, header_style, cell_style) {
     var ptr0 = isLikeNone(filename) ? 0 : passStringToWasm0(filename, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     var len0 = WASM_VECTOR_LEN;
-    const ret = wasm.export_tables_xlsx(sheets, ptr0, len0, isLikeNone(progress_callback) ? 0 : addToExternrefTable0(progress_callback), isLikeNone(strict_progress_callback) ? 0xFFFFFF : strict_progress_callback ? 1 : 0);
+    const ret = wasm.export_tables_xlsx(sheets, ptr0, len0, isLikeNone(progress_callback) ? 0 : addToExternrefTable0(progress_callback), isLikeNone(strict_progress_callback) ? 0xFFFFFF : strict_progress_callback ? 1 : 0, isLikeNone(header_style) ? 0 : addToExternrefTable0(header_style), isLikeNone(cell_style) ? 0 : addToExternrefTable0(cell_style));
     if (ret[1]) {
         throw takeFromExternrefTable0(ret[0]);
     }
@@ -769,7 +777,7 @@ function __wbg_get_imports() {
             return ret;
         },
         __wbindgen_cast_0000000000000002: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { dtor_idx: 52, function: Function { arguments: [Externref], shim_idx: 782, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { dtor_idx: 60, function: Function { arguments: [Externref], shim_idx: 795, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__hb1f1e222d193ce94, wasm_bindgen__convert__closures_____invoke__h4c21a5017d209281);
             return ret;
         },

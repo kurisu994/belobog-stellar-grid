@@ -3,11 +3,11 @@
 export const memory: WebAssembly.Memory;
 export const export_data: (a: any, b: number) => [number, number];
 export const export_data_streaming: (a: any, b: number) => any;
-export const export_table: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => [number, number];
+export const export_table: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number) => [number, number];
 export const export_table_to_csv_batch: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number) => any;
-export const export_table_to_xlsx_batch: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => any;
-export const export_tables_to_xlsx_batch: (a: any, b: number, c: number, d: number, e: number, f: number) => any;
-export const export_tables_xlsx: (a: any, b: number, c: number, d: number, e: number) => [number, number];
+export const export_table_to_xlsx_batch: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number) => any;
+export const export_tables_to_xlsx_batch: (a: any, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => any;
+export const export_tables_xlsx: (a: any, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number];
 export const generate_data_bytes: (a: any, b: number) => [number, number, number];
 export const wasm_bindgen__closure__destroy__h4861cf75edd79f33: (a: number, b: number) => void;
 export const wasm_bindgen__closure__destroy__hb1f1e222d193ce94: (a: number, b: number) => void;
