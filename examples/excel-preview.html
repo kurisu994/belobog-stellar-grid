@@ -94,6 +94,71 @@
         cursor: pointer;
       }
 
+      /* ── 远程 URL 输入 ── */
+      .url-input-section {
+        margin-top: 16px;
+        padding: 16px 20px;
+        background: #f8f9fa;
+        border-radius: 10px;
+        border: 1px solid #e8e8e8;
+      }
+
+      .url-label {
+        font-size: 14px;
+        font-weight: 600;
+        color: #444;
+        display: block;
+        margin-bottom: 8px;
+      }
+
+      .url-row {
+        display: flex;
+        gap: 8px;
+      }
+
+      .url-input {
+        flex: 1;
+        padding: 10px 14px;
+        border: 1px solid #d0d7de;
+        border-radius: 8px;
+        font-size: 14px;
+        outline: none;
+        transition: border-color 0.2s;
+      }
+
+      .url-input:focus {
+        border-color: #0f3460;
+        box-shadow: 0 0 0 3px rgba(15, 52, 96, 0.1);
+      }
+
+      .url-btn {
+        padding: 10px 24px;
+        background: linear-gradient(135deg, #1a1a2e 0%, #0f3460 100%);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: opacity 0.2s;
+        white-space: nowrap;
+      }
+
+      .url-btn:hover {
+        opacity: 0.9;
+      }
+
+      .url-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      .url-hint {
+        font-size: 12px;
+        color: #999;
+        margin-top: 6px;
+      }
+
       /* ── 文件信息 ── */
       .file-info {
         display: none;
@@ -503,6 +568,17 @@
         <div class="drop-zone-hint">支持 .xlsx / .xls 格式</div>
       </div>
 
+      <!-- 远程 URL 输入 -->
+      <div class="url-input-section">
+        <label class="url-label">🔗 或输入远程文件 URL</label>
+        <div class="url-row">
+          <input type="text" id="url-input" class="url-input"
+            placeholder="https://example.com/sample.xlsx" />
+          <button class="url-btn" id="url-btn" onclick="loadRemoteFile()">加载</button>
+        </div>
+        <div class="url-hint">支持任何可公开访问的 .xlsx / .xls 文件链接（需允许 CORS）</div>
+      </div>
+
       <!-- 错误提示 -->
       <div class="error-box" id="error-box">
         <strong>❌ 解析失败</strong>
@@ -685,6 +761,86 @@
         activeSheet = 0;
         await renderPreview();
       }
+
+      // =====================================================================
+      // 远程 URL 加载
+      // =====================================================================
+      window.loadRemoteFile = async function () {
+        const url = $("url-input").value.trim();
+        if (!url) {
+          showError("请输入远程文件 URL");
+          return;
+        }
+
+        // 简单校验 URL 格式
+        try {
+          new URL(url);
+        } catch {
+          showError("无效的 URL 格式，请输入完整的 http(s):// 地址");
+          return;
+        }
+
+        hideError();
+
+        const btn = $("url-btn");
+        const originalText = btn.textContent;
+        btn.textContent = "加载中...";
+        btn.disabled = true;
+
+        try {
+          await initWasm();
+        } catch (e) {
+          showError("WASM 模块初始化失败: " + e);
+          btn.textContent = originalText;
+          btn.disabled = false;
+          return;
+        }
+
+        try {
+          const response = await fetch(url);
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status} ${response.statusText}`);
+          }
+
+          const contentType = response.headers.get("content-type") || "";
+          fileBuffer = await response.arrayBuffer();
+          const data = new Uint8Array(fileBuffer);
+
+          // 从 URL 提取文件名
+          const urlPath = new URL(url).pathname;
+          const fileName = decodeURIComponent(urlPath.split("/").pop() || "remote.xlsx");
+
+          // 更新文件信息
+          $("info-name").textContent = fileName;
+          $("info-size").textContent = formatFileSize(fileBuffer.byteLength);
+          $("file-info").classList.add("show");
+          $("options-panel").classList.add("show");
+          $("mode-toggle").classList.add("show");
+          $("preview-wrapper").classList.add("show");
+
+          // 获取工作表列表
+          sheetList = getExcelSheetList(data);
+          $("info-sheets").textContent = sheetList.length;
+          renderSheetTabs();
+
+          // 解析并渲染首个工作表
+          activeSheet = 0;
+          await renderPreview();
+        } catch (e) {
+          showError("远程文件加载失败: " + e);
+          console.error("远程加载错误:", e);
+        } finally {
+          btn.textContent = originalText;
+          btn.disabled = false;
+        }
+      };
+
+      // 支持回车键触发加载
+      $("url-input").addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          window.loadRemoteFile();
+        }
+      });
 
       // =====================================================================
       // 渲染 Sheet 标签
