@@ -8,13 +8,13 @@
 - **大数据支持**: 支持分批异步导出，处理百万级数据不卡顿。
 - **多格式**: 支持 CSV 和 Excel (Xlsx)。
 - **丰富功能**: 支持合并单元格、多 Sheet 导出、树形数据导出（自动缩进）、冻结窗格、Excel 样式定制。
-- **Excel 在线预览**: 基于 calamine 在 WASM 侧解析 xlsx/xls 文件，渲染为 HTML 表格保留原始样式，支持 HTML 直出和 JSON 结构化数据双输出。
+- **Excel 在线预览**: 基于 calamine 在 WASM 侧解析 xlsx/xls 文件，渲染为 HTML 表格保留原始样式，支持 HTML 直出和 JSON 结构化数据双输出，自动过滤隐藏工作表，数字格式精确显示。
 - **安全**: 内置文件名安全验证，防止路径遍历攻击，支持公式注入防护。
 - **易用**: 提供统一的 API 和类型支持。
 - **框架集成**: 提供 `@bsg-export/react`、`@bsg-export/vue`、`@bsg-export/svelte`、`@bsg-export/solid` 官方封装组件。
 - **Web Worker 支持**: `@bsg-export/worker` 将导出计算移至 Worker 线程，主线程不阻塞。
 - **类型安全**: `@bsg-export/types` 提供严格的 TypeScript 类型定义。
-- **质量保证**: 145+ 个单元测试，100% 测试覆盖，代码质量检查流程完善。
+- **质量保证**: 190+ 个单元测试，100% 测试覆盖，代码质量检查流程完善。
 
 ## 快速上手
 
@@ -115,6 +115,7 @@ export_table("my-table-id", "report.xlsx", ExportFormat.Xlsx, false, (progress) 
   - `maxRows`: `number`（可选），最大渲染行数
   - `maxCols`: `number`（可选），最大渲染列数
   - `trimEmpty`: `boolean`（可选），是否裁剪尾部空白行列，默认 false
+  - `skipHidden`: `boolean`（可选），是否跳过隐藏工作表，默认 true
 - 返回 `string`（HTML Table 字符串）。
 
 #### `parseExcelToJson(data, options?)`
@@ -126,7 +127,7 @@ export_table("my-table-id", "report.xlsx", ExportFormat.Xlsx, false, (progress) 
 #### `getExcelSheetList(data)`
 获取 Excel 文件的工作表列表信息。
 - `data`: `Uint8Array`，Excel 文件二进制数据。
-- 返回 `SheetInfo[]`（每个元素含 name、rows、cols、index）。
+- 返回 `SheetInfo[]`（每个元素含 name、rows、cols、index、hidden）。
 
 ### 类型
 

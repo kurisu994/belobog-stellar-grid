@@ -862,30 +862,150 @@ fn parse_color_ref(event: &quick_xml::events::BytesStart) -> Option<ColorRef> {
     None
 }
 
-/// 格式化数字值
+/// 格式化数字值（动态解析格式字符串）
 pub fn format_number(value: f64, format_str: &str) -> String {
-    match format_str {
-        "General" | "general" | "" => {
-            if value == value.floor() && value.abs() < 1e15 {
-                format!("{}", value as i64)
-            } else {
-                format!("{value}")
-            }
-        }
-        "0" => format!("{}", value.round() as i64),
-        "0.00" => format!("{value:.2}"),
-        "#,##0" => format_with_thousands(value, 0),
-        "#,##0.00" => format_with_thousands(value, 2),
-        s if s.contains('%') => {
-            let pct = value * 100.0;
-            if s.contains("0.00%") {
-                format!("{pct:.2}%")
-            } else {
-                format!("{pct:.0}%")
-            }
-        }
-        _ => format!("{value}"),
+    let fmt = format_str.trim();
+
+    // General / 空格式
+    if fmt.is_empty() || fmt.eq_ignore_ascii_case("General") {
+        return format_general(value);
     }
+
+    // 处理分号分隔的正/负/零格式（如 "0.00;-0.00;0"）
+    let section = select_format_section(fmt, value);
+
+    // 去除颜色标记（如 [Red]、[Green]）
+    let clean = strip_color_markers(section);
+
+    // 日期/时间格式 - 此处不做日期序列号转换，直接返回智能格式
+    if is_date_format(&clean) {
+        return format_general(value);
+    }
+
+    // 百分比格式
+    if clean.contains('%') {
+        let pct = value * 100.0;
+        let decimals = count_decimal_places(&clean);
+        let has_thousands = clean.contains(',');
+        return if has_thousands {
+            format!("{}%", format_with_thousands(pct, decimals))
+        } else {
+            format!("{pct:.prec$}%", prec = decimals)
+        };
+    }
+
+    // 科学计数法
+    if clean.contains("E+") || clean.contains("E-") || clean.contains("e+") || clean.contains("e-")
+    {
+        let decimals = count_decimal_places(&clean);
+        return format!("{value:.prec$E}", prec = decimals);
+    }
+
+    // 带千位分隔符
+    if clean.contains(',') {
+        let decimals = count_decimal_places(&clean);
+        return format_with_thousands(value, decimals);
+    }
+
+    // 固定小数位格式（如 "0", "0.00", "0.0", "0.000", "#.##" 等）
+    if clean.contains('.') {
+        let decimals = count_decimal_places(&clean);
+        return format!("{value:.prec$}", prec = decimals);
+    }
+
+    // 纯整数格式（如 "0", "#"）
+    if clean.contains('0') || clean.contains('#') {
+        return format!("{}", value.round() as i64);
+    }
+
+    // 未知格式，使用智能默认
+    format_general(value)
+}
+
+/// General 格式的智能格式化（限制精度，去除浮点噪声）
+fn format_general(value: f64) -> String {
+    if value == 0.0 {
+        return "0".to_string();
+    }
+    if value == value.floor() && value.abs() < 1e15 {
+        return format!("{}", value as i64);
+    }
+    // 非常大或非常小的数用科学计数法
+    if value.abs() >= 1e11 || value.abs() < 1e-9 {
+        let s = format!("{value:.6E}");
+        // 去除尾部零
+        if let Some((mantissa, exp)) = s.split_once('E') {
+            let clean = mantissa.trim_end_matches('0').trim_end_matches('.');
+            return format!("{clean}E{exp}");
+        }
+        return s;
+    }
+    // 普通数字：10 位小数精度，去除尾部零
+    let s = format!("{value:.10}");
+    let s = s.trim_end_matches('0').trim_end_matches('.');
+    s.to_string()
+}
+
+/// 处理正/负/零格式分段（如 "0.00;-0.00;0"）
+fn select_format_section(fmt: &str, value: f64) -> &str {
+    let sections: Vec<&str> = fmt.split(';').collect();
+    match sections.len() {
+        1 => sections[0],
+        2 => {
+            if value >= 0.0 {
+                sections[0]
+            } else {
+                sections[1]
+            }
+        }
+        _ => {
+            if value > 0.0 {
+                sections[0]
+            } else if value < 0.0 {
+                sections[1]
+            } else {
+                sections.get(2).copied().unwrap_or(sections[0])
+            }
+        }
+    }
+}
+
+/// 统计格式字符串中小数位数
+fn count_decimal_places(fmt: &str) -> usize {
+    if let Some(dot_pos) = fmt.find('.') {
+        fmt[dot_pos + 1..]
+            .chars()
+            .take_while(|c| *c == '0' || *c == '#' || *c == '?')
+            .count()
+    } else {
+        0
+    }
+}
+
+/// 去除格式字符串中的颜色标记（如 [Red]、[Green]、[Color1]）
+fn strip_color_markers(fmt: &str) -> String {
+    let mut result = String::with_capacity(fmt.len());
+    let mut in_bracket = false;
+    for ch in fmt.chars() {
+        match ch {
+            '[' => in_bracket = true,
+            ']' => in_bracket = false,
+            _ if !in_bracket => result.push(ch),
+            _ => {}
+        }
+    }
+    result
+}
+
+/// 判断是否为日期/时间格式
+fn is_date_format(fmt: &str) -> bool {
+    let lower = fmt.to_ascii_lowercase();
+    lower.contains("yy")
+        || lower.contains("mm")
+        || lower.contains("dd")
+        || lower.contains("hh")
+        || lower.contains("ss")
+        || lower.contains("am/pm")
 }
 
 fn format_with_thousands(value: f64, decimals: usize) -> String {

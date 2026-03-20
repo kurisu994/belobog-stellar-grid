@@ -922,5 +922,12 @@ fn parse_preview_options(options: &JsValue) -> Result<excel_reader::PreviewOptio
         }
     }
 
+    // skipHidden
+    if let Ok(val) = js_sys::Reflect::get(options, &JsValue::from_str("skipHidden")) {
+        if let Some(b) = val.as_bool() {
+            opts.skip_hidden = b;
+        }
+    }
+
     Ok(opts)
 }

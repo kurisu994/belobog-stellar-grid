@@ -28,6 +28,8 @@ pub struct PreviewOptions {
     pub include_styles: bool,
     /// 是否裁剪空白区域（默认 true）
     pub trim_empty: bool,
+    /// 是否跳过隐藏工作表（默认 true）
+    pub skip_hidden: bool,
 }
 
 impl Default for PreviewOptions {
@@ -39,6 +41,7 @@ impl Default for PreviewOptions {
             max_cols: None,
             include_styles: true,
             trim_empty: true,
+            skip_hidden: true,
         }
     }
 }
@@ -48,12 +51,14 @@ impl Default for PreviewOptions {
 pub struct SheetInfo {
     /// 工作表名称
     pub name: String,
-    /// 索引
+    /// 索引（在原始工作簿中的位置）
     pub index: usize,
     /// 行数
     pub rows: usize,
     /// 列数
     pub cols: usize,
+    /// 是否隐藏
+    pub hidden: bool,
 }
 
 /// 解析后的工作簿
@@ -142,15 +147,18 @@ struct SheetDimensions {
     default_col_width: Option<f64>,
 }
 
-/// 获取 Excel 文件的工作表列表
+/// 获取 Excel 文件的工作表列表（含隐藏状态）
 pub fn get_sheet_list(data: &[u8]) -> Result<Vec<SheetInfo>, String> {
     let cursor = Cursor::new(data);
     let mut workbook: Xlsx<_> =
         Xlsx::new(cursor).map_err(|e| format!("无法解析 Excel 文件: {e}"))?;
 
     let sheet_names = workbook.sheet_names().to_vec();
-    let mut sheets = Vec::new();
 
+    // 从 workbook.xml 解析各 sheet 的隐藏状态
+    let hidden_set = parse_hidden_sheets(Cursor::new(data)).unwrap_or_default();
+
+    let mut sheets = Vec::new();
     for (index, name) in sheet_names.iter().enumerate() {
         let (rows, cols) = match workbook.worksheet_range(name) {
             Ok(range) => range.get_size(),
@@ -161,6 +169,7 @@ pub fn get_sheet_list(data: &[u8]) -> Result<Vec<SheetInfo>, String> {
             index,
             rows,
             cols,
+            hidden: hidden_set.contains(name),
         });
     }
 
@@ -183,6 +192,13 @@ pub fn parse_excel(data: &[u8], options: &PreviewOptions) -> Result<ParsedWorkbo
         return Err("Excel 文件中没有工作表".to_string());
     }
 
+    // 解析隐藏 sheet 列表（用于 skip_hidden 时自动跳过）
+    let hidden_set = if options.skip_hidden {
+        parse_hidden_sheets(Cursor::new(data)).unwrap_or_default()
+    } else {
+        std::collections::HashSet::new()
+    };
+
     // 解析样式表（如果需要）
     let style_sheet = if options.include_styles {
         let style_cursor = Cursor::new(data);
@@ -192,7 +208,7 @@ pub fn parse_excel(data: &[u8], options: &PreviewOptions) -> Result<ParsedWorkbo
     };
 
     // 确定要渲染的 Sheet
-    let target_index = resolve_sheet_index(&sheet_names, options)?;
+    let target_index = resolve_sheet_index(&sheet_names, &hidden_set, options)?;
     let target_name = &sheet_names[target_index];
 
     // 解析 sheet 维度信息（行高/列宽/样式索引）
@@ -227,15 +243,19 @@ pub fn parse_excel(data: &[u8], options: &PreviewOptions) -> Result<ParsedWorkbo
     })
 }
 
-/// 确定目标 Sheet 索引
-fn resolve_sheet_index(sheet_names: &[String], options: &PreviewOptions) -> Result<usize, String> {
+/// 确定目标 Sheet 索引（考虑隐藏状态）
+fn resolve_sheet_index(
+    sheet_names: &[String],
+    hidden_set: &std::collections::HashSet<String>,
+    options: &PreviewOptions,
+) -> Result<usize, String> {
     if let Some(ref name) = options.sheet_name {
         sheet_names
             .iter()
             .position(|n| n == name)
             .ok_or_else(|| format!("未找到工作表: {name}"))
-    } else {
-        let idx = options.sheet_index.unwrap_or(0);
+    } else if let Some(idx) = options.sheet_index {
+        // 显式指定索引时直接使用
         if idx >= sheet_names.len() {
             Err(format!(
                 "工作表索引 {idx} 超出范围（共 {} 个工作表）",
@@ -244,6 +264,16 @@ fn resolve_sheet_index(sheet_names: &[String], options: &PreviewOptions) -> Resu
         } else {
             Ok(idx)
         }
+    } else {
+        // 未指定时自动选择第一个可见 sheet
+        if options.skip_hidden && !hidden_set.is_empty() {
+            for (i, name) in sheet_names.iter().enumerate() {
+                if !hidden_set.contains(name) {
+                    return Ok(i);
+                }
+            }
+        }
+        Ok(0)
     }
 }
 
@@ -387,7 +417,7 @@ fn build_parsed_sheet(
                 .get(&abs_col)
                 .copied()
                 .or(dimensions.default_col_width)
-                .map(|w| (w * 7.0 + 12.0).clamp(55.0, 300.0)) // 字符宽 → 像素近似
+                .map(|w| (w * 7.0 + 12.0).clamp(55.0, 500.0)) // 字符宽 → 像素近似
                 .unwrap_or(60.0) // 默认宽度
         })
         .collect();
@@ -490,17 +520,11 @@ fn cell_value_to_string(
                     .unwrap_or(0);
                 let cell_style = ss.get_cell_style(style_idx);
                 if let Some(ref fmt) = cell_style.number_format {
-                    if fmt != "General" && !fmt.is_empty() {
-                        return format_number(*f, fmt);
-                    }
+                    return format_number(*f, fmt);
                 }
             }
-            // 默认格式化
-            if *f == f.floor() && f.abs() < 1e15 {
-                format!("{}", *f as i64)
-            } else {
-                format!("{f}")
-            }
+            // 无样式表时使用 General 格式
+            format_number(*f, "General")
         }
         Some(Data::Int(i)) => format!("{i}"),
         Some(Data::Bool(b)) => {
@@ -515,6 +539,51 @@ fn cell_value_to_string(
         Some(Data::DateTimeIso(s)) => s.clone(),
         Some(Data::DurationIso(s)) => s.clone(),
     }
+}
+
+/// 从 xl/workbook.xml 解析隐藏 sheet 名称集合
+fn parse_hidden_sheets<R: Read + Seek>(
+    reader: R,
+) -> Result<std::collections::HashSet<String>, String> {
+    let mut archive = zip::ZipArchive::new(reader).map_err(|e| format!("无法读取 zip: {e}"))?;
+    let mut file = archive
+        .by_name("xl/workbook.xml")
+        .map_err(|e| format!("无法找到 workbook.xml: {e}"))?;
+    let mut xml = String::new();
+    file.read_to_string(&mut xml)
+        .map_err(|e| format!("读取 workbook.xml 失败: {e}"))?;
+
+    let mut hidden_names = std::collections::HashSet::new();
+    let mut reader = quick_xml::Reader::from_str(&xml);
+    reader.config_mut().trim_text(true);
+    let mut buf = Vec::new();
+
+    loop {
+        match reader.read_event_into(&mut buf) {
+            Ok(quick_xml::events::Event::Empty(ref e))
+            | Ok(quick_xml::events::Event::Start(ref e)) => {
+                let name_bytes = e.name().as_ref().to_vec();
+                let local = local_name_str(&name_bytes);
+                if local == "sheet" {
+                    let sheet_name = get_rel_attr(e, "name");
+                    let state = get_rel_attr(e, "state");
+                    if let Some(name) = sheet_name {
+                        if let Some(ref s) = state {
+                            if s == "hidden" || s == "veryHidden" {
+                                hidden_names.insert(name);
+                            }
+                        }
+                    }
+                }
+            }
+            Ok(quick_xml::events::Event::Eof) => break,
+            Err(_) => break,
+            _ => {}
+        }
+        buf.clear();
+    }
+
+    Ok(hidden_names)
 }
 
 /// 从 xlsx zip 中解析 sheet 的行高/列宽/样式索引
@@ -796,26 +865,51 @@ mod tests {
     #[test]
     fn test_resolve_sheet_index() {
         let names = vec!["Sheet1".to_string(), "Sheet2".to_string()];
+        let empty_hidden = std::collections::HashSet::new();
         let opts = PreviewOptions::default();
-        assert_eq!(resolve_sheet_index(&names, &opts).unwrap(), 0);
+        assert_eq!(
+            resolve_sheet_index(&names, &empty_hidden, &opts).unwrap(),
+            0
+        );
 
         let opts = PreviewOptions {
             sheet_index: Some(1),
             ..Default::default()
         };
-        assert_eq!(resolve_sheet_index(&names, &opts).unwrap(), 1);
+        assert_eq!(
+            resolve_sheet_index(&names, &empty_hidden, &opts).unwrap(),
+            1
+        );
 
         let opts = PreviewOptions {
             sheet_name: Some("Sheet2".to_string()),
             ..Default::default()
         };
-        assert_eq!(resolve_sheet_index(&names, &opts).unwrap(), 1);
+        assert_eq!(
+            resolve_sheet_index(&names, &empty_hidden, &opts).unwrap(),
+            1
+        );
 
         let opts = PreviewOptions {
             sheet_index: Some(5),
             ..Default::default()
         };
-        assert!(resolve_sheet_index(&names, &opts).is_err());
+        assert!(resolve_sheet_index(&names, &empty_hidden, &opts).is_err());
+
+        // 测试 skip_hidden：自动选择第一个可见 sheet
+        let names3 = vec![
+            "Hidden1".to_string(),
+            "Visible".to_string(),
+            "Hidden2".to_string(),
+        ];
+        let mut hidden_set = std::collections::HashSet::new();
+        hidden_set.insert("Hidden1".to_string());
+        hidden_set.insert("Hidden2".to_string());
+        let opts = PreviewOptions {
+            skip_hidden: true,
+            ..Default::default()
+        };
+        assert_eq!(resolve_sheet_index(&names3, &hidden_set, &opts).unwrap(), 1);
     }
 
     /// 使用 rust_xlsxwriter 生成测试 xlsx 文件并解析

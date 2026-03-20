@@ -9,6 +9,23 @@
 
 ## [Unreleased]
 
+### 新增 (Added)
+
+- 🔢 数字格式动态解析：根据 Excel 单元格格式字符串精确控制小数位数显示（如 `0.00` → 2位，`#,##0` → 整数），支持分段格式、颜色标记、百分比、千位分隔等
+- 🙈 隐藏工作表过滤：解析 xl/workbook.xml 检测隐藏/极度隐藏的 Sheet，`PreviewOptions` 新增 `skipHidden` 选项（默认 true）
+- 📝 `SheetInfo` 新增 `hidden` 字段，标识工作表是否隐藏
+- 📦 React/Vue 预览 Hook 自动过滤隐藏工作表，`switchSheet` 内部映射可见索引到原始索引
+
+### 修复 (Fixed)
+
+- 🐛 修复预览样式与 Excel 显示不一致问题：
+  - 默认边框和内边距通过内嵌 `<style>` 样式表实现
+  - table-layout 从 fixed 改为 auto
+  - 列宽使用 min-width 替代 width，范围调整为 55-500px
+  - hair 边框改为 0.5px solid
+  - wrapText 改为 break-word + max-width:200px
+  - 填充仅在 patternType="solid" 时应用背景色
+
 ---
 
 ## [1.1.3] - 2026-03-20
@@ -18,6 +35,7 @@
 ## [1.1.2] - 2026-03-20
 
 ### 新增 (Added)
+
 - ✨ Excel 在线预览功能：基于 calamine 在 WASM 侧解析 xlsx/xls 文件
   - `parseExcelToHtml()` - 解析为 HTML Table 字符串，保留原始样式
   - `parseExcelToJson()` - 解析为结构化 JSON 数据

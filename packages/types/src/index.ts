@@ -430,18 +430,22 @@ export interface PreviewOptions {
   includeStyles?: boolean;
   /** 是否裁剪空白区域（默认 true） */
   trimEmpty?: boolean;
+  /** 是否跳过隐藏工作表（默认 true） */
+  skipHidden?: boolean;
 }
 
 /** 工作表信息 */
 export interface SheetInfo {
   /** 工作表名称 */
   name: string;
-  /** 索引 */
+  /** 索引（在原始工作簿中的位置） */
   index: number;
   /** 行数 */
   rows: number;
   /** 列数 */
   cols: number;
+  /** 是否隐藏 */
+  hidden: boolean;
 }
 
 /** 解析后的工作簿 */

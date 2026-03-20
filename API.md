@@ -269,6 +269,7 @@ const html2 = parseExcelToHtml(data, {
   maxRows: 500,
   maxCols: 20,
   trimEmpty: true,
+  skipHidden: true, // 跳过隐藏工作表（默认 true）
 });
 ```
 
@@ -343,7 +344,7 @@ const data = new Uint8Array(await file.arrayBuffer());
 const sheets = getExcelSheetList(data);
 
 sheets.forEach((sheet, index) => {
-  console.log(`Sheet ${index}: ${sheet.name} (${sheet.rows} 行 × ${sheet.cols} 列)`);
+  console.log(`Sheet ${index}: ${sheet.name} (${sheet.rows} 行 × ${sheet.cols} 列)${sheet.hidden ? ' [隐藏]' : ''}`);
 });
 ```
 
@@ -361,6 +362,7 @@ sheets.forEach((sheet, index) => {
 | `maxRows` | `number` | 无限制 | 最大渲染行数，超出部分截断 |
 | `maxCols` | `number` | 无限制 | 最大渲染列数，超出部分截断 |
 | `trimEmpty` | `boolean` | `false` | 是否裁剪尾部空白行和列 |
+| `skipHidden` | `boolean` | `true` | 是否跳过隐藏的工作表 |
 
 #### `ParsedWorkbook`
 
@@ -420,6 +422,7 @@ interface SheetInfo {
   rows: number;   // 行数
   cols: number;   // 列数
   index: number;  // 工作表索引
+  hidden: boolean; // 是否为隐藏工作表
 }
 ```
 

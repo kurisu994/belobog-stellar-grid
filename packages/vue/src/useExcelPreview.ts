@@ -82,6 +82,8 @@ export function useExcelPreview(config: UseExcelPreviewOptions): UseExcelPreview
 
   let wasmReady = false;
   let fileData: Uint8Array | null = null;
+  /** 可见 sheets 缓存（用于 switchSheet 中解析真实索引） */
+  let visibleSheets: SheetInfo[] = [];
 
   /** 确保 WASM 已初始化 */
   async function ensureInit() {
@@ -89,6 +91,16 @@ export function useExcelPreview(config: UseExcelPreviewOptions): UseExcelPreview
       await config.init();
       wasmReady = true;
     }
+  }
+
+  /** 内部加载逻辑（统一处理 hidden sheet 过滤） */
+  function applySheets(bytes: Uint8Array, mergedOptions: PreviewOptions) {
+    const allSheets = config.getExcelSheetList(bytes);
+    visibleSheets = allSheets.filter(s => !s.hidden);
+    sheets.value = visibleSheets;
+    html.value = config.parseExcelToHtml(bytes, mergedOptions);
+    data.value = null;
+    activeSheet.value = mergedOptions.sheetIndex ?? 0;
   }
 
   /** 加载 Excel 文件（从 File 对象） */
@@ -100,12 +112,7 @@ export function useExcelPreview(config: UseExcelPreviewOptions): UseExcelPreview
       const buffer = await file.arrayBuffer();
       const bytes = new Uint8Array(buffer);
       fileData = bytes;
-
-      const mergedOptions = { ...config.defaultOptions, ...options };
-      sheets.value = config.getExcelSheetList(bytes);
-      html.value = config.parseExcelToHtml(bytes, mergedOptions);
-      data.value = null;
-      activeSheet.value = mergedOptions.sheetIndex ?? 0;
+      applySheets(bytes, { ...config.defaultOptions, ...options });
     } catch (e) {
       error.value = e instanceof Error ? e.message : String(e);
     } finally {
@@ -120,12 +127,7 @@ export function useExcelPreview(config: UseExcelPreviewOptions): UseExcelPreview
     try {
       await ensureInit();
       fileData = bytes;
-
-      const mergedOptions = { ...config.defaultOptions, ...options };
-      sheets.value = config.getExcelSheetList(bytes);
-      html.value = config.parseExcelToHtml(bytes, mergedOptions);
-      data.value = null;
-      activeSheet.value = mergedOptions.sheetIndex ?? 0;
+      applySheets(bytes, { ...config.defaultOptions, ...options });
     } catch (e) {
       error.value = e instanceof Error ? e.message : String(e);
     } finally {
@@ -146,12 +148,7 @@ export function useExcelPreview(config: UseExcelPreviewOptions): UseExcelPreview
       const buffer = await response.arrayBuffer();
       const bytes = new Uint8Array(buffer);
       fileData = bytes;
-
-      const mergedOptions = { ...config.defaultOptions, ...options };
-      sheets.value = config.getExcelSheetList(bytes);
-      html.value = config.parseExcelToHtml(bytes, mergedOptions);
-      data.value = null;
-      activeSheet.value = mergedOptions.sheetIndex ?? 0;
+      applySheets(bytes, { ...config.defaultOptions, ...options });
     } catch (e) {
       error.value = e instanceof Error ? e.message : String(e);
     } finally {
@@ -159,12 +156,14 @@ export function useExcelPreview(config: UseExcelPreviewOptions): UseExcelPreview
     }
   }
 
-  /** 切换 Sheet */
+  /** 切换 Sheet（传入可见 sheets 列表中的位置） */
   async function switchSheet(sheetIndex: number) {
     if (!fileData) return;
     loading.value = true;
     try {
-      const options = { ...config.defaultOptions, sheetIndex };
+      // 将可见列表位置映射为原始工作簿索引
+      const realIndex = visibleSheets[sheetIndex]?.index ?? sheetIndex;
+      const options = { ...config.defaultOptions, sheetIndex: realIndex };
       html.value = config.parseExcelToHtml(fileData, options);
       data.value = null;
       activeSheet.value = sheetIndex;
