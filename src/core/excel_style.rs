@@ -53,6 +53,7 @@ struct FontDef {
 
 #[derive(Debug, Clone, Default)]
 struct FillDef {
+    pattern_type: Option<String>,
     fg_color: Option<ColorRef>,
 }
 
@@ -445,7 +446,11 @@ impl ExcelStyleSheet {
             style.font_color = font.color.as_ref().and_then(|c| self.resolve_color(c));
         }
         if let Some(fill) = self.fills.get(xf.fill_id) {
-            style.bg_color = fill.fg_color.as_ref().and_then(|c| self.resolve_color(c));
+            // 仅 patternType="solid" 时才应用填充色
+            let is_solid = fill.pattern_type.as_deref().is_some_and(|t| t == "solid");
+            if is_solid {
+                style.bg_color = fill.fg_color.as_ref().and_then(|c| self.resolve_color(c));
+            }
         }
         if let Some(border) = self.borders.get(xf.border_id) {
             style.border_top = border.top.as_ref().map(|b| self.resolve_border(b));
@@ -558,6 +563,10 @@ fn handle_start_element(
         }
         "patternFill" if current_fill.is_some() => {
             *in_pattern_fill = true;
+            // 记录 patternType 属性（仅 "solid" 才应用填充色）
+            if let Some(f) = current_fill {
+                f.pattern_type = get_attr(e, "patternType");
+            }
         }
         "fgColor" if *in_pattern_fill && current_fill.is_some() => {
             if let Some(f) = current_fill {
@@ -706,7 +715,8 @@ pub fn cell_style_to_css(style: &ExcelCellStyle) -> String {
 
     if style.wrap_text {
         parts.push("white-space:pre-wrap".to_string());
-        parts.push("word-break:break-all".to_string());
+        parts.push("word-break:break-word".to_string());
+        parts.push("max-width:200px".to_string());
     }
 
     if let Some(ref b) = style.border_top {
@@ -733,7 +743,7 @@ fn border_to_css(border: &BorderDef) -> String {
         "dotted" => "1px dotted",
         "dashed" => "1px dashed",
         "double" => "3px double",
-        "hair" => "1px solid",
+        "hair" => "0.5px solid",
         "mediumDashed" => "2px dashed",
         "dashDot" | "slantDashDot" => "1px dashed",
         "mediumDashDot" => "2px dashed",

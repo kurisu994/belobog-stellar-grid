@@ -11,17 +11,33 @@ pub fn build_html_table(sheet: &ParsedSheet) -> String {
     }
 
     // 预估容量
-    let estimated_capacity = sheet.rows.len() * sheet.col_widths.len() * 60;
+    let estimated_capacity = sheet.rows.len() * sheet.col_widths.len() * 60 + 512;
     let mut html = String::with_capacity(estimated_capacity);
 
-    // 表格开始（添加基础样式）
-    html.push_str("<table style=\"border-collapse:collapse;table-layout:fixed;font-size:11pt;font-family:'Calibri','Microsoft YaHei',sans-serif\">");
+    // 嵌入默认样式（通过 class 作用域隔离，内联样式可覆盖）
+    html.push_str(concat!(
+        "<style>",
+        ".bsg-preview-table{border-collapse:collapse;table-layout:auto;",
+        "font-family:'Calibri','Microsoft YaHei',sans-serif}",
+        ".bsg-preview-table td,.bsg-preview-table th{",
+        "padding:2px 4px;",
+        "border:0.5px solid #d9d9d9;",
+        "vertical-align:middle;",
+        "white-space:nowrap;",
+        "font-size:11px;",
+        "line-height:1.4;",
+        "box-sizing:border-box}",
+        "</style>",
+    ));
 
-    // 列宽定义
+    // 表格开始
+    html.push_str("<table class=\"bsg-preview-table\">");
+
+    // 列宽定义（使用 min-width 允许列按内容扩展）
     if !sheet.col_widths.is_empty() {
         html.push_str("<colgroup>");
         for w in &sheet.col_widths {
-            html.push_str(&format!("<col style=\"width:{w:.0}px\">"));
+            html.push_str(&format!("<col style=\"min-width:{w:.0}px\">"));
         }
         html.push_str("</colgroup>");
     }
@@ -185,10 +201,10 @@ mod tests {
         };
 
         let html = build_html_table(&sheet);
-        assert!(html.contains("<table"));
+        assert!(html.contains("<table class=\"bsg-preview-table\">"));
         assert!(html.contains("<colgroup>"));
-        assert!(html.contains("width:100px"));
-        assert!(html.contains("width:150px"));
+        assert!(html.contains("min-width:100px"));
+        assert!(html.contains("min-width:150px"));
         assert!(html.contains("<td>A1</td>"));
         assert!(html.contains("<td>B2</td>"));
     }

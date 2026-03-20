@@ -387,8 +387,8 @@ fn build_parsed_sheet(
                 .get(&abs_col)
                 .copied()
                 .or(dimensions.default_col_width)
-                .map(|w| (w * 7.0 + 12.0).clamp(30.0, 500.0)) // 字符宽 → 像素近似
-                .unwrap_or(72.0) // 默认宽度
+                .map(|w| (w * 7.0 + 12.0).clamp(55.0, 300.0)) // 字符宽 → 像素近似
+                .unwrap_or(60.0) // 默认宽度
         })
         .collect();
 
@@ -1217,8 +1217,12 @@ mod tests {
         let html = build_html_table(&workbook.sheets[0]);
 
         // 验证 HTML 结构
-        assert!(html.starts_with("<table"), "应以 <table 开头");
+        assert!(html.starts_with("<style>"), "应以 <style> 开头");
         assert!(html.ends_with("</table>"), "应以 </table> 结尾");
+        assert!(
+            html.contains("<table class=\"bsg-preview-table\">"),
+            "应包含带 class 的 <table>"
+        );
         assert!(html.contains("<tbody>"), "应包含 <tbody>");
         assert!(html.contains("<tr"), "应包含 <tr>");
         assert!(html.contains("<td>"), "应包含 <td>");
