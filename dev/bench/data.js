@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1773986912178,
+  "lastUpdate": 1773988418661,
   "repoUrl": "https://github.com/kurisu994/belobog-stellar-grid",
   "entries": {
     "Rust Benchmark": [
@@ -1246,6 +1246,102 @@ window.BENCHMARK_DATA = {
           {
             "name": "csv_escape/公式文本",
             "value": 54,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "makise_kurisuu@outlook.jp",
+            "name": "Kurisu",
+            "username": "kurisu994"
+          },
+          "committer": {
+            "email": "makise_kurisuu@outlook.jp",
+            "name": "Kurisu",
+            "username": "kurisu994"
+          },
+          "distinct": true,
+          "id": "1bda9bc7e48d25a86c503cc524d3f10e0de9a793",
+          "message": "🔧 chore(workflow): 同步子包依赖版本并更新发布脚本\n\n- 在 `bump-core` 脚本中添加自动化步骤，用于同步所有子包（React、Vue、Svelte、Solid）中对 `@bsg-export/types` 的依赖版本\n- 将子包 `package.json` 中的依赖声明从本地文件引用（`file:../types`）更新为具体的语义化版本号（`^1.1.2`）\n- 确保在发布新版本时，所有相关包的依赖版本保持同步和一致\n- 改进发布流程的健壮性，减少因依赖版本不一致导致的问题",
+          "timestamp": "2026-03-20T14:30:20+08:00",
+          "tree_id": "71b4ce29f9bb6aa7ceb2d92e6d54ec4adc2e0568",
+          "url": "https://github.com/kurisu994/belobog-stellar-grid/commit/1bda9bc7e48d25a86c503cc524d3f10e0de9a793"
+        },
+        "date": 1773988418081,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "csv_generation/无BOM/100行x10列",
+            "value": 83144,
+            "range": "± 1494",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_generation/无BOM/1000行x10列",
+            "value": 858497,
+            "range": "± 2533",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_generation/无BOM/5000行x10列",
+            "value": 4576915,
+            "range": "± 34368",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_generation/无BOM/1000行x50列",
+            "value": 4212267,
+            "range": "± 93483",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_generation/带BOM/1000行x10列",
+            "value": 889948,
+            "range": "± 6905",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "xlsx_generation/无合并/100行x10列",
+            "value": 1978058,
+            "range": "± 6452",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "xlsx_generation/无合并/1000行x10列",
+            "value": 18219761,
+            "range": "± 59588",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "xlsx_generation/无合并/5000行x10列",
+            "value": 100601738,
+            "range": "± 254352",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "xlsx_generation/无合并/1000行x50列",
+            "value": 108372451,
+            "range": "± 745332",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "xlsx_generation/含合并/1000行x10列",
+            "value": 19244964,
+            "range": "± 74698",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_escape/普通文本",
+            "value": 8,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_escape/公式文本",
+            "value": 53,
             "range": "± 0",
             "unit": "ns/iter"
           }
