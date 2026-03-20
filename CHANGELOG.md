@@ -9,6 +9,10 @@
 
 ## [Unreleased]
 
+---
+
+## [1.1.2] - 2026-03-20
+
 ### 新增 (Added)
 - ✨ Excel 在线预览功能：基于 calamine 在 WASM 侧解析 xlsx/xls 文件
   - `parseExcelToHtml()` - 解析为 HTML Table 字符串，保留原始样式
