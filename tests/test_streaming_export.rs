@@ -290,7 +290,7 @@ fn test_chunked_csv_write_with_bom() {
     let data_chunk = b"name,age\nAlice,30\n".to_vec();
 
     // BOM 作为第一个片段
-    let mut all_parts = vec![bom, data_chunk];
+    let all_parts = vec![bom, data_chunk];
 
     let combined: Vec<u8> = all_parts.into_iter().flatten().collect();
     assert_eq!(&combined[0..3], &[0xEF, 0xBB, 0xBF]); // BOM 在最前面
