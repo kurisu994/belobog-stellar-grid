@@ -9,6 +9,10 @@
 
 ## [Unreleased]
 
+---
+
+## [1.1.5] - 2026-03-20
+
 ### 新增 (Added)
 
 - 🙈 隐藏工作表过滤：改用 calamine 内置 `sheets_metadata()` API 检测隐藏/极度隐藏的 Sheet，`PreviewOptions` 新增 `skipHidden` 选项（默认 true）
