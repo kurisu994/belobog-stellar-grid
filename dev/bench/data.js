@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1773978878415,
+  "lastUpdate": 1773979656516,
   "repoUrl": "https://github.com/kurisu994/belobog-stellar-grid",
   "entries": {
     "Rust Benchmark": [
@@ -947,6 +947,102 @@ window.BENCHMARK_DATA = {
             "name": "xlsx_generation/含合并/1000行x10列",
             "value": 18736724,
             "range": "± 85527",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_escape/普通文本",
+            "value": 8,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_escape/公式文本",
+            "value": 54,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "makise_kurisuu@outlook.jp",
+            "name": "Kurisu",
+            "username": "kurisu994"
+          },
+          "committer": {
+            "email": "makise_kurisuu@outlook.jp",
+            "name": "Kurisu",
+            "username": "kurisu994"
+          },
+          "distinct": true,
+          "id": "7f324657d7c514bf6aa51bf20899416f8c67bbdc",
+          "message": "✨ feat(远程文件加载): 添加从URL加载远程Excel文件功能\n- 实现loadUrl方法以支持远程文件加载\n- 添加URL输入区域和相关样式\n- 处理加载过程中的错误提示",
+          "timestamp": "2026-03-20T12:04:13+08:00",
+          "tree_id": "8ce6f0f0e4e6abe1fafddf57cec287dcdc38558b",
+          "url": "https://github.com/kurisu994/belobog-stellar-grid/commit/7f324657d7c514bf6aa51bf20899416f8c67bbdc"
+        },
+        "date": 1773979655769,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "csv_generation/无BOM/100行x10列",
+            "value": 95821,
+            "range": "± 2659",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_generation/无BOM/1000行x10列",
+            "value": 991497,
+            "range": "± 17892",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_generation/无BOM/5000行x10列",
+            "value": 5150978,
+            "range": "± 11208",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_generation/无BOM/1000行x50列",
+            "value": 4845281,
+            "range": "± 11905",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_generation/带BOM/1000行x10列",
+            "value": 1020594,
+            "range": "± 8602",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "xlsx_generation/无合并/100行x10列",
+            "value": 2001135,
+            "range": "± 27985",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "xlsx_generation/无合并/1000行x10列",
+            "value": 17742118,
+            "range": "± 155180",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "xlsx_generation/无合并/5000行x10列",
+            "value": 98610944,
+            "range": "± 500442",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "xlsx_generation/无合并/1000行x50列",
+            "value": 106149678,
+            "range": "± 517517",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "xlsx_generation/含合并/1000行x10列",
+            "value": 18667788,
+            "range": "± 58930",
             "unit": "ns/iter"
           },
           {
