@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1773988447176,
+  "lastUpdate": 1773993002369,
   "repoUrl": "https://github.com/kurisu994/belobog-stellar-grid",
   "entries": {
     "Rust Benchmark": [
@@ -1438,6 +1438,102 @@ window.BENCHMARK_DATA = {
           {
             "name": "csv_escape/公式文本",
             "value": 47,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "makise_kurisuu@outlook.jp",
+            "name": "Kurisu",
+            "username": "kurisu994"
+          },
+          "committer": {
+            "email": "makise_kurisuu@outlook.jp",
+            "name": "Kurisu",
+            "username": "kurisu994"
+          },
+          "distinct": true,
+          "id": "4a4319edf7ea56d139a81ec670e297f003902537",
+          "message": "🐛 fix(预览): 优化表格渲染样式\n\n- 仅在填充模式为 solid 时应用背景色，避免误渲染其他图案填充\n- 为预览表格注入独立样式并改用类名，提升样式隔离和兼容性\n- 将列宽改为最小宽度，允许内容按需扩展，改善显示效果\n- 调整自动换行与细边框表现，提升长文本和细线条的可读性\n- 收紧单元格宽度估算，避免预览过宽或过窄",
+          "timestamp": "2026-03-20T15:46:36+08:00",
+          "tree_id": "e4869b831656ace01ddc42411f668593ba858c10",
+          "url": "https://github.com/kurisu994/belobog-stellar-grid/commit/4a4319edf7ea56d139a81ec670e297f003902537"
+        },
+        "date": 1773993001113,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "csv_generation/无BOM/100行x10列",
+            "value": 68123,
+            "range": "± 2172",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_generation/无BOM/1000行x10列",
+            "value": 898685,
+            "range": "± 2228",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_generation/无BOM/5000行x10列",
+            "value": 4597791,
+            "range": "± 15476",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_generation/无BOM/1000行x50列",
+            "value": 4270604,
+            "range": "± 17722",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_generation/带BOM/1000行x10列",
+            "value": 855444,
+            "range": "± 2827",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "xlsx_generation/无合并/100行x10列",
+            "value": 1820017,
+            "range": "± 5811",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "xlsx_generation/无合并/1000行x10列",
+            "value": 17443043,
+            "range": "± 63338",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "xlsx_generation/无合并/5000行x10列",
+            "value": 91722080,
+            "range": "± 407170",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "xlsx_generation/无合并/1000行x50列",
+            "value": 95562577,
+            "range": "± 319240",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "xlsx_generation/含合并/1000行x10列",
+            "value": 18067714,
+            "range": "± 87804",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_escape/普通文本",
+            "value": 7,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_escape/公式文本",
+            "value": 41,
             "range": "± 0",
             "unit": "ns/iter"
           }
