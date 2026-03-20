@@ -9,6 +9,20 @@
 
 ## [Unreleased]
 
+### 新增 (Added)
+- ✨ Excel 在线预览功能：基于 calamine 在 WASM 侧解析 xlsx/xls 文件
+  - `parseExcelToHtml()` - 解析为 HTML Table 字符串，保留原始样式
+  - `parseExcelToJson()` - 解析为结构化 JSON 数据
+  - `getExcelSheetList()` - 获取工作表列表信息
+  - 支持字体/颜色/边框/合并单元格/主题色样式还原
+  - 支持工作表切换、行列限制、空白裁剪
+  - XSS 防护和 CSS 注入过滤
+- 📦 React 预览组件：`useExcelPreview` Hook + `<ExcelPreview>` 组件
+- 📦 Vue 预览组件：`useExcelPreview` Composable + `<ExcelPreview>` 组件
+- 📝 TypeScript 类型定义：PreviewOptions, ParsedWorkbook, SheetInfo 等
+- 🧪 新增 15+ 个 Excel 预览相关测试用例
+- 📄 新增 excel-preview.html 示例页面
+
 ---
 
 ## [1.1.1] - 2026-03-19

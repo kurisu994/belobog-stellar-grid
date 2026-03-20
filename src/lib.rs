@@ -13,6 +13,9 @@ pub use validation::{ensure_extension, validate_filename};
 // 导出新的统一接口
 pub use core::{ExportFormat, export_data, export_table, export_tables_xlsx, generate_data_bytes};
 
+// 导出 Excel 预览接口
+pub use core::{get_excel_sheet_list, parse_excel_to_html, parse_excel_to_json};
+
 // 导出分批异步导出
 pub use batch_export::export_table_to_csv_batch;
 pub use batch_export_xlsx::{export_table_to_xlsx_batch, export_tables_to_xlsx_batch};

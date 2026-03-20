@@ -396,6 +396,48 @@ worker.onmessage = (e) => {
 };
 ```
 
+---
+
+### 10. excel-preview.html - Excel 在线预览示例 👁️
+
+**功能**：
+
+- ✅ 在浏览器端解析 xlsx/xls 文件并渲染为 HTML 表格
+- ✅ 保留原始样式（字体、颜色、边框、合并单元格、主题色）
+- ✅ 支持工作表切换
+- ✅ 支持 HTML 直出和 JSON 结构化数据两种输出模式
+- ✅ 只读查看模式
+
+**适用场景**：
+
+- 在线文档预览系统
+- 文件管理器中的 Excel 快速查看
+- 数据导入前的预览确认
+
+**关键代码**：
+
+```javascript
+import init, { parseExcelToHtml, parseExcelToJson, getExcelSheetList } from "../pkg/belobog_stellar_grid.js";
+
+await init();
+
+// 获取文件数据
+const file = input.files[0];
+const data = new Uint8Array(await file.arrayBuffer());
+
+// HTML 直出模式
+const html = parseExcelToHtml(data, { sheetIndex: 0, maxRows: 1000, trimEmpty: true });
+document.getElementById("preview").innerHTML = html;
+
+// JSON 结构化数据模式
+const workbook = parseExcelToJson(data, { sheetIndex: 0 });
+console.log(workbook.sheets[0].rows);
+
+// 获取工作表列表（用于工作表切换）
+const sheets = getExcelSheetList(data);
+sheets.forEach(s => console.log(`${s.name} (${s.rows}×${s.cols})`));
+```
+
 ## 🎯 使用指南
 
 ### 基本使用流程

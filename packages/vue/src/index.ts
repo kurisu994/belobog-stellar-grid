@@ -9,9 +9,15 @@
 // Composable
 export { useExporter } from './use-exporter';
 export { useWorkerExporter } from './use-worker-exporter';
+export { useExcelPreview } from './useExcelPreview';
+export type {
+  UseExcelPreviewOptions,
+  UseExcelPreviewReturn,
+} from './useExcelPreview';
 
 // 组件
 export { default as ExportButton } from './ExportButton.vue';
+export { default as ExcelPreview } from './ExcelPreview.vue';
 
 // 重导出类型（方便用户不用额外安装 @bsg-export/types）
 export type {
@@ -29,6 +35,13 @@ export type {
   ExportCsvBatchOptions,
   ExportXlsxBatchOptions,
   ExportTablesBatchOptions,
+  PreviewOptions,
+  SheetInfo,
+  ParsedWorkbook,
+  ParsedSheet,
+  ParsedRow,
+  ParsedCell,
+  MergeRegion,
 } from '@bsg-export/types';
 
 export { ExportFormat } from '@bsg-export/types';

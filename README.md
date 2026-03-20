@@ -30,7 +30,7 @@
 - **🚀 极致性能**：Rust 原生速度 + WebAssembly 优化
 - **🔒 企业级安全**：内置文件名验证，防止路径遍历攻击
 - **📦 轻量级**：约 1.3MB 的 WASM 文件（Gzip 压缩后约 450KB）
-- **✅ 100% 测试覆盖**：130 个单元测试 + 45 个 E2E 测试确保代码质量
+- **✅ 100% 测试覆盖**：145+ 个单元测试 + 45 个 E2E 测试确保代码质量
 - **🏗️ 模块化架构**：清晰的模块设计，易于维护和扩展
 - **🌍 国际化支持**：完美支持中文、日文、韩文等 Unicode 字符
 - **💾 多格式导出**：支持 CSV 和 XLSX (Excel) 两种格式
@@ -67,6 +67,7 @@
 - **流式 CSV 导出**：`export_data_streaming` 分块写入降低内存峰值，适合超大数据集
 - **冻结窗格**：XLSX 导出自动冻结表头行，支持自定义冻结行/列数
 - **Excel 样式定制**：三级样式体系（全局→列级→单元格），支持字体、颜色、边框、背景色、对齐、数字格式等
+- **Excel 在线预览**：基于 calamine 在 WASM 侧解析 xlsx/xls 文件，渲染为 HTML `<table>` 保留原始样式，支持双输出（HTML 直出 + JSON 结构化数据）
 
 ## 🚀 快速开始
 
@@ -265,6 +266,7 @@ try {
 | worker-export.html         | ![高级](https://img.shields.io/badge/难度-高级-red)    | Web Worker 导出（避免主线程阻塞）示例       |
 | virtual-scroll-export.html | ![高级](https://img.shields.io/badge/难度-高级-red)    | 虚拟滚动导出（百万级数据）示例              |
 | streaming-export.html      | ![高级](https://img.shields.io/badge/难度-高级-red)    | 流式 CSV 导出（分块 Blob 降低内存峰值）示例 |
+| excel-preview.html         | ![中等](https://img.shields.io/badge/难度-中等-yellow) | Excel 在线预览（解析 xlsx/xls 渲染为表格）示例 |
 | benchmark.html             | ![高级](https://img.shields.io/badge/难度-高级-red)    | 性能基准测试（E2E Benchmark）               |
 
 #### 框架集成示例
@@ -317,8 +319,49 @@ basic-http-server .
 - **`export_table_to_xlsx_batch`**：XLSX 异步分批导出。
 - **`export_tables_to_xlsx_batch`**：多工作表分批异步 XLSX 导出。
 - **`export_data_streaming`**：流式 CSV 导出（分块写入，降低内存峰值）。
+- **`parseExcelToHtml`**：解析 Excel 文件并返回 HTML Table 字符串，保留原始样式。
+- **`parseExcelToJson`**：解析 Excel 文件并返回结构化 JSON 数据。
+- **`getExcelSheetList`**：获取 Excel 文件的工作表列表信息。
 
 更多细节请查阅 [API.md](./API.md)。
+
+---
+
+### 👁️ Excel 预览
+
+支持在浏览器端解析 Excel 文件并渲染为 HTML 表格，保留原始样式（字体、颜色、边框、合并单元格、主题色）。
+
+```javascript
+import init, { parseExcelToHtml, parseExcelToJson, getExcelSheetList } from "belobog-stellar-grid";
+
+await init();
+
+// 从 File 或 fetch 获取 Excel 文件的 Uint8Array
+const file = input.files[0];
+const data = new Uint8Array(await file.arrayBuffer());
+
+// 方式一：直接渲染为 HTML
+const html = parseExcelToHtml(data, { sheetIndex: 0, maxRows: 1000 });
+document.getElementById("preview").innerHTML = html;
+
+// 方式二：获取结构化 JSON 数据
+const workbook = parseExcelToJson(data, { sheetIndex: 0, trimEmpty: true });
+console.log(workbook.sheets[0].rows);
+
+// 获取工作表列表
+const sheets = getExcelSheetList(data);
+sheets.forEach(s => console.log(`${s.name} (${s.rows}×${s.cols})`));
+```
+
+**框架预览组件**：
+
+```tsx
+// React
+import { useExcelPreview, ExcelPreview } from "@bsg-export/react";
+
+// Vue
+import { useExcelPreview, ExcelPreview } from "@bsg-export/vue";
+```
 
 ---
 
@@ -477,12 +520,13 @@ belobog-stellar-grid/
 │   │   ├── table_extractor.rs  # 表格数据提取
 │   │   ├── data_export.rs # 数据导出（columns + dataSource，支持嵌套表头、数据合并、树形数据，含 29 个内联测试）
 │   │   ├── export_csv.rs  # CSV 导出
-│   │   └── export_xlsx.rs # XLSX 导出
+│   │   ├── export_xlsx.rs # XLSX 导出
+│   │   └── excel_preview.rs # Excel 预览（基于 calamine 解析 xlsx/xls）
 │   ├── batch_export.rs    # 异步分批导出（CSV）
 │   ├── batch_export_xlsx.rs # 异步分批导出（XLSX）
 │   ├── streaming_export.rs # 流式 CSV 导出（分块写入 + Blob 拼接）
 │   └── utils.rs           # 调试工具（含 2 个内联测试）
-├── tests/                 # 单元测试目录（130 个测试）
+├── tests/                 # 单元测试目录（145+ 个测试）
 │   ├── lib_tests.rs       # 基础功能测试（41 个）
 │   ├── test_data_export.rs # 数据导出测试（34 个）
 │   ├── test_streaming_export.rs # 流式导出测试（26 个）
@@ -571,7 +615,7 @@ belobog-stellar-grid/
 - [ ] **数据验证**: 支持 Excel 下拉列表、数值范围等数据验证规则。
 - [ ] **图片导出**: 支持将图片插入到 Excel 单元格中。
 - [ ] **数据选择与过滤**: 支持选择性导出特定行或列，以及数据预处理/转换。
-- [ ] **Excel 在线预览**: 基于 `calamine` 在 WASM 侧解析 xlsx/xls 文件，渲染为 HTML `<table>`，保留原始样式（字体/颜色/边框/合并单元格/主题色），只读查看模式。提供双输出（HTML 直出 + JSON 结构化数据），配套 React/Vue 预览组件。详见 [EXCEL_PREVIEW_PLAN.md](./EXCEL_PREVIEW_PLAN.md)。
+- [x] **Excel 在线预览**: 基于 `calamine` 在 WASM 侧解析 xlsx/xls 文件，渲染为 HTML `<table>`，保留原始样式（字体/颜色/边框/合并单元格/主题色），只读查看模式。提供双输出（HTML 直出 + JSON 结构化数据），配套 React/Vue 预览组件。 ✅
 
 ### ⚡ 性能优化
 

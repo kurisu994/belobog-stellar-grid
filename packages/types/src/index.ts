@@ -411,3 +411,130 @@ export declare function export_data_streaming(
   data: DataRow[],
   options?: ExportStreamingOptions,
 ): Promise<void>;
+
+// =============================================================================
+// Excel 预览 (Preview) 类型定义
+// =============================================================================
+
+/** Excel 预览配置选项 */
+export interface PreviewOptions {
+  /** 指定渲染的 Sheet 索引（默认 0） */
+  sheetIndex?: number;
+  /** 按名称指定 Sheet */
+  sheetName?: string;
+  /** 最大渲染行数 */
+  maxRows?: number;
+  /** 最大渲染列数 */
+  maxCols?: number;
+  /** 是否保留样式（默认 true） */
+  includeStyles?: boolean;
+  /** 是否裁剪空白区域（默认 true） */
+  trimEmpty?: boolean;
+}
+
+/** 工作表信息 */
+export interface SheetInfo {
+  /** 工作表名称 */
+  name: string;
+  /** 索引 */
+  index: number;
+  /** 行数 */
+  rows: number;
+  /** 列数 */
+  cols: number;
+}
+
+/** 解析后的工作簿 */
+export interface ParsedWorkbook {
+  /** 所有工作表 */
+  sheets: ParsedSheet[];
+  /** 活动工作表索引 */
+  activeSheet: number;
+}
+
+/** 解析后的工作表 */
+export interface ParsedSheet {
+  /** 工作表名称 */
+  name: string;
+  /** 数据行 */
+  rows: ParsedRow[];
+  /** 列宽数组（像素） */
+  colWidths: number[];
+  /** 合并区域 */
+  mergedCells: MergeRegion[];
+  /** 是否因 maxRows 被截断 */
+  truncated?: boolean;
+}
+
+/** 解析后的行 */
+export interface ParsedRow {
+  /** 行高（像素） */
+  height?: number;
+  /** 单元格（null 表示被合并占用） */
+  cells: (ParsedCell | null)[];
+}
+
+/** 解析后的单元格 */
+export interface ParsedCell {
+  /** 显示值 */
+  value: string;
+  /** 内联 CSS 样式 */
+  style?: string;
+  /** 列合并数 */
+  colSpan?: number;
+  /** 行合并数 */
+  rowSpan?: number;
+}
+
+/** 合并区域 */
+export interface MergeRegion {
+  /** 起始行 */
+  startRow: number;
+  /** 起始列 */
+  startCol: number;
+  /** 结束行 */
+  endRow: number;
+  /** 结束列 */
+  endCol: number;
+}
+
+// =============================================================================
+// Excel 预览函数签名
+// =============================================================================
+
+/**
+ * 解析 Excel 文件并返回 HTML Table 字符串
+ *
+ * @param data - Excel 文件的二进制数据
+ * @param options - 预览配置选项
+ * @returns 渲染后的 HTML Table 字符串
+ * @throws 解析失败时抛出错误
+ */
+export declare function parseExcelToHtml(
+  data: Uint8Array,
+  options?: PreviewOptions,
+): string;
+
+/**
+ * 解析 Excel 文件并返回结构化 JSON 数据
+ *
+ * @param data - Excel 文件的二进制数据
+ * @param options - 预览配置选项
+ * @returns 解析后的工作簿数据
+ * @throws 解析失败时抛出错误
+ */
+export declare function parseExcelToJson(
+  data: Uint8Array,
+  options?: PreviewOptions,
+): ParsedWorkbook;
+
+/**
+ * 获取 Excel 文件的工作表列表
+ *
+ * @param data - Excel 文件的二进制数据
+ * @returns 工作表信息数组
+ * @throws 解析失败时抛出错误
+ */
+export declare function getExcelSheetList(
+  data: Uint8Array,
+): SheetInfo[];

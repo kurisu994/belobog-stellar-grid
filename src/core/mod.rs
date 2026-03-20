@@ -7,6 +7,11 @@ pub(crate) mod export_xlsx;
 pub(crate) mod style;
 pub(crate) mod table_extractor;
 
+// Excel 预览模块
+pub mod excel_reader;
+pub mod excel_style;
+pub mod html_builder;
+
 pub(crate) use data_export::{build_table_data_from_array, build_table_data_from_tree};
 use export_csv::{export_as_csv, generate_csv_bytes};
 pub(crate) use export_xlsx::create_and_download_xlsx;
@@ -796,4 +801,126 @@ pub fn generate_data_bytes(
     };
 
     Ok(js_sys::Uint8Array::from(bytes.as_slice()))
+}
+
+// ============================================================================
+// Excel 预览 API
+// ============================================================================
+
+/// 解析 Excel 文件并返回 HTML Table 字符串
+///
+/// 在 WASM 侧完成全部解析和拼装，返回可直接挂载的 `<table>` HTML。
+/// 前端通过 `dangerouslySetInnerHTML` (React) 或 `v-html` (Vue) 直接使用。
+///
+/// # 参数
+/// * `data` - Excel 文件的二进制数据（Uint8Array）
+/// * `options` - 可选的预览配置（JsValue 对象）
+///
+/// # 返回值
+/// 包含完整 HTML table 的字符串
+#[wasm_bindgen(js_name = parseExcelToHtml)]
+pub fn parse_excel_to_html(data: &[u8], options: JsValue) -> Result<JsValue, JsValue> {
+    let opts = parse_preview_options(&options)?;
+    let workbook = excel_reader::parse_excel(data, &opts).map_err(|e| JsValue::from_str(&e))?;
+
+    if workbook.sheets.is_empty() {
+        return Err(JsValue::from_str("Excel 文件中没有可渲染的工作表"));
+    }
+
+    let html = html_builder::build_html_table(&workbook.sheets[0]);
+    Ok(JsValue::from_str(&html))
+}
+
+/// 解析 Excel 文件并返回结构化 JSON 数据
+///
+/// 返回 ParsedWorkbook 结构化数据，前端可自行渲染。
+/// 适合需要自定义渲染逻辑（虚拟滚动、交互等）的场景。
+///
+/// # 参数
+/// * `data` - Excel 文件的二进制数据（Uint8Array）
+/// * `options` - 可选的预览配置（JsValue 对象）
+///
+/// # 返回值
+/// ParsedWorkbook 结构的 JSON 对象
+#[wasm_bindgen(js_name = parseExcelToJson)]
+pub fn parse_excel_to_json(data: &[u8], options: JsValue) -> Result<JsValue, JsValue> {
+    let opts = parse_preview_options(&options)?;
+    let workbook = excel_reader::parse_excel(data, &opts).map_err(|e| JsValue::from_str(&e))?;
+
+    let json_str = serde_json::to_string(&workbook)
+        .map_err(|e| JsValue::from_str(&format!("JSON 序列化失败: {e}")))?;
+
+    js_sys::JSON::parse(&json_str)
+}
+
+/// 获取 Excel 文件的工作表列表
+///
+/// 返回各工作表的名称、索引和行列数信息，用于 Sheet 切换 UI。
+///
+/// # 参数
+/// * `data` - Excel 文件的二进制数据（Uint8Array）
+///
+/// # 返回值
+/// SheetInfo 数组的 JSON 对象
+#[wasm_bindgen(js_name = getExcelSheetList)]
+pub fn get_excel_sheet_list(data: &[u8]) -> Result<JsValue, JsValue> {
+    let sheets = excel_reader::get_sheet_list(data).map_err(|e| JsValue::from_str(&e))?;
+
+    let json_str = serde_json::to_string(&sheets)
+        .map_err(|e| JsValue::from_str(&format!("JSON 序列化失败: {e}")))?;
+
+    js_sys::JSON::parse(&json_str)
+}
+
+/// 解析预览配置选项
+fn parse_preview_options(options: &JsValue) -> Result<excel_reader::PreviewOptions, JsValue> {
+    if options.is_undefined() || options.is_null() {
+        return Ok(excel_reader::PreviewOptions::default());
+    }
+
+    let mut opts = excel_reader::PreviewOptions::default();
+
+    // sheetIndex
+    if let Ok(val) = js_sys::Reflect::get(options, &JsValue::from_str("sheetIndex")) {
+        if let Some(n) = val.as_f64() {
+            opts.sheet_index = Some(n as usize);
+        }
+    }
+
+    // sheetName
+    if let Ok(val) = js_sys::Reflect::get(options, &JsValue::from_str("sheetName")) {
+        if let Some(s) = val.as_string() {
+            opts.sheet_name = Some(s);
+        }
+    }
+
+    // maxRows
+    if let Ok(val) = js_sys::Reflect::get(options, &JsValue::from_str("maxRows")) {
+        if let Some(n) = val.as_f64() {
+            opts.max_rows = Some(n as usize);
+        }
+    }
+
+    // maxCols
+    if let Ok(val) = js_sys::Reflect::get(options, &JsValue::from_str("maxCols")) {
+        if let Some(n) = val.as_f64() {
+            opts.max_cols = Some(n as usize);
+        }
+    }
+
+    // includeStyles
+    if let Ok(val) = js_sys::Reflect::get(options, &JsValue::from_str("includeStyles")) {
+        if let Some(b) = val.as_bool() {
+            opts.include_styles = b;
+        }
+    }
+
+    // trimEmpty
+    if let Ok(val) = js_sys::Reflect::get(options, &JsValue::from_str("trimEmpty")) {
+        if let Some(b) = val.as_bool() {
+            opts.trim_empty = b;
+        }
+    }
+
+    Ok(opts)
 }

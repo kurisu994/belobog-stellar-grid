@@ -228,6 +228,203 @@ pub async fn export_tables_to_xlsx_batch(
 - `progress_callback`: 进度回调函数（可选）。
 - `strict_progress_callback`: 是否启用严格进度回调模式（可选）。默认为 `false`。
 
+---
+
+## Excel 预览
+
+### `parseExcelToHtml`
+
+解析 Excel 文件并返回 HTML Table 字符串，保留原始样式（字体、颜色、边框、合并单元格、主题色）。
+
+```typescript
+function parseExcelToHtml(data: Uint8Array, options?: PreviewOptions): string
+```
+
+**参数**
+
+- `data`: Excel 文件的二进制数据（`Uint8Array`）。支持 `.xlsx` 和 `.xls` 格式。
+- `options`: 预览配置对象（可选）。参见 [PreviewOptions](#previewoptions)。
+
+**返回值**
+
+- `string`: 包含完整样式的 HTML `<table>` 字符串，可直接插入 DOM。
+
+**示例**
+
+```javascript
+import init, { parseExcelToHtml } from "belobog-stellar-grid";
+
+await init();
+
+const response = await fetch("report.xlsx");
+const data = new Uint8Array(await response.arrayBuffer());
+
+// 基本用法
+const html = parseExcelToHtml(data);
+document.getElementById("preview").innerHTML = html;
+
+// 指定工作表和行数限制
+const html2 = parseExcelToHtml(data, {
+  sheetIndex: 1,
+  maxRows: 500,
+  maxCols: 20,
+  trimEmpty: true,
+});
+```
+
+---
+
+### `parseExcelToJson`
+
+解析 Excel 文件并返回结构化 JSON 数据，适用于需要自定义渲染或数据处理的场景。
+
+```typescript
+function parseExcelToJson(data: Uint8Array, options?: PreviewOptions): ParsedWorkbook
+```
+
+**参数**
+
+- `data`: Excel 文件的二进制数据（`Uint8Array`）。
+- `options`: 预览配置对象（可选）。参见 [PreviewOptions](#previewoptions)。
+
+**返回值**
+
+- `ParsedWorkbook`: 结构化的工作簿数据。参见 [ParsedWorkbook](#parsedworkbook)。
+
+**示例**
+
+```javascript
+import init, { parseExcelToJson } from "belobog-stellar-grid";
+
+await init();
+
+const data = new Uint8Array(await file.arrayBuffer());
+const workbook = parseExcelToJson(data, { sheetIndex: 0, trimEmpty: true });
+
+// 遍历行和单元格
+workbook.sheets[0].rows.forEach((row) => {
+  row.cells.forEach((cell) => {
+    console.log(cell.value, cell.style);
+  });
+});
+
+// 处理合并单元格
+workbook.sheets[0].merges.forEach((merge) => {
+  console.log(`合并区域: ${merge.startRow},${merge.startCol} → ${merge.endRow},${merge.endCol}`);
+});
+```
+
+---
+
+### `getExcelSheetList`
+
+获取 Excel 文件的工作表列表信息，适用于在预览前展示工作表选择器。
+
+```typescript
+function getExcelSheetList(data: Uint8Array): SheetInfo[]
+```
+
+**参数**
+
+- `data`: Excel 文件的二进制数据（`Uint8Array`）。
+
+**返回值**
+
+- `SheetInfo[]`: 工作表信息数组。参见 [SheetInfo](#sheetinfo)。
+
+**示例**
+
+```javascript
+import init, { getExcelSheetList } from "belobog-stellar-grid";
+
+await init();
+
+const data = new Uint8Array(await file.arrayBuffer());
+const sheets = getExcelSheetList(data);
+
+sheets.forEach((sheet, index) => {
+  console.log(`Sheet ${index}: ${sheet.name} (${sheet.rows} 行 × ${sheet.cols} 列)`);
+});
+```
+
+---
+
+### 预览相关类型
+
+#### `PreviewOptions`
+
+预览配置选项。
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `sheetIndex` | `number` | `0` | 要预览的工作表索引（从 0 开始） |
+| `maxRows` | `number` | 无限制 | 最大渲染行数，超出部分截断 |
+| `maxCols` | `number` | 无限制 | 最大渲染列数，超出部分截断 |
+| `trimEmpty` | `boolean` | `false` | 是否裁剪尾部空白行和列 |
+
+#### `ParsedWorkbook`
+
+解析后的工作簿结构。
+
+```typescript
+interface ParsedWorkbook {
+  sheets: ParsedSheet[];
+}
+
+interface ParsedSheet {
+  name: string;           // 工作表名称
+  rows: ParsedRow[];      // 行数据
+  merges: MergeRange[];   // 合并单元格区域
+  rowCount: number;       // 总行数
+  colCount: number;       // 总列数
+}
+
+interface ParsedRow {
+  cells: ParsedCell[];
+}
+
+interface ParsedCell {
+  value: string;          // 单元格文本值
+  style?: CellStyleInfo;  // 样式信息（字体、颜色、边框等）
+  rowSpan?: number;       // 行合并数
+  colSpan?: number;       // 列合并数
+}
+
+interface CellStyleInfo {
+  fontName?: string;
+  fontSize?: number;
+  bold?: boolean;
+  italic?: boolean;
+  fontColor?: string;
+  backgroundColor?: string;
+  align?: string;
+  verticalAlign?: string;
+  border?: BorderInfo;
+}
+
+interface MergeRange {
+  startRow: number;
+  startCol: number;
+  endRow: number;
+  endCol: number;
+}
+```
+
+#### `SheetInfo`
+
+工作表基本信息。
+
+```typescript
+interface SheetInfo {
+  name: string;   // 工作表名称
+  rows: number;   // 行数
+  cols: number;   // 列数
+  index: number;  // 工作表索引
+}
+```
+
+---
+
 ## 类型定义
 
 ### `ExportFormat`

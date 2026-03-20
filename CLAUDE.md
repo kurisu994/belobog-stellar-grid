@@ -27,6 +27,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - `cargo test --test test_unified_api`: 统一 API
   - `cargo test --test test_security`: 安全测试（CSV 注入等）
   - `cargo test --test test_streaming_export`: 流式导出逻辑
+  - `cargo test --test test_excel_preview`: Excel 预览解析
 - **性能基准测试**: `cargo bench --bench export_benchmarks` (包含 CSV/XLSX 生成、合并场景对比)
 - **按名称过滤单个测试**: `cargo test -- test_flatten_tree`
 - **全面测试**: `just test`
@@ -92,13 +93,14 @@ src/
 │   ├── data_export.rs  # [核心] 纯数据导出逻辑 (处理嵌套表头、树形数据、合并单元格)
 │   ├── table_extractor.rs  # DOM 解析与数据提取 (支持合并单元格、隐藏行列检测)
 │   ├── export_csv.rs   # CSV 格式生成
-│   └── export_xlsx.rs  # XLSX 格式生成 (支持合并单元格、公式导出、多 Sheet、样式)
+│   ├── export_xlsx.rs  # XLSX 格式生成 (支持合并单元格、公式导出、多 Sheet、样式)
+│   └── excel_preview.rs # Excel 预览模块 (基于 calamine 解析 xlsx/xls，HTML/JSON 双输出)
 ├── batch_export.rs     # CSV 异步分批处理 (分块 Blob 策略，降低内存峰值)
 ├── batch_export_xlsx.rs # XLSX 异步分批处理
 ├── streaming_export.rs # 流式 CSV 数据导出 (分块写入 + Blob 拼接，降低内存峰值)
 └── utils.rs            # 调试与辅助工具
 
-tests/                   # 单元测试目录 (130 个测试)
+tests/                   # 单元测试目录 (145+ 个测试)
 benches/                 # 性能基准测试目录 (Criterion)
 e2e/                     # E2E 浏览器自动化测试目录 (Playwright)
 
@@ -120,6 +122,9 @@ packages/                # 框架封装子包 (均为 @bsg-export/ 命名空间)
 - **export_tables_xlsx**: 多工作表导出，将多个表格导出到同一个 Excel 文件的不同 Sheet
 - **generate_data_bytes**: 与 export_data 相同，但返回文件字节（Uint8Array）而不触发下载，专为 Worker 场景设计
 - **export_data_streaming**: 流式 CSV 导出，分块写入 + Blob 拼接，降低内存峰值（XLSX 自动回退同步）
+- **parseExcelToHtml**: 解析 Excel 文件并返回 HTML Table 字符串，保留原始样式
+- **parseExcelToJson**: 解析 Excel 文件并返回结构化 JSON 数据
+- **getExcelSheetList**: 获取 Excel 文件的工作表列表信息
 
 #### 核心算法 (src/core/data_export.rs)
 
@@ -217,6 +222,7 @@ pub fn example_function(param: &str) -> Result<(), JsValue> {
 | test_data_export.rs      | 纯数据/树形/合并/表头        |
 | test_security.rs         | 安全测试 (CSV 注入等)        |
 | test_streaming_export.rs | 流式导出逻辑 (分块/进度/BOM) |
+| test_excel_preview.rs    | Excel 预览解析 (HTML/JSON/工作表) |
 
 ### 新增功能测试要求
 

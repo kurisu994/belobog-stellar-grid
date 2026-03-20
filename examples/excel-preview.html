@@ -1,0 +1,834 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Excel 预览示例 - belobog-stellar-grid</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+        min-height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        padding: 40px 20px;
+      }
+
+      .container {
+        background: white;
+        border-radius: 20px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        padding: 40px;
+        max-width: 1100px;
+        width: 100%;
+      }
+
+      h1 {
+        color: #333;
+        margin-bottom: 8px;
+        font-size: 28px;
+      }
+
+      .subtitle {
+        color: #666;
+        margin-bottom: 24px;
+        font-size: 14px;
+      }
+
+      .subtitle code {
+        background: #e8f0fe;
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-size: 13px;
+      }
+
+      /* ── 文件拖放区域 ── */
+      .drop-zone {
+        border: 3px dashed #c0c8d8;
+        border-radius: 16px;
+        padding: 50px 30px;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        margin-bottom: 24px;
+        background: #f8faff;
+        position: relative;
+      }
+
+      .drop-zone:hover,
+      .drop-zone.drag-over {
+        border-color: #667eea;
+        background: #eef2ff;
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(102, 126, 234, 0.15);
+      }
+
+      .drop-zone-icon {
+        font-size: 48px;
+        margin-bottom: 12px;
+      }
+
+      .drop-zone-text {
+        font-size: 16px;
+        color: #555;
+        margin-bottom: 8px;
+        font-weight: 600;
+      }
+
+      .drop-zone-hint {
+        font-size: 13px;
+        color: #999;
+      }
+
+      .drop-zone input[type="file"] {
+        position: absolute;
+        inset: 0;
+        opacity: 0;
+        cursor: pointer;
+      }
+
+      /* ── 文件信息 ── */
+      .file-info {
+        display: none;
+        gap: 12px;
+        margin-bottom: 20px;
+      }
+
+      .file-info.show {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      }
+
+      .info-card {
+        background: linear-gradient(135deg, #1a1a2e 0%, #0f3460 100%);
+        color: white;
+        padding: 16px;
+        border-radius: 10px;
+        text-align: center;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      }
+
+      .info-value {
+        font-size: 20px;
+        font-weight: bold;
+        margin-bottom: 4px;
+        word-break: break-all;
+      }
+
+      .info-label {
+        font-size: 12px;
+        opacity: 0.85;
+      }
+
+      /* ── 选项面板 ── */
+      .options-panel {
+        display: none;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 16px;
+        margin-bottom: 24px;
+        padding: 20px;
+        background: #f8faff;
+        border-radius: 12px;
+        border: 1px solid #e8ecf4;
+      }
+
+      .options-panel.show {
+        display: grid;
+      }
+
+      .option-item {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .option-item label {
+        font-weight: 600;
+        color: #555;
+        margin-bottom: 6px;
+        font-size: 14px;
+      }
+
+      .option-item input[type="number"],
+      .option-item select {
+        padding: 10px 14px;
+        border: 2px solid #e0e0e0;
+        border-radius: 8px;
+        font-size: 15px;
+        transition: border-color 0.3s;
+        outline: none;
+      }
+
+      .option-item input[type="number"]:focus,
+      .option-item select:focus {
+        border-color: #667eea;
+      }
+
+      /* ── 开关样式 ── */
+      .switch-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        height: 100%;
+      }
+
+      .switch {
+        position: relative;
+        width: 48px;
+        height: 26px;
+        flex-shrink: 0;
+      }
+
+      .switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+      }
+
+      .slider {
+        position: absolute;
+        inset: 0;
+        background: #ccc;
+        border-radius: 26px;
+        cursor: pointer;
+        transition: 0.3s;
+      }
+
+      .slider::before {
+        content: "";
+        position: absolute;
+        width: 20px;
+        height: 20px;
+        left: 3px;
+        bottom: 3px;
+        background: white;
+        border-radius: 50%;
+        transition: 0.3s;
+      }
+
+      .switch input:checked + .slider {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      }
+
+      .switch input:checked + .slider::before {
+        transform: translateX(22px);
+      }
+
+      /* ── 模式切换按钮组 ── */
+      .mode-toggle {
+        display: none;
+        margin-bottom: 16px;
+      }
+
+      .mode-toggle.show {
+        display: flex;
+      }
+
+      .mode-btn {
+        flex: 1;
+        padding: 12px 20px;
+        font-size: 14px;
+        font-weight: 600;
+        border: 2px solid #e0e0e0;
+        background: white;
+        color: #666;
+        cursor: pointer;
+        transition: all 0.3s;
+      }
+
+      .mode-btn:first-child {
+        border-radius: 8px 0 0 8px;
+      }
+
+      .mode-btn:last-child {
+        border-radius: 0 8px 8px 0;
+        border-left: none;
+      }
+
+      .mode-btn.active {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-color: #667eea;
+      }
+
+      .mode-btn:not(.active):hover {
+        background: #f5f5f5;
+      }
+
+      /* ── 加载动画 ── */
+      .loading-overlay {
+        display: none;
+        position: absolute;
+        inset: 0;
+        background: rgba(255, 255, 255, 0.9);
+        z-index: 10;
+        justify-content: center;
+        align-items: center;
+        flex-direction: column;
+        gap: 16px;
+        border-radius: 12px;
+      }
+
+      .loading-overlay.show {
+        display: flex;
+      }
+
+      .spinner {
+        width: 48px;
+        height: 48px;
+        border: 5px solid #e0e0e0;
+        border-top-color: #667eea;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      .loading-text {
+        font-size: 15px;
+        color: #666;
+        font-weight: 600;
+      }
+
+      /* ── 预览容器 ── */
+      .preview-wrapper {
+        display: none;
+        position: relative;
+        border: 1px solid #e0e0e0;
+        border-radius: 12px;
+        overflow: hidden;
+        margin-bottom: 8px;
+      }
+
+      .preview-wrapper.show {
+        display: block;
+      }
+
+      .preview-container {
+        overflow: auto;
+        max-height: 520px;
+        padding: 16px;
+      }
+
+      /* ── 预览表格样式 ── */
+      .preview-container table {
+        border-collapse: collapse;
+        width: max-content;
+        min-width: 100%;
+        font-size: 13px;
+      }
+
+      .preview-container th,
+      .preview-container td {
+        padding: 8px 12px;
+        border: 1px solid #dde1e8;
+        text-align: left;
+        white-space: nowrap;
+      }
+
+      .preview-container th {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        font-weight: 600;
+        font-size: 12px;
+        letter-spacing: 0.3px;
+        position: sticky;
+        top: 0;
+        z-index: 2;
+      }
+
+      .preview-container tr:nth-child(even) {
+        background: #f8f9fc;
+      }
+
+      .preview-container tr:hover {
+        background: #eef2ff;
+      }
+
+      /* ── JSON 预览 ── */
+      .json-preview {
+        display: none;
+        overflow: auto;
+        max-height: 520px;
+        padding: 20px;
+        background: #1e1e2e;
+        border-radius: 0;
+      }
+
+      .json-preview.show {
+        display: block;
+      }
+
+      .json-preview pre {
+        margin: 0;
+        font-family: "Courier New", monospace;
+        font-size: 13px;
+        line-height: 1.6;
+        color: #e0e0e0;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+
+      /* ── Sheet 标签栏 ── */
+      .sheet-tabs {
+        display: none;
+        background: #f0f0f0;
+        border-top: 1px solid #ddd;
+        padding: 0 8px;
+        overflow-x: auto;
+        white-space: nowrap;
+      }
+
+      .sheet-tabs.show {
+        display: flex;
+      }
+
+      .sheet-tab {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 10px 20px;
+        font-size: 13px;
+        color: #555;
+        cursor: pointer;
+        border: none;
+        background: transparent;
+        border-bottom: 3px solid transparent;
+        transition: all 0.2s;
+        font-weight: 500;
+        white-space: nowrap;
+        flex-shrink: 0;
+      }
+
+      .sheet-tab:hover {
+        background: #e8ecf4;
+        color: #333;
+      }
+
+      .sheet-tab.active {
+        background: white;
+        color: #667eea;
+        border-bottom-color: #667eea;
+        font-weight: 700;
+      }
+
+      .sheet-tab .row-count {
+        font-size: 11px;
+        color: #999;
+        font-weight: normal;
+      }
+
+      .sheet-tab.active .row-count {
+        color: #99a5d6;
+      }
+
+      /* ── 错误提示 ── */
+      .error-box {
+        display: none;
+        background: #fff0f0;
+        border: 1px solid #ffc0c0;
+        border-left: 4px solid #f44336;
+        border-radius: 8px;
+        padding: 16px 20px;
+        margin-bottom: 20px;
+        color: #c62828;
+        font-size: 14px;
+        line-height: 1.6;
+      }
+
+      .error-box.show {
+        display: block;
+      }
+
+      .error-box strong {
+        display: block;
+        margin-bottom: 4px;
+      }
+
+      /* ── 响应式 ── */
+      @media (max-width: 768px) {
+        body {
+          padding: 16px 8px;
+        }
+
+        .container {
+          padding: 24px 16px;
+        }
+
+        h1 {
+          font-size: 22px;
+        }
+
+        .drop-zone {
+          padding: 30px 16px;
+        }
+
+        .file-info.show {
+          grid-template-columns: repeat(2, 1fr);
+        }
+
+        .options-panel.show {
+          grid-template-columns: 1fr;
+        }
+
+        .preview-container {
+          max-height: 380px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>📑 Excel 预览示例</h1>
+      <p class="subtitle">
+        使用 <code>parseExcelToHtml()</code> /
+        <code>parseExcelToJson()</code> 在浏览器端预览 Excel 文件
+      </p>
+
+      <!-- 文件拖放区域 -->
+      <div class="drop-zone" id="drop-zone">
+        <input type="file" id="file-input" accept=".xlsx,.xls" />
+        <div class="drop-zone-icon">📂</div>
+        <div class="drop-zone-text">拖放 Excel 文件到这里，或点击选择文件</div>
+        <div class="drop-zone-hint">支持 .xlsx / .xls 格式</div>
+      </div>
+
+      <!-- 错误提示 -->
+      <div class="error-box" id="error-box">
+        <strong>❌ 解析失败</strong>
+        <span id="error-message"></span>
+      </div>
+
+      <!-- 文件信息 -->
+      <div class="file-info" id="file-info">
+        <div class="info-card">
+          <div class="info-value" id="info-name">-</div>
+          <div class="info-label">文件名</div>
+        </div>
+        <div class="info-card">
+          <div class="info-value" id="info-size">-</div>
+          <div class="info-label">文件大小</div>
+        </div>
+        <div class="info-card">
+          <div class="info-value" id="info-sheets">-</div>
+          <div class="info-label">工作表数量</div>
+        </div>
+        <div class="info-card">
+          <div class="info-value" id="info-rows">-</div>
+          <div class="info-label">当前表行数</div>
+        </div>
+      </div>
+
+      <!-- 选项面板 -->
+      <div class="options-panel" id="options-panel">
+        <div class="option-item">
+          <label>📊 最大行数 (maxRows)</label>
+          <input type="number" id="max-rows" value="1000" min="1" step="100" />
+        </div>
+        <div class="option-item">
+          <label>🎨 包含样式</label>
+          <div class="switch-row">
+            <label class="switch">
+              <input type="checkbox" id="include-styles" checked />
+              <span class="slider"></span>
+            </label>
+            <span style="font-size: 14px; color: #666" id="styles-label">已开启</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 模式切换 -->
+      <div class="mode-toggle" id="mode-toggle">
+        <button class="mode-btn active" id="btn-html" onclick="switchMode('html')">
+          🌐 HTML 视图
+        </button>
+        <button class="mode-btn" id="btn-json" onclick="switchMode('json')">
+          📋 JSON 视图
+        </button>
+      </div>
+
+      <!-- 预览区域 -->
+      <div class="preview-wrapper" id="preview-wrapper">
+        <div class="loading-overlay" id="loading">
+          <div class="spinner"></div>
+          <div class="loading-text">正在解析文件...</div>
+        </div>
+        <div class="preview-container" id="html-preview"></div>
+        <div class="json-preview" id="json-preview">
+          <pre id="json-content"></pre>
+        </div>
+        <div class="sheet-tabs" id="sheet-tabs"></div>
+      </div>
+    </div>
+
+    <script type="module">
+      import init, {
+        parseExcelToHtml,
+        parseExcelToJson,
+        getExcelSheetList,
+      } from "../pkg/belobog_stellar_grid.js";
+
+      // =====================================================================
+      // 全局状态
+      // =====================================================================
+      let wasmReady = false;
+      let fileBuffer = null;
+      let sheetList = [];
+      let activeSheet = 0;
+      let currentMode = "html";
+
+      // =====================================================================
+      // 初始化 WASM
+      // =====================================================================
+      async function initWasm() {
+        if (!wasmReady) {
+          await init();
+          wasmReady = true;
+          console.log("✅ WASM 模块初始化成功");
+        }
+      }
+
+      // =====================================================================
+      // DOM 辅助
+      // =====================================================================
+      const $ = (id) => document.getElementById(id);
+
+      function showError(msg) {
+        $("error-message").textContent = msg;
+        $("error-box").classList.add("show");
+      }
+
+      function hideError() {
+        $("error-box").classList.remove("show");
+      }
+
+      function showLoading() {
+        $("loading").classList.add("show");
+      }
+
+      function hideLoading() {
+        $("loading").classList.remove("show");
+      }
+
+      function formatFileSize(bytes) {
+        if (bytes < 1024) return bytes + " B";
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+        return (bytes / (1024 * 1024)).toFixed(2) + " MB";
+      }
+
+      // =====================================================================
+      // 选项读取
+      // =====================================================================
+      function getOptions() {
+        return {
+          sheetIndex: activeSheet,
+          maxRows: parseInt($("max-rows").value) || 1000,
+          includeStyles: $("include-styles").checked,
+          trimEmpty: true,
+        };
+      }
+
+      // =====================================================================
+      // 文件处理
+      // =====================================================================
+      async function handleFile(file) {
+        if (!file) return;
+
+        const ext = file.name.split(".").pop().toLowerCase();
+        if (!["xlsx", "xls"].includes(ext)) {
+          showError("不支持的文件格式，请选择 .xlsx 或 .xls 文件。");
+          return;
+        }
+
+        hideError();
+
+        try {
+          await initWasm();
+        } catch (e) {
+          showError("WASM 模块初始化失败: " + e);
+          return;
+        }
+
+        // 读取文件
+        fileBuffer = await file.arrayBuffer();
+        const data = new Uint8Array(fileBuffer);
+
+        // 更新文件信息
+        $("info-name").textContent = file.name;
+        $("info-size").textContent = formatFileSize(file.size);
+        $("file-info").classList.add("show");
+        $("options-panel").classList.add("show");
+        $("mode-toggle").classList.add("show");
+        $("preview-wrapper").classList.add("show");
+
+        // 获取工作表列表
+        try {
+          sheetList = getExcelSheetList(data);
+          $("info-sheets").textContent = sheetList.length;
+          renderSheetTabs();
+        } catch (e) {
+          showError("无法读取工作表列表: " + e);
+          return;
+        }
+
+        // 解析并渲染首个工作表
+        activeSheet = 0;
+        await renderPreview();
+      }
+
+      // =====================================================================
+      // 渲染 Sheet 标签
+      // =====================================================================
+      function renderSheetTabs() {
+        const container = $("sheet-tabs");
+        container.innerHTML = "";
+        container.classList.add("show");
+
+        sheetList.forEach((sheet, idx) => {
+          const tab = document.createElement("button");
+          tab.className = "sheet-tab" + (idx === activeSheet ? " active" : "");
+          tab.innerHTML =
+            `${sheet.name} <span class="row-count">(${sheet.rows}行×${sheet.cols}列)</span>`;
+          tab.onclick = () => switchSheet(idx);
+          container.appendChild(tab);
+        });
+      }
+
+      // =====================================================================
+      // 切换工作表
+      // =====================================================================
+      async function switchSheet(index) {
+        if (index === activeSheet) return;
+        activeSheet = index;
+
+        // 更新标签高亮
+        const tabs = $("sheet-tabs").querySelectorAll(".sheet-tab");
+        tabs.forEach((t, i) => t.classList.toggle("active", i === index));
+
+        await renderPreview();
+      }
+
+      // =====================================================================
+      // 切换视图模式
+      // =====================================================================
+      window.switchMode = async function (mode) {
+        if (mode === currentMode) return;
+        currentMode = mode;
+
+        $("btn-html").classList.toggle("active", mode === "html");
+        $("btn-json").classList.toggle("active", mode === "json");
+
+        await renderPreview();
+      };
+
+      // =====================================================================
+      // 渲染预览内容
+      // =====================================================================
+      async function renderPreview() {
+        if (!fileBuffer) return;
+
+        showLoading();
+        hideError();
+
+        // 延迟一帧让加载动画显示
+        await new Promise((r) => requestAnimationFrame(r));
+
+        const data = new Uint8Array(fileBuffer);
+        const opts = getOptions();
+
+        try {
+          if (currentMode === "html") {
+            $("html-preview").style.display = "";
+            $("json-preview").classList.remove("show");
+
+            const html = parseExcelToHtml(data, opts);
+            $("html-preview").innerHTML = html;
+
+            // 更新当前表行数
+            const sheet = sheetList[activeSheet];
+            if (sheet) {
+              $("info-rows").textContent = sheet.rows;
+            }
+          } else {
+            $("html-preview").style.display = "none";
+            $("json-preview").classList.add("show");
+
+            const json = parseExcelToJson(data, {
+              sheetIndex: opts.sheetIndex,
+              includeStyles: opts.includeStyles,
+            });
+            $("json-content").textContent = JSON.stringify(json, null, 2);
+
+            const sheet = sheetList[activeSheet];
+            if (sheet) {
+              $("info-rows").textContent = sheet.rows;
+            }
+          }
+        } catch (e) {
+          showError("解析失败: " + e);
+          console.error(e);
+        } finally {
+          hideLoading();
+        }
+      }
+
+      // =====================================================================
+      // 选项变更时重新渲染
+      // =====================================================================
+      $("max-rows").addEventListener("change", () => renderPreview());
+      $("include-styles").addEventListener("change", () => {
+        $("styles-label").textContent = $("include-styles").checked
+          ? "已开启"
+          : "已关闭";
+        renderPreview();
+      });
+
+      // =====================================================================
+      // 文件输入与拖放
+      // =====================================================================
+      $("file-input").addEventListener("change", (e) => {
+        handleFile(e.target.files[0]);
+      });
+
+      const dropZone = $("drop-zone");
+
+      dropZone.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        dropZone.classList.add("drag-over");
+      });
+
+      dropZone.addEventListener("dragleave", () => {
+        dropZone.classList.remove("drag-over");
+      });
+
+      dropZone.addEventListener("drop", (e) => {
+        e.preventDefault();
+        dropZone.classList.remove("drag-over");
+        const file = e.dataTransfer.files[0];
+        if (file) handleFile(file);
+      });
+
+      // =====================================================================
+      // 页面初始化
+      // =====================================================================
+      window.addEventListener("DOMContentLoaded", async () => {
+        try {
+          await initWasm();
+          console.log("💡 WASM 已就绪，请选择 Excel 文件进行预览");
+        } catch (e) {
+          showError("WASM 初始化失败: " + e);
+        }
+      });
+    </script>
+  </body>
+</html>
