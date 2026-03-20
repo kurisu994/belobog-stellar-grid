@@ -26,7 +26,6 @@
         border-radius: 20px;
         box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
         padding: 40px;
-        max-width: 1100px;
         width: 100%;
       }
 
@@ -398,7 +397,6 @@
         padding: 8px 12px;
         border: 1px solid #dde1e8;
         text-align: left;
-        white-space: nowrap;
       }
 
       .preview-container th {
@@ -556,8 +554,7 @@
     <div class="container">
       <h1>📑 Excel 预览示例</h1>
       <p class="subtitle">
-        使用 <code>parseExcelToHtml()</code> /
-        <code>parseExcelToJson()</code> 在浏览器端预览 Excel 文件
+        使用 <code>parseExcelToHtml()</code> / <code>parseExcelToJson()</code> 在浏览器端预览 Excel 文件
       </p>
 
       <!-- 文件拖放区域 -->
@@ -572,8 +569,7 @@
       <div class="url-input-section">
         <label class="url-label">🔗 或输入远程文件 URL</label>
         <div class="url-row">
-          <input type="text" id="url-input" class="url-input"
-            placeholder="https://example.com/sample.xlsx" />
+          <input type="text" id="url-input" class="url-input" placeholder="https://example.com/sample.xlsx" />
           <button class="url-btn" id="url-btn" onclick="loadRemoteFile()">加载</button>
         </div>
         <div class="url-hint">支持任何可公开访问的 .xlsx / .xls 文件链接（需允许 CORS）</div>
@@ -625,12 +621,8 @@
 
       <!-- 模式切换 -->
       <div class="mode-toggle" id="mode-toggle">
-        <button class="mode-btn active" id="btn-html" onclick="switchMode('html')">
-          🌐 HTML 视图
-        </button>
-        <button class="mode-btn" id="btn-json" onclick="switchMode('json')">
-          📋 JSON 视图
-        </button>
+        <button class="mode-btn active" id="btn-html" onclick="switchMode('html')">🌐 HTML 视图</button>
+        <button class="mode-btn" id="btn-json" onclick="switchMode('json')">📋 JSON 视图</button>
       </div>
 
       <!-- 预览区域 -->
@@ -648,11 +640,7 @@
     </div>
 
     <script type="module">
-      import init, {
-        parseExcelToHtml,
-        parseExcelToJson,
-        getExcelSheetList,
-      } from "../pkg/belobog_stellar_grid.js";
+      import init, { parseExcelToHtml, parseExcelToJson, getExcelSheetList } from "../pkg/belobog_stellar_grid.js";
 
       // =====================================================================
       // 全局状态
@@ -853,8 +841,7 @@
         sheetList.forEach((sheet, idx) => {
           const tab = document.createElement("button");
           tab.className = "sheet-tab" + (idx === activeSheet ? " active" : "");
-          tab.innerHTML =
-            `${sheet.name} <span class="row-count">(${sheet.rows}行×${sheet.cols}列)</span>`;
+          tab.innerHTML = `${sheet.name} <span class="row-count">(${sheet.rows}行×${sheet.cols}列)</span>`;
           tab.onclick = () => switchSheet(idx);
           container.appendChild(tab);
         });
@@ -943,9 +930,7 @@
       // =====================================================================
       $("max-rows").addEventListener("change", () => renderPreview());
       $("include-styles").addEventListener("change", () => {
-        $("styles-label").textContent = $("include-styles").checked
-          ? "已开启"
-          : "已关闭";
+        $("styles-label").textContent = $("include-styles").checked ? "已开启" : "已关闭";
         renderPreview();
       });
 
