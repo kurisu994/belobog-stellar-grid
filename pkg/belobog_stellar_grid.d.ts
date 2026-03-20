@@ -393,10 +393,10 @@ export interface InitOutput {
     readonly parseExcelToHtml: (a: number, b: number, c: any) => [number, number, number];
     readonly parseExcelToJson: (a: number, b: number, c: any) => [number, number, number];
     readonly wasm_bindgen__closure__destroy__hb1f1e222d193ce94: (a: number, b: number) => void;
-    readonly wasm_bindgen__closure__destroy__hbd430fe0cc41de1d: (a: number, b: number) => void;
+    readonly wasm_bindgen__closure__destroy__he96d407d581526a1: (a: number, b: number) => void;
     readonly wasm_bindgen__convert__closures_____invoke__h4c21a5017d209281: (a: number, b: number, c: any) => [number, number];
     readonly wasm_bindgen__convert__closures_____invoke__h00d297b34697abe8: (a: number, b: number, c: any, d: any) => void;
-    readonly wasm_bindgen__convert__closures_____invoke__h4278f4cfce09be25: (a: number, b: number) => void;
+    readonly wasm_bindgen__convert__closures_____invoke__h240ce5a0239b1053: (a: number, b: number) => void;
     readonly __wbindgen_malloc: (a: number, b: number) => number;
     readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
     readonly __wbindgen_exn_store: (a: number) => void;

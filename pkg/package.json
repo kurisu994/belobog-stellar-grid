@@ -5,7 +5,7 @@
     "Kurisu <makise_kurisuu@outlook.jp>"
   ],
   "description": "一个安全高效的 WebAssembly 库，用于将 HTML 表格数据导出为 CSV 和 XLSX 文件",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "license": "MIT OR Apache-2.0",
   "repository": {
     "type": "git",
