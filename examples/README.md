@@ -404,8 +404,10 @@ worker.onmessage = (e) => {
 
 - ✅ 在浏览器端解析 xlsx/xls 文件并渲染为 HTML 表格
 - ✅ 保留原始样式（字体、颜色、边框、合并单元格、主题色）
-- ✅ 支持工作表切换
+- ✅ 支持工作表切换（自动过滤隐藏 Sheet）
 - ✅ 支持 HTML 直出和 JSON 结构化数据两种输出模式
+- ✅ 支持远程 URL 文件预览
+- ✅ 数字格式精确显示（小数位数按 Excel 格式）
 - ✅ 只读查看模式
 
 **适用场景**：
@@ -421,21 +423,22 @@ import init, { parseExcelToHtml, parseExcelToJson, getExcelSheetList } from "../
 
 await init();
 
-// 获取文件数据
+// 获取文件数据（本地文件或远程 URL）
 const file = input.files[0];
 const data = new Uint8Array(await file.arrayBuffer());
 
-// HTML 直出模式
-const html = parseExcelToHtml(data, { sheetIndex: 0, maxRows: 1000, trimEmpty: true });
+// HTML 直出模式（自动跳过隐藏 Sheet）
+const html = parseExcelToHtml(data, { sheetIndex: 0, maxRows: 1000, trimEmpty: true, skipHidden: true });
 document.getElementById("preview").innerHTML = html;
 
 // JSON 结构化数据模式
 const workbook = parseExcelToJson(data, { sheetIndex: 0 });
 console.log(workbook.sheets[0].rows);
 
-// 获取工作表列表（用于工作表切换）
+// 获取工作表列表（含隐藏状态）
 const sheets = getExcelSheetList(data);
-sheets.forEach(s => console.log(`${s.name} (${s.rows}×${s.cols})`));
+const visibleSheets = sheets.filter(s => !s.hidden);
+visibleSheets.forEach(s => console.log(`${s.name} (${s.rows}×${s.cols})`));
 ```
 
 ## 🎯 使用指南

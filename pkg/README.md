@@ -30,7 +30,7 @@
 - **🚀 极致性能**：Rust 原生速度 + WebAssembly 优化
 - **🔒 企业级安全**：内置文件名验证，防止路径遍历攻击
 - **📦 轻量级**：约 1.3MB 的 WASM 文件（Gzip 压缩后约 450KB）
-- **✅ 100% 测试覆盖**：145+ 个单元测试 + 45 个 E2E 测试确保代码质量
+- **✅ 100% 测试覆盖**：190+ 个单元测试 + 45 个 E2E 测试确保代码质量
 - **🏗️ 模块化架构**：清晰的模块设计，易于维护和扩展
 - **🌍 国际化支持**：完美支持中文、日文、韩文等 Unicode 字符
 - **💾 多格式导出**：支持 CSV 和 XLSX (Excel) 两种格式
@@ -341,7 +341,7 @@ const file = input.files[0];
 const data = new Uint8Array(await file.arrayBuffer());
 
 // 方式一：直接渲染为 HTML
-const html = parseExcelToHtml(data, { sheetIndex: 0, maxRows: 1000 });
+const html = parseExcelToHtml(data, { sheetIndex: 0, maxRows: 1000, skipHidden: true });
 document.getElementById("preview").innerHTML = html;
 
 // 方式二：获取结构化 JSON 数据
@@ -350,7 +350,7 @@ console.log(workbook.sheets[0].rows);
 
 // 获取工作表列表
 const sheets = getExcelSheetList(data);
-sheets.forEach(s => console.log(`${s.name} (${s.rows}×${s.cols})`));
+sheets.forEach(s => console.log(`${s.name} (${s.rows}×${s.cols})${s.hidden ? ' [隐藏]' : ''}`));
 ```
 
 **框架预览组件**：
@@ -521,15 +521,18 @@ belobog-stellar-grid/
 │   │   ├── data_export.rs # 数据导出（columns + dataSource，支持嵌套表头、数据合并、树形数据，含 29 个内联测试）
 │   │   ├── export_csv.rs  # CSV 导出
 │   │   ├── export_xlsx.rs # XLSX 导出
-│   │   └── excel_preview.rs # Excel 预览（基于 calamine 解析 xlsx/xls）
+│   │   ├── excel_reader.rs # Excel 解析核心（calamine + zip 样式 + 隐藏 Sheet）
+│   │   ├── excel_style.rs # OOXML 样式 → CSS 映射引擎
+│   │   └── html_builder.rs # HTML Table 拼装器
 │   ├── batch_export.rs    # 异步分批导出（CSV）
 │   ├── batch_export_xlsx.rs # 异步分批导出（XLSX）
 │   ├── streaming_export.rs # 流式 CSV 导出（分块写入 + Blob 拼接）
 │   └── utils.rs           # 调试工具（含 2 个内联测试）
-├── tests/                 # 单元测试目录（145+ 个测试）
-│   ├── lib_tests.rs       # 基础功能测试（41 个）
-│   ├── test_data_export.rs # 数据导出测试（34 个）
-│   ├── test_streaming_export.rs # 流式导出测试（26 个）
+├── tests/                 # 单元测试目录（190+ 个测试）
+│   ├── lib_tests.rs       # 基础功能测试（70 个）
+│   ├── test_data_export.rs # 数据导出测试（41 个）
+│   ├── test_streaming_export.rs # 流式导出测试（34 个）
+│   ├── test_excel_preview.rs # Excel 预览测试（26 个）
 │   ├── test_resource.rs   # RAII 资源测试（8 个）
 │   ├── test_unified_api.rs # 统一 API 测试（4 个）
 │   └── test_security.rs   # 安全/CSV注入测试（3 个）
