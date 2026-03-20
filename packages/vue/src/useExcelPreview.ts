@@ -57,6 +57,8 @@ export interface UseExcelPreviewReturn {
   loadFile: (file: File, options?: PreviewOptions) => Promise<void>;
   /** 加载 Excel 文件（从 Uint8Array） */
   loadData: (data: Uint8Array, options?: PreviewOptions) => Promise<void>;
+  /** 加载远程 Excel 文件（从 URL） */
+  loadUrl: (url: string, options?: PreviewOptions, fetchInit?: RequestInit) => Promise<void>;
   /** 切换 Sheet */
   switchSheet: (sheetIndex: number) => Promise<void>;
   /** 获取 JSON 数据 */
@@ -131,6 +133,32 @@ export function useExcelPreview(config: UseExcelPreviewOptions): UseExcelPreview
     }
   }
 
+  /** 加载远程 Excel 文件（从 URL） */
+  async function loadUrl(url: string, options?: PreviewOptions, fetchInit?: RequestInit) {
+    loading.value = true;
+    error.value = null;
+    try {
+      await ensureInit();
+      const response = await fetch(url, fetchInit);
+      if (!response.ok) {
+        throw new Error(`远程文件加载失败: HTTP ${response.status} ${response.statusText}`);
+      }
+      const buffer = await response.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+      fileData = bytes;
+
+      const mergedOptions = { ...config.defaultOptions, ...options };
+      sheets.value = config.getExcelSheetList(bytes);
+      html.value = config.parseExcelToHtml(bytes, mergedOptions);
+      data.value = null;
+      activeSheet.value = mergedOptions.sheetIndex ?? 0;
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : String(e);
+    } finally {
+      loading.value = false;
+    }
+  }
+
   /** 切换 Sheet */
   async function switchSheet(sheetIndex: number) {
     if (!fileData) return;
@@ -182,6 +210,7 @@ export function useExcelPreview(config: UseExcelPreviewOptions): UseExcelPreview
     activeSheet,
     loadFile,
     loadData,
+    loadUrl,
     switchSheet,
     getJsonData,
     reset,
