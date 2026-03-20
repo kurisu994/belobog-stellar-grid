@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1773994514140,
+  "lastUpdate": 1773996163973,
   "repoUrl": "https://github.com/kurisu994/belobog-stellar-grid",
   "entries": {
     "Rust Benchmark": [
@@ -1726,6 +1726,102 @@ window.BENCHMARK_DATA = {
           {
             "name": "csv_escape/公式文本",
             "value": 47,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "makise_kurisuu@outlook.jp",
+            "name": "Kurisu",
+            "username": "kurisu994"
+          },
+          "committer": {
+            "email": "makise_kurisuu@outlook.jp",
+            "name": "Kurisu",
+            "username": "kurisu994"
+          },
+          "distinct": true,
+          "id": "aa8e60290eab26d82714766f554dcc6a0969b17c",
+          "message": "🐛 fix(Excel预览): 兼容多格式并隐藏工作表\n\n- 改用自动识别文件格式，修复 xls 解析失败\n- 通过元数据识别隐藏/极隐藏工作表，默认跳过\n- 仅在支持的格式下保留样式和合并单元格\n- xls 预览改为仅显示纯文本，避免异常解析",
+          "timestamp": "2026-03-20T16:39:10+08:00",
+          "tree_id": "b5a82aa2c29cf5a512024d56575e45ec87419ffc",
+          "url": "https://github.com/kurisu994/belobog-stellar-grid/commit/aa8e60290eab26d82714766f554dcc6a0969b17c"
+        },
+        "date": 1773996162787,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "csv_generation/无BOM/100行x10列",
+            "value": 82165,
+            "range": "± 458",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_generation/无BOM/1000行x10列",
+            "value": 867544,
+            "range": "± 10087",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_generation/无BOM/5000行x10列",
+            "value": 4417874,
+            "range": "± 33065",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_generation/无BOM/1000行x50列",
+            "value": 4140686,
+            "range": "± 48644",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_generation/带BOM/1000行x10列",
+            "value": 876128,
+            "range": "± 4857",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "xlsx_generation/无合并/100行x10列",
+            "value": 2013084,
+            "range": "± 20058",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "xlsx_generation/无合并/1000行x10列",
+            "value": 18393328,
+            "range": "± 127215",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "xlsx_generation/无合并/5000行x10列",
+            "value": 101875724,
+            "range": "± 278949",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "xlsx_generation/无合并/1000行x50列",
+            "value": 110306754,
+            "range": "± 311419",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "xlsx_generation/含合并/1000行x10列",
+            "value": 19377513,
+            "range": "± 122940",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_escape/普通文本",
+            "value": 8,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_escape/公式文本",
+            "value": 46,
             "range": "± 0",
             "unit": "ns/iter"
           }
