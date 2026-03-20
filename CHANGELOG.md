@@ -9,6 +9,18 @@
 
 ## [Unreleased]
 
+### 新增 (Added)
+
+- 🙈 隐藏工作表过滤：改用 calamine 内置 `sheets_metadata()` API 检测隐藏/极度隐藏的 Sheet，`PreviewOptions` 新增 `skipHidden` 选项（默认 true）
+
+### 修复 (Fixed)
+
+- 🐛 修复 xls 格式文件无法解析问题：将 `Xlsx::new()` 替换为 `open_workbook_auto_from_rs()`，自动检测并支持 xls/xlsx/xlsb/ods 所有格式
+
+### 变更 (Changed)
+
+- ⚡ xls 格式预览不再支持样式（字体/颜色/边框）和合并单元格（受格式限制），仅显示纯文本内容
+
 ---
 
 ## [1.1.4] - 2026-03-20

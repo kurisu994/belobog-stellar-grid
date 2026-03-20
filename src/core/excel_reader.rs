@@ -2,7 +2,7 @@
 ///
 /// 使用 calamine 提取单元格数据和合并区域，
 /// 使用 zip + quick-xml 提取样式索引、行高和列宽信息。
-use calamine::{Data, Reader, Xlsx};
+use calamine::{Data, Reader, SheetVisible, Sheets, Xlsx, open_workbook_auto_from_rs};
 use serde::Serialize;
 use std::io::{Cursor, Read, Seek};
 
@@ -12,6 +12,11 @@ use super::excel_style::{ExcelStyleSheet, cell_style_to_css, format_number};
 const MAX_ROWS_LIMIT: usize = 100_000;
 /// 最大渲染列数上限
 const MAX_COLS_LIMIT: usize = 16_384;
+
+/// 判断数据是否为 XLSX 格式（ZIP 文件以 PK 开头）
+fn is_xlsx_format(data: &[u8]) -> bool {
+    data.len() >= 4 && data[0] == 0x50 && data[1] == 0x4B
+}
 
 /// 预览配置选项
 #[derive(Debug, Clone)]
@@ -150,13 +155,13 @@ struct SheetDimensions {
 /// 获取 Excel 文件的工作表列表（含隐藏状态）
 pub fn get_sheet_list(data: &[u8]) -> Result<Vec<SheetInfo>, String> {
     let cursor = Cursor::new(data);
-    let mut workbook: Xlsx<_> =
-        Xlsx::new(cursor).map_err(|e| format!("无法解析 Excel 文件: {e}"))?;
+    let mut workbook =
+        open_workbook_auto_from_rs(cursor).map_err(|e| format!("无法解析 Excel 文件: {e}"))?;
 
     let sheet_names = workbook.sheet_names().to_vec();
 
-    // 从 workbook.xml 解析各 sheet 的隐藏状态
-    let hidden_set = parse_hidden_sheets(Cursor::new(data)).unwrap_or_default();
+    // 从 calamine 的 metadata 获取隐藏状态（适用于所有格式）
+    let hidden_set = build_hidden_set(&workbook);
 
     let mut sheets = Vec::new();
     for (index, name) in sheet_names.iter().enumerate() {
@@ -178,29 +183,26 @@ pub fn get_sheet_list(data: &[u8]) -> Result<Vec<SheetInfo>, String> {
 
 /// 解析 Excel 文件为结构化数据
 pub fn parse_excel(data: &[u8], options: &PreviewOptions) -> Result<ParsedWorkbook, String> {
-    let cursor = Cursor::new(data);
-    let mut workbook: Xlsx<_> =
-        Xlsx::new(cursor).map_err(|e| format!("无法解析 Excel 文件: {e}"))?;
+    let xlsx = is_xlsx_format(data);
 
-    // 加载合并区域
-    workbook
-        .load_merged_regions()
-        .map_err(|e| format!("加载合并区域失败: {e}"))?;
+    let cursor = Cursor::new(data);
+    let mut workbook =
+        open_workbook_auto_from_rs(cursor).map_err(|e| format!("无法解析 Excel 文件: {e}"))?;
 
     let sheet_names = workbook.sheet_names().to_vec();
     if sheet_names.is_empty() {
         return Err("Excel 文件中没有工作表".to_string());
     }
 
-    // 解析隐藏 sheet 列表（用于 skip_hidden 时自动跳过）
+    // 从 calamine metadata 获取隐藏 sheet（适用于所有格式）
     let hidden_set = if options.skip_hidden {
-        parse_hidden_sheets(Cursor::new(data)).unwrap_or_default()
+        build_hidden_set(&workbook)
     } else {
         std::collections::HashSet::new()
     };
 
-    // 解析样式表（如果需要）
-    let style_sheet = if options.include_styles {
+    // 解析 OOXML 样式表（仅 XLSX 支持）
+    let style_sheet = if options.include_styles && xlsx {
         let style_cursor = Cursor::new(data);
         ExcelStyleSheet::from_xlsx_zip(style_cursor).ok()
     } else {
@@ -211,8 +213,8 @@ pub fn parse_excel(data: &[u8], options: &PreviewOptions) -> Result<ParsedWorkbo
     let target_index = resolve_sheet_index(&sheet_names, &hidden_set, options)?;
     let target_name = &sheet_names[target_index];
 
-    // 解析 sheet 维度信息（行高/列宽/样式索引）
-    let dimensions = if options.include_styles {
+    // 解析 sheet 维度信息（仅 XLSX 支持行高/列宽/样式索引）
+    let dimensions = if options.include_styles && xlsx {
         let dim_cursor = Cursor::new(data);
         parse_sheet_dimensions(dim_cursor, target_index).unwrap_or_default()
     } else {
@@ -224,8 +226,12 @@ pub fn parse_excel(data: &[u8], options: &PreviewOptions) -> Result<ParsedWorkbo
         .worksheet_range(target_name)
         .map_err(|e| format!("读取工作表 '{target_name}' 失败: {e}"))?;
 
-    // 获取合并区域
-    let merge_regions = get_merge_regions_for_sheet(&workbook, target_name);
+    // 获取合并区域（仅 XLSX 支持）
+    let merge_regions = if xlsx {
+        get_merge_regions_xlsx(data, target_name)
+    } else {
+        Vec::new()
+    };
 
     // 构建 ParsedSheet
     let sheet = build_parsed_sheet(
@@ -277,13 +283,27 @@ fn resolve_sheet_index(
     }
 }
 
-/// 获取指定 Sheet 的合并区域
-fn get_merge_regions_for_sheet(
-    workbook: &Xlsx<Cursor<&[u8]>>,
-    sheet_name: &str,
-) -> Vec<MergeRegion> {
+/// 从 calamine 的 metadata 构建隐藏 Sheet 名称集合（适用于所有格式）
+fn build_hidden_set<RS: Read + Seek>(workbook: &Sheets<RS>) -> std::collections::HashSet<String> {
     workbook
-        .merged_regions_by_sheet(sheet_name)
+        .sheets_metadata()
+        .iter()
+        .filter(|s| s.visible != SheetVisible::Visible)
+        .map(|s| s.name.clone())
+        .collect()
+}
+
+/// 获取 XLSX 文件中指定 Sheet 的合并区域
+fn get_merge_regions_xlsx(data: &[u8], sheet_name: &str) -> Vec<MergeRegion> {
+    let cursor = Cursor::new(data);
+    let mut xlsx: Xlsx<_> = match Xlsx::new(cursor) {
+        Ok(wb) => wb,
+        Err(_) => return Vec::new(),
+    };
+    if xlsx.load_merged_regions().is_err() {
+        return Vec::new();
+    }
+    xlsx.merged_regions_by_sheet(sheet_name)
         .iter()
         .map(|(_, _, dim)| MergeRegion {
             start_row: dim.start.0,
@@ -539,51 +559,6 @@ fn cell_value_to_string(
         Some(Data::DateTimeIso(s)) => s.clone(),
         Some(Data::DurationIso(s)) => s.clone(),
     }
-}
-
-/// 从 xl/workbook.xml 解析隐藏 sheet 名称集合
-fn parse_hidden_sheets<R: Read + Seek>(
-    reader: R,
-) -> Result<std::collections::HashSet<String>, String> {
-    let mut archive = zip::ZipArchive::new(reader).map_err(|e| format!("无法读取 zip: {e}"))?;
-    let mut file = archive
-        .by_name("xl/workbook.xml")
-        .map_err(|e| format!("无法找到 workbook.xml: {e}"))?;
-    let mut xml = String::new();
-    file.read_to_string(&mut xml)
-        .map_err(|e| format!("读取 workbook.xml 失败: {e}"))?;
-
-    let mut hidden_names = std::collections::HashSet::new();
-    let mut reader = quick_xml::Reader::from_str(&xml);
-    reader.config_mut().trim_text(true);
-    let mut buf = Vec::new();
-
-    loop {
-        match reader.read_event_into(&mut buf) {
-            Ok(quick_xml::events::Event::Empty(ref e))
-            | Ok(quick_xml::events::Event::Start(ref e)) => {
-                let name_bytes = e.name().as_ref().to_vec();
-                let local = local_name_str(&name_bytes);
-                if local == "sheet" {
-                    let sheet_name = get_rel_attr(e, "name");
-                    let state = get_rel_attr(e, "state");
-                    if let Some(name) = sheet_name {
-                        if let Some(ref s) = state {
-                            if s == "hidden" || s == "veryHidden" {
-                                hidden_names.insert(name);
-                            }
-                        }
-                    }
-                }
-            }
-            Ok(quick_xml::events::Event::Eof) => break,
-            Err(_) => break,
-            _ => {}
-        }
-        buf.clear();
-    }
-
-    Ok(hidden_names)
 }
 
 /// 从 xlsx zip 中解析 sheet 的行高/列宽/样式索引
