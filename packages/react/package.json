@@ -37,7 +37,7 @@
     "react": ">=17.0.0"
   },
   "dependencies": {
-    "@bsg-export/types": "file:../types"
+    "@bsg-export/types": "^1.1.2"
   },
   "devDependencies": {
     "@types/react": "^19.2.14",

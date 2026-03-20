@@ -107,6 +107,14 @@ bump-core level:
         fi
     done
     
+    # 同步子包中 @bsg-export/types 的依赖版本号
+    for pkg in packages/react packages/vue packages/svelte packages/solid; do
+        if [ -f "$pkg/package.json" ] && grep -q '"@bsg-export/types"' "$pkg/package.json"; then
+            perl -i -pe 's/"@bsg-export\/types": "\^.*?"/"@bsg-export\/types": "^'"$new"'"/' "$pkg/package.json"
+            echo "✅ $pkg/package.json @bsg-export/types 依赖已同步: -> ^$new"
+        fi
+    done
+    
     # 更新 CHANGELOG.md：将 [Unreleased] 替换为版本号 + 日期
     if grep -q '## \[Unreleased\]' CHANGELOG.md; then
         today=$(date +%Y-%m-%d)
