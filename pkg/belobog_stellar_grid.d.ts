@@ -334,6 +334,49 @@ export function export_tables_xlsx(sheets: any, filename?: string | null, progre
  */
 export function generate_data_bytes(data: any, options?: any | null): Uint8Array;
 
+/**
+ * 获取 Excel 文件的工作表列表
+ *
+ * 返回各工作表的名称、索引和行列数信息，用于 Sheet 切换 UI。
+ *
+ * # 参数
+ * * `data` - Excel 文件的二进制数据（Uint8Array）
+ *
+ * # 返回值
+ * SheetInfo 数组的 JSON 对象
+ */
+export function getExcelSheetList(data: Uint8Array): any;
+
+/**
+ * 解析 Excel 文件并返回 HTML Table 字符串
+ *
+ * 在 WASM 侧完成全部解析和拼装，返回可直接挂载的 `<table>` HTML。
+ * 前端通过 `dangerouslySetInnerHTML` (React) 或 `v-html` (Vue) 直接使用。
+ *
+ * # 参数
+ * * `data` - Excel 文件的二进制数据（Uint8Array）
+ * * `options` - 可选的预览配置（JsValue 对象）
+ *
+ * # 返回值
+ * 包含完整 HTML table 的字符串
+ */
+export function parseExcelToHtml(data: Uint8Array, options: any): any;
+
+/**
+ * 解析 Excel 文件并返回结构化 JSON 数据
+ *
+ * 返回 ParsedWorkbook 结构化数据，前端可自行渲染。
+ * 适合需要自定义渲染逻辑（虚拟滚动、交互等）的场景。
+ *
+ * # 参数
+ * * `data` - Excel 文件的二进制数据（Uint8Array）
+ * * `options` - 可选的预览配置（JsValue 对象）
+ *
+ * # 返回值
+ * ParsedWorkbook 结构的 JSON 对象
+ */
+export function parseExcelToJson(data: Uint8Array, options: any): any;
+
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
@@ -346,11 +389,14 @@ export interface InitOutput {
     readonly export_tables_to_xlsx_batch: (a: any, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => any;
     readonly export_tables_xlsx: (a: any, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number];
     readonly generate_data_bytes: (a: any, b: number) => [number, number, number];
-    readonly wasm_bindgen__closure__destroy__h8487b840aca31441: (a: number, b: number) => void;
+    readonly getExcelSheetList: (a: number, b: number) => [number, number, number];
+    readonly parseExcelToHtml: (a: number, b: number, c: any) => [number, number, number];
+    readonly parseExcelToJson: (a: number, b: number, c: any) => [number, number, number];
     readonly wasm_bindgen__closure__destroy__hb1f1e222d193ce94: (a: number, b: number) => void;
+    readonly wasm_bindgen__closure__destroy__hbd430fe0cc41de1d: (a: number, b: number) => void;
     readonly wasm_bindgen__convert__closures_____invoke__h4c21a5017d209281: (a: number, b: number, c: any) => [number, number];
     readonly wasm_bindgen__convert__closures_____invoke__h00d297b34697abe8: (a: number, b: number, c: any, d: any) => void;
-    readonly wasm_bindgen__convert__closures_____invoke__h8564745f53e47dd2: (a: number, b: number) => void;
+    readonly wasm_bindgen__convert__closures_____invoke__h4278f4cfce09be25: (a: number, b: number) => void;
     readonly __wbindgen_malloc: (a: number, b: number) => number;
     readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
     readonly __wbindgen_exn_store: (a: number) => void;

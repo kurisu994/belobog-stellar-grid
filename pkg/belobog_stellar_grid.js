@@ -437,6 +437,81 @@ export function generate_data_bytes(data, options) {
     return takeFromExternrefTable0(ret[0]);
 }
 
+/**
+ * 获取 Excel 文件的工作表列表
+ *
+ * 返回各工作表的名称、索引和行列数信息，用于 Sheet 切换 UI。
+ *
+ * # 参数
+ * * `data` - Excel 文件的二进制数据（Uint8Array）
+ *
+ * # 返回值
+ * SheetInfo 数组的 JSON 对象
+ * @param {Uint8Array} data
+ * @returns {any}
+ */
+export function getExcelSheetList(data) {
+    const ptr0 = passArray8ToWasm0(data, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.getExcelSheetList(ptr0, len0);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
+ * 解析 Excel 文件并返回 HTML Table 字符串
+ *
+ * 在 WASM 侧完成全部解析和拼装，返回可直接挂载的 `<table>` HTML。
+ * 前端通过 `dangerouslySetInnerHTML` (React) 或 `v-html` (Vue) 直接使用。
+ *
+ * # 参数
+ * * `data` - Excel 文件的二进制数据（Uint8Array）
+ * * `options` - 可选的预览配置（JsValue 对象）
+ *
+ * # 返回值
+ * 包含完整 HTML table 的字符串
+ * @param {Uint8Array} data
+ * @param {any} options
+ * @returns {any}
+ */
+export function parseExcelToHtml(data, options) {
+    const ptr0 = passArray8ToWasm0(data, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.parseExcelToHtml(ptr0, len0, options);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
+ * 解析 Excel 文件并返回结构化 JSON 数据
+ *
+ * 返回 ParsedWorkbook 结构化数据，前端可自行渲染。
+ * 适合需要自定义渲染逻辑（虚拟滚动、交互等）的场景。
+ *
+ * # 参数
+ * * `data` - Excel 文件的二进制数据（Uint8Array）
+ * * `options` - 可选的预览配置（JsValue 对象）
+ *
+ * # 返回值
+ * ParsedWorkbook 结构的 JSON 对象
+ * @param {Uint8Array} data
+ * @param {any} options
+ * @returns {any}
+ */
+export function parseExcelToJson(data, options) {
+    const ptr0 = passArray8ToWasm0(data, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.parseExcelToJson(ptr0, len0, options);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
 function __wbg_get_imports() {
     const import0 = {
         __proto__: null,
@@ -693,6 +768,10 @@ function __wbg_get_imports() {
             const ret = Array.of(arg0);
             return ret;
         },
+        __wbg_parse_e9eddd2a82c706eb: function() { return handleError(function (arg0, arg1) {
+            const ret = JSON.parse(getStringFromWasm0(arg0, arg1));
+            return ret;
+        }, arguments); },
         __wbg_push_e87b0e732085a946: function(arg0, arg1) {
             const ret = arg0.push(arg1);
             return ret;
@@ -772,13 +851,13 @@ function __wbg_get_imports() {
             console.warn(arg0);
         },
         __wbindgen_cast_0000000000000001: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { dtor_idx: 2, function: Function { arguments: [], shim_idx: 3, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
-            const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__h8487b840aca31441, wasm_bindgen__convert__closures_____invoke__h8564745f53e47dd2);
+            // Cast intrinsic for `Closure(Closure { dtor_idx: 139, function: Function { arguments: [Externref], shim_idx: 924, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
+            const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__hb1f1e222d193ce94, wasm_bindgen__convert__closures_____invoke__h4c21a5017d209281);
             return ret;
         },
         __wbindgen_cast_0000000000000002: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { dtor_idx: 60, function: Function { arguments: [Externref], shim_idx: 795, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
-            const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__hb1f1e222d193ce94, wasm_bindgen__convert__closures_____invoke__h4c21a5017d209281);
+            // Cast intrinsic for `Closure(Closure { dtor_idx: 2, function: Function { arguments: [], shim_idx: 3, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__hbd430fe0cc41de1d, wasm_bindgen__convert__closures_____invoke__h4278f4cfce09be25);
             return ret;
         },
         __wbindgen_cast_0000000000000003: function(arg0) {
@@ -807,8 +886,8 @@ function __wbg_get_imports() {
     };
 }
 
-function wasm_bindgen__convert__closures_____invoke__h8564745f53e47dd2(arg0, arg1) {
-    wasm.wasm_bindgen__convert__closures_____invoke__h8564745f53e47dd2(arg0, arg1);
+function wasm_bindgen__convert__closures_____invoke__h4278f4cfce09be25(arg0, arg1) {
+    wasm.wasm_bindgen__convert__closures_____invoke__h4278f4cfce09be25(arg0, arg1);
 }
 
 function wasm_bindgen__convert__closures_____invoke__h4c21a5017d209281(arg0, arg1, arg2) {
@@ -962,6 +1041,13 @@ function makeMutClosure(arg0, arg1, dtor, f) {
     };
     CLOSURE_DTORS.register(real, state, state);
     return real;
+}
+
+function passArray8ToWasm0(arg, malloc) {
+    const ptr = malloc(arg.length * 1, 1) >>> 0;
+    getUint8ArrayMemory0().set(arg, ptr / 1);
+    WASM_VECTOR_LEN = arg.length;
+    return ptr;
 }
 
 function passStringToWasm0(arg, malloc, realloc) {
