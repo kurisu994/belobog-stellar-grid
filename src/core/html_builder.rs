@@ -23,15 +23,27 @@ pub fn build_html_table(sheet: &ParsedSheet) -> String {
         "padding:2px 4px;",
         "border:0.5px solid #d9d9d9;",
         "vertical-align:middle;",
-        "white-space:nowrap;",
         "font-size:11px;",
         "line-height:1.4;",
-        "box-sizing:border-box}",
+        "box-sizing:border-box;",
+        "max-width:200px;",
+        "white-space:pre-wrap;",
+        "word-break:break-word}",
+        // xls 格式补偿样式（SheetJS/calamine 不提供字体/边框信息）
+        ".bsg-preview-table.bsg-xls td{",
+        "border:1px solid #b0b0b0;",
+        "padding:4px 6px;",
+        "font-size:12px;",
+        "line-height:1.5}",
         "</style>",
     ));
 
-    // 表格开始
-    html.push_str("<table class=\"bsg-preview-table\">");
+    // 表格开始（xls 格式添加补偿样式 class）
+    if sheet.is_xls {
+        html.push_str("<table class=\"bsg-preview-table bsg-xls\">");
+    } else {
+        html.push_str("<table class=\"bsg-preview-table\">");
+    }
 
     // 列宽定义（使用 min-width 允许列按内容扩展）
     if !sheet.col_widths.is_empty() {
@@ -151,6 +163,7 @@ mod tests {
             col_widths: Vec::new(),
             merged_cells: Vec::new(),
             truncated: None,
+            is_xls: false,
         };
         assert_eq!(build_html_table(&sheet), "<table></table>");
     }
@@ -198,6 +211,7 @@ mod tests {
             col_widths: vec![100.0, 150.0],
             merged_cells: Vec::new(),
             truncated: None,
+            is_xls: false,
         };
 
         let html = build_html_table(&sheet);
@@ -228,6 +242,7 @@ mod tests {
             col_widths: vec![100.0, 100.0],
             merged_cells: Vec::new(),
             truncated: None,
+            is_xls: false,
         };
 
         let html = build_html_table(&sheet);
@@ -252,6 +267,7 @@ mod tests {
             col_widths: vec![100.0],
             merged_cells: Vec::new(),
             truncated: None,
+            is_xls: false,
         };
 
         let html = build_html_table(&sheet);
@@ -275,6 +291,7 @@ mod tests {
             col_widths: vec![100.0],
             merged_cells: Vec::new(),
             truncated: None,
+            is_xls: false,
         };
 
         let html = build_html_table(&sheet);
@@ -299,6 +316,7 @@ mod tests {
             col_widths: vec![100.0],
             merged_cells: Vec::new(),
             truncated: None,
+            is_xls: false,
         };
 
         let html = build_html_table(&sheet);

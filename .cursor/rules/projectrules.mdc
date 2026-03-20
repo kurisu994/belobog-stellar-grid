@@ -52,6 +52,11 @@ just build-packages                 # 构建子包 (types/react/vue)
 just publish-packages               # 发布子包到 npm
 ```
 
+## CHANGELOG 规范
+
+- **已发布版本限制**：有版本号的部分是已经发布的版本，**禁止**往里面添加新的变更日志。
+- **新变更位置**：所有尚未发布的新增、修复、优化等变更日志，必须统一添加到 `## [Unreleased]` 栏目下。
+
 ## 测试
 
 ```bash

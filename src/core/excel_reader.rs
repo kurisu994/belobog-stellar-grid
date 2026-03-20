@@ -92,6 +92,9 @@ pub struct ParsedSheet {
     /// 是否因 maxRows 被截断
     #[serde(skip_serializing_if = "Option::is_none")]
     pub truncated: Option<bool>,
+    /// 是否为 .xls 格式（样式信息较少，需补充默认样式）
+    #[serde(rename = "isXls", skip_serializing_if = "std::ops::Not::not")]
+    pub is_xls: bool,
 }
 
 /// 解析后的行
@@ -241,6 +244,7 @@ pub fn parse_excel(data: &[u8], options: &PreviewOptions) -> Result<ParsedWorkbo
         &dimensions,
         style_sheet.as_ref(),
         options,
+        xlsx,
     )?;
 
     Ok(ParsedWorkbook {
@@ -322,7 +326,9 @@ fn build_parsed_sheet(
     dimensions: &SheetDimensions,
     style_sheet: Option<&ExcelStyleSheet>,
     options: &PreviewOptions,
+    is_xlsx: bool,
 ) -> Result<ParsedSheet, String> {
+    let is_xls = !is_xlsx;
     let (total_rows, total_cols) = range.get_size();
     if total_rows == 0 || total_cols == 0 {
         return Ok(ParsedSheet {
@@ -331,6 +337,7 @@ fn build_parsed_sheet(
             col_widths: Vec::new(),
             merged_cells: Vec::new(),
             truncated: None,
+            is_xls,
         });
     }
 
@@ -407,6 +414,9 @@ fn build_parsed_sheet(
                 } else {
                     None
                 }
+            } else if is_xls && (value.len() > 30 || value.contains('\n')) {
+                // xls 格式无样式信息，对长文本/含换行的单元格自动添加 wrap
+                Some("white-space:pre-wrap;word-break:break-word".to_string())
             } else {
                 None
             };
@@ -458,6 +468,7 @@ fn build_parsed_sheet(
         col_widths,
         merged_cells: filtered_merges,
         truncated: if truncated { Some(true) } else { None },
+        is_xls,
     })
 }
 

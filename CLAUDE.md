@@ -42,7 +42,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **手动发布到 npm**: `just publish [tag]` (tag 默认为 latest)
 - **查看发布信息**: `just info`
 
-发布版本前先更新`CHANGELOG.md`文件，记录本次版本的新增功能、修复的 bug、性能优化等重要变更信息。确保每个变更都清晰描述，并按照 Keep a Changelog 的格式进行分类和排序。未发布的改动通常是在[unreleased]部分记录，发布新版本时将其移动到对应的版本标题下，并添加发布日期。
+发布版本前先更新`CHANGELOG.md`文件，记录本次版本的新增功能、修复的 bug、性能优化等重要变更信息。确保每个变更都清晰描述，并按照 Keep a Changelog 的格式进行分类和排序。
+**重要限制（绝对规则）**：有版本号的栏目表示已发布的历史版本，**绝对不能**往里面添加任何新的变更日志。未发布的改动**必须**记录在 `## [Unreleased]` 部分。只有在准备发布新版本时，才将这些记录移动到一个新的版本号标题下并添加发布日期。
 
 ### 子包管理
 

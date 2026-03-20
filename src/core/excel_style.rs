@@ -713,12 +713,6 @@ pub fn cell_style_to_css(style: &ExcelCellStyle) -> String {
         parts.push(format!("vertical-align:{css}"));
     }
 
-    if style.wrap_text {
-        parts.push("white-space:pre-wrap".to_string());
-        parts.push("word-break:break-word".to_string());
-        parts.push("max-width:200px".to_string());
-    }
-
     if let Some(ref b) = style.border_top {
         parts.push(format!("border-top:{}", border_to_css(b)));
     }
