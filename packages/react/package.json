@@ -1,6 +1,6 @@
 {
   "name": "@bsg-export/react",
-  "version": "1.1.2",
+  "version": "1.1.3",
   "description": "belobog-stellar-grid 的 React 官方封装组件",
   "type": "module",
   "main": "./dist/index.js",
