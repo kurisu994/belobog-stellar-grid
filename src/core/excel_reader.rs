@@ -582,11 +582,14 @@ fn parse_sheet_dimensions<R: Read + Seek>(
     // 确定 sheet xml 路径
     let sheet_path = find_sheet_path(&mut archive, sheet_index)?;
 
-    let mut file = archive
+    let file = archive
         .by_name(&sheet_path)
         .map_err(|e| format!("无法找到 {sheet_path}: {e}"))?;
+    // 限制读取大小防止 Zip Bomb 攻击
+    const MAX_SHEET_XML_SIZE: u64 = 50 * 1024 * 1024;
     let mut xml = String::new();
-    file.read_to_string(&mut xml)
+    file.take(MAX_SHEET_XML_SIZE)
+        .read_to_string(&mut xml)
         .map_err(|e| format!("读取 {sheet_path} 失败: {e}"))?;
 
     parse_sheet_xml(&xml)
@@ -604,9 +607,14 @@ fn find_sheet_path<R: Read + Seek>(
     }
 
     // 解析 workbook.xml.rels 获取正确路径
-    if let Ok(mut rels_file) = archive.by_name("xl/_rels/workbook.xml.rels") {
+    if let Ok(rels_file) = archive.by_name("xl/_rels/workbook.xml.rels") {
         let mut rels_xml = String::new();
-        if rels_file.read_to_string(&mut rels_xml).is_ok() {
+        // 限制读取大小防止 Zip Bomb
+        if rels_file
+            .take(10 * 1024 * 1024)
+            .read_to_string(&mut rels_xml)
+            .is_ok()
+        {
             let mut reader = quick_xml::Reader::from_str(&rels_xml);
             let mut buf = Vec::new();
             let mut sheet_paths = Vec::new();
@@ -690,8 +698,10 @@ fn parse_sheet_xml(xml: &str) -> Result<SheetDimensions, String> {
                                 let width =
                                     get_rel_attr(e, "width").and_then(|v| v.parse::<f64>().ok());
                                 if let Some(w) = width {
+                                    // 限制范围防止恶意文件设置极大 max 导致 DoS
+                                    let safe_max = max.min(MAX_COLS_LIMIT as u32);
                                     // col 索引从 1 开始，转为 0-based
-                                    for col in min..=max {
+                                    for col in min..=safe_max {
                                         dims.col_widths.insert(col - 1, w);
                                     }
                                 }
@@ -701,11 +711,14 @@ fn parse_sheet_xml(xml: &str) -> Result<SheetDimensions, String> {
                     "row" => {
                         current_row = get_rel_attr(e, "r").and_then(|v| v.parse::<u32>().ok());
                         if let Some(row) = current_row {
-                            if let Some(ht) =
-                                get_rel_attr(e, "ht").and_then(|v| v.parse::<f64>().ok())
-                            {
-                                // row 索引从 1 开始，转为 0-based
-                                dims.row_heights.insert(row - 1, ht);
+                            // 限制行号范围防止恶意文件导致 DoS
+                            if (row as usize) <= MAX_ROWS_LIMIT {
+                                if let Some(ht) =
+                                    get_rel_attr(e, "ht").and_then(|v| v.parse::<f64>().ok())
+                                {
+                                    // row 索引从 1 开始，转为 0-based
+                                    dims.row_heights.insert(row - 1, ht);
+                                }
                             }
                         }
                     }

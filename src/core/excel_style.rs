@@ -156,15 +156,19 @@ impl ExcelStyleSheet {
         Ok(sheet)
     }
 
+    /// XML 文件最大读取限制（50MB），防止 Zip Bomb 攻击
+    const MAX_XML_SIZE: u64 = 50 * 1024 * 1024;
+
     fn read_zip_entry<R: Read + Seek>(
         archive: &mut zip::ZipArchive<R>,
         name: &str,
     ) -> Result<String, String> {
-        let mut file = archive
+        let file = archive
             .by_name(name)
             .map_err(|e| format!("无法找到 {name}: {e}"))?;
         let mut content = String::new();
-        file.read_to_string(&mut content)
+        file.take(Self::MAX_XML_SIZE)
+            .read_to_string(&mut content)
             .map_err(|e| format!("读取 {name} 失败: {e}"))?;
         Ok(content)
     }
@@ -689,10 +693,10 @@ pub fn cell_style_to_css(style: &ExcelCellStyle) -> String {
     }
 
     if let Some(ref color) = style.font_color {
-        parts.push(format!("color:{color}"));
+        parts.push(format!("color:{}", sanitize_hex_color(color)));
     }
     if let Some(ref bg) = style.bg_color {
-        parts.push(format!("background-color:{bg}"));
+        parts.push(format!("background-color:{}", sanitize_hex_color(bg)));
     }
 
     if let Some(ref align) = style.h_align {
@@ -745,7 +749,9 @@ fn border_to_css(border: &BorderDef) -> String {
         _ => "1px solid",
     };
     let color = border.color.as_deref().unwrap_or("#000000");
-    format!("{css_style} {color}")
+    // 校验边框颜色值合法性，防止 CSS 注入
+    let safe_color = sanitize_hex_color(color);
+    format!("{css_style} {safe_color}")
 }
 
 /// 应用 tint 色调偏移
@@ -790,10 +796,26 @@ fn parse_hex_rgb(hex: &str) -> Option<(u8, u8, u8)> {
 
 fn normalize_color(color: &str) -> String {
     let c = color.trim_start_matches('#');
-    if c.len() == 8 {
-        format!("#{}", &c[2..])
+    // ARGB 格式：取后 6 位 RGB
+    let rgb = if c.len() == 8 { &c[2..] } else { c };
+    // 校验是否为合法十六进制颜色，防止 CSS 注入
+    if (rgb.len() == 6 || rgb.len() == 3) && rgb.chars().all(|ch| ch.is_ascii_hexdigit()) {
+        format!("#{rgb}")
     } else {
-        format!("#{c}")
+        // 非法值回退为黑色
+        "#000000".to_string()
+    }
+}
+
+/// 校验十六进制颜色值合法性，防止 CSS 注入
+///
+/// 仅允许 `#RGB` 或 `#RRGGBB` 格式，非法值回退为默认值。
+fn sanitize_hex_color(color: &str) -> &str {
+    let c = color.trim_start_matches('#');
+    if (c.len() == 6 || c.len() == 3) && c.chars().all(|ch| ch.is_ascii_hexdigit()) {
+        color
+    } else {
+        "#000000"
     }
 }
 
@@ -909,7 +931,11 @@ pub fn format_number(value: f64, format_str: &str) -> String {
 
     // 纯整数格式（如 "0", "#"）
     if clean.contains('0') || clean.contains('#') {
-        return format!("{}", value.round() as i64);
+        // 超出 i64 精确表示范围时回退到通用格式
+        if value.abs() < 1e18 {
+            return format!("{}", value.round() as i64);
+        }
+        return format_general(value);
     }
 
     // 未知格式，使用智能默认
@@ -977,15 +1003,39 @@ fn count_decimal_places(fmt: &str) -> usize {
 }
 
 /// 去除格式字符串中的颜色标记（如 [Red]、[Green]、[Color1]）
+///
+/// 仅移除已知的颜色标记，保留条件格式、区域设置等方括号内容。
 fn strip_color_markers(fmt: &str) -> String {
+    /// 判断方括号内的内容是否为已知颜色标记
+    fn is_color_marker(content: &str) -> bool {
+        let lower = content.to_ascii_lowercase();
+        matches!(
+            lower.as_str(),
+            "red" | "green" | "blue" | "yellow" | "cyan" | "magenta" | "white" | "black"
+        ) || lower.starts_with("color") && lower["color".len()..].trim().parse::<u32>().is_ok()
+    }
+
     let mut result = String::with_capacity(fmt.len());
-    let mut in_bracket = false;
-    for ch in fmt.chars() {
-        match ch {
-            '[' => in_bracket = true,
-            ']' => in_bracket = false,
-            _ if !in_bracket => result.push(ch),
-            _ => {}
+    let mut chars = fmt.chars().peekable();
+
+    while let Some(ch) = chars.next() {
+        if ch == '[' {
+            // 收集方括号内的内容
+            let mut bracket_content = String::new();
+            for inner in chars.by_ref() {
+                if inner == ']' {
+                    break;
+                }
+                bracket_content.push(inner);
+            }
+            // 仅移除颜色标记，保留其他方括号内容
+            if !is_color_marker(&bracket_content) {
+                result.push('[');
+                result.push_str(&bracket_content);
+                result.push(']');
+            }
+        } else {
+            result.push(ch);
         }
     }
     result
@@ -1007,8 +1057,11 @@ fn format_with_thousands(value: f64, decimals: usize) -> String {
     let abs_val = value.abs();
     let formatted = if decimals > 0 {
         format!("{abs_val:.prec$}", prec = decimals)
-    } else {
+    } else if abs_val < 1e18 {
         format!("{}", abs_val.round() as i64)
+    } else {
+        // 超大值回退到通用格式
+        return format_general(value);
     };
     let parts: Vec<&str> = formatted.splitn(2, '.').collect();
     let int_part = parts[0];

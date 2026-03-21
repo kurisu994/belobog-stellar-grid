@@ -12,9 +12,9 @@ pub fn set_panic_hook() {
 
 /// 防止 CSV 注入攻击
 ///
-/// 如果字段以 `=`, `+`, `-`, `@` 开头，则在前面添加单引号 `'`
+/// 如果字段以 `=`, `+`, `-`, `@`, `\t`, `\r` 开头，则在前面添加单引号 `'`
 pub fn escape_csv_injection(text: &str) -> std::borrow::Cow<'_, str> {
-    if text.starts_with(['=', '+', '-', '@', '\t']) {
+    if text.starts_with(['=', '+', '-', '@', '\t', '\r']) {
         format!("'{}", text).into()
     } else {
         text.into()

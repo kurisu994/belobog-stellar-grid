@@ -341,37 +341,27 @@ struct CellInfo {
 fn parse_cell_value(val: &JsValue) -> CellInfo {
     // 如果是对象（非 null/undefined/string/number/bool），尝试解析合并属性
     if val.is_object() && !val.is_null() && val.as_string().is_none() {
-        // 检查是否有 value 属性（区分普通对象和合并单元格对象）
-        let has_value = js_sys::Reflect::get(val, &JsValue::from_str("value"))
+        // 一次性读取各属性（避免重复的 JS Reflect 调用）
+        let value_js = js_sys::Reflect::get(val, &JsValue::from_str("value"))
             .ok()
-            .filter(|v| !v.is_undefined())
-            .is_some();
-
-        let has_col_span = js_sys::Reflect::get(val, &JsValue::from_str("colSpan"))
+            .filter(|v| !v.is_undefined());
+        let col_span_js = js_sys::Reflect::get(val, &JsValue::from_str("colSpan"))
             .ok()
-            .filter(|v| !v.is_undefined())
-            .is_some();
-
-        let has_row_span = js_sys::Reflect::get(val, &JsValue::from_str("rowSpan"))
+            .filter(|v| !v.is_undefined());
+        let row_span_js = js_sys::Reflect::get(val, &JsValue::from_str("rowSpan"))
             .ok()
-            .filter(|v| !v.is_undefined())
-            .is_some();
+            .filter(|v| !v.is_undefined());
 
         // 只有当对象包含 value、colSpan 或 rowSpan 属性时，才按合并单元格处理
-        if has_value || has_col_span || has_row_span {
-            let value = js_sys::Reflect::get(val, &JsValue::from_str("value"))
-                .ok()
-                .map(|v| js_value_to_string(&v))
-                .unwrap_or_default();
+        if value_js.is_some() || col_span_js.is_some() || row_span_js.is_some() {
+            let value = value_js.map(|v| js_value_to_string(&v)).unwrap_or_default();
 
-            let col_span = js_sys::Reflect::get(val, &JsValue::from_str("colSpan"))
-                .ok()
+            let col_span = col_span_js
                 .and_then(|v| v.as_f64())
                 .map(|n| n as u32)
                 .unwrap_or(1);
 
-            let row_span = js_sys::Reflect::get(val, &JsValue::from_str("rowSpan"))
-                .ok()
+            let row_span = row_span_js
                 .and_then(|v| v.as_f64())
                 .map(|n| n as u32)
                 .unwrap_or(1);
@@ -450,9 +440,11 @@ fn extract_data_rows(
                     let first_row = (i as usize + header_row_count) as u32;
                     let first_col = col_idx as u16;
 
-                    // parse_cell_value 已确保 row_span 和 col_span 至少为 1
-                    let last_row = first_row + cell_info.row_span - 1;
-                    let last_col = first_col + (cell_info.col_span as u16) - 1;
+                    // 限制 span 范围防止溢出（使用 saturating 算术避免 debug panic）
+                    let safe_row_span = cell_info.row_span.min(1_000_000);
+                    let safe_col_span = (cell_info.col_span.min(16_384)) as u16;
+                    let last_row = first_row.saturating_add(safe_row_span).saturating_sub(1);
+                    let last_col = first_col.saturating_add(safe_col_span).saturating_sub(1);
 
                     merge_ranges.push(MergeRange::new(first_row, first_col, last_row, last_col));
                 }

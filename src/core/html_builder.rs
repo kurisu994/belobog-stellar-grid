@@ -84,10 +84,10 @@ pub fn build_html_table(sheet: &ParsedSheet) -> String {
                         }
                     }
 
-                    // 样式
+                    // 样式（转义双引号防止属性注入）
                     if let Some(ref style) = cell_data.style {
                         html.push_str(" style=\"");
-                        html.push_str(style);
+                        html.push_str(&style.replace('"', "&quot;"));
                         html.push('"');
                     }
 

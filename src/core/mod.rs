@@ -518,16 +518,18 @@ pub(crate) fn parse_export_data_options(
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
 
-    // 解析 freezeRows
+    // 解析 freezeRows（校验有限非负值）
     let freeze_rows = js_sys::Reflect::get(options, &JsValue::from_str("freezeRows"))
         .ok()
         .and_then(|v| v.as_f64())
+        .filter(|n| n.is_finite() && *n >= 0.0)
         .map(|n| n as u32);
 
-    // 解析 freezeCols
+    // 解析 freezeCols（校验有限非负值）
     let freeze_cols = js_sys::Reflect::get(options, &JsValue::from_str("freezeCols"))
         .ok()
         .and_then(|v| v.as_f64())
+        .filter(|n| n.is_finite() && *n >= 0.0)
         .map(|n| n as u16);
 
     // 解析 headerStyle（全局表头样式）
@@ -753,22 +755,13 @@ pub fn generate_data_bytes(
             (td, opts.format, opts.with_bom)
         }
     } else {
-        // 二维数组模式
+        // 二维数组模式（样式由下方 merge_global_styles 统一注入）
         let rows = parse_js_array_data(&data)?;
-        let style_sheet = if global_header_style.is_some() || global_cell_style.is_some() {
-            Some(style::StyleSheet {
-                header_style: global_header_style.clone(),
-                data_style: global_cell_style.clone(),
-                ..Default::default()
-            })
-        } else {
-            None
-        };
         let td = table_extractor::TableData {
             rows,
             merge_ranges: Vec::new(),
             header_row_count: 0,
-            style_sheet,
+            style_sheet: None,
         };
         (td, opts.format, opts.with_bom)
     };
@@ -880,9 +873,9 @@ fn parse_preview_options(options: &JsValue) -> Result<excel_reader::PreviewOptio
 
     let mut opts = excel_reader::PreviewOptions::default();
 
-    // sheetIndex
+    // sheetIndex（校验有限非负值）
     if let Ok(val) = js_sys::Reflect::get(options, &JsValue::from_str("sheetIndex")) {
-        if let Some(n) = val.as_f64() {
+        if let Some(n) = val.as_f64().filter(|n| n.is_finite() && *n >= 0.0) {
             opts.sheet_index = Some(n as usize);
         }
     }
@@ -894,16 +887,16 @@ fn parse_preview_options(options: &JsValue) -> Result<excel_reader::PreviewOptio
         }
     }
 
-    // maxRows
+    // maxRows（校验有限正值）
     if let Ok(val) = js_sys::Reflect::get(options, &JsValue::from_str("maxRows")) {
-        if let Some(n) = val.as_f64() {
+        if let Some(n) = val.as_f64().filter(|n| n.is_finite() && *n >= 1.0) {
             opts.max_rows = Some(n as usize);
         }
     }
 
-    // maxCols
+    // maxCols（校验有限正值）
     if let Ok(val) = js_sys::Reflect::get(options, &JsValue::from_str("maxCols")) {
-        if let Some(n) = val.as_f64() {
+        if let Some(n) = val.as_f64().filter(|n| n.is_finite() && *n >= 1.0) {
             opts.max_cols = Some(n as usize);
         }
     }
