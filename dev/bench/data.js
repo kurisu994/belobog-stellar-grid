@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1774063541722,
+  "lastUpdate": 1774064041799,
   "repoUrl": "https://github.com/kurisu994/belobog-stellar-grid",
   "entries": {
     "Rust Benchmark": [
@@ -2302,6 +2302,102 @@ window.BENCHMARK_DATA = {
           {
             "name": "csv_escape/公式文本",
             "value": 51,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "makise_kurisuu@outlook.jp",
+            "name": "Kurisu",
+            "username": "kurisu994"
+          },
+          "committer": {
+            "email": "makise_kurisuu@outlook.jp",
+            "name": "Kurisu",
+            "username": "kurisu994"
+          },
+          "distinct": true,
+          "id": "978d161de78f18f244c7f8e8a5c787532f7ca762",
+          "message": "📝 docs(project): 更新项目规则文档和测试说明\n\n同步项目结构变更，新增 Excel 预览、样式系统和流式导出模块\n更新测试数量从 103 个增加到 190 个\n添加 Svelte、Solid.js 和 Web Worker 子包支持\n修复批量 XLSX 导出的表头行数计算问题\n优化颜色计算和样式解析实现",
+          "timestamp": "2026-03-21T11:30:30+08:00",
+          "tree_id": "10645cda938df3e2f152426f8c5beef28581a6e8",
+          "url": "https://github.com/kurisu994/belobog-stellar-grid/commit/978d161de78f18f244c7f8e8a5c787532f7ca762"
+        },
+        "date": 1774064040586,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "csv_generation/无BOM/100行x10列",
+            "value": 83696,
+            "range": "± 855",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_generation/无BOM/1000行x10列",
+            "value": 900617,
+            "range": "± 3884",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_generation/无BOM/5000行x10列",
+            "value": 4531709,
+            "range": "± 34961",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_generation/无BOM/1000行x50列",
+            "value": 4266329,
+            "range": "± 32243",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_generation/带BOM/1000行x10列",
+            "value": 882676,
+            "range": "± 10173",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "xlsx_generation/无合并/100行x10列",
+            "value": 1975395,
+            "range": "± 26997",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "xlsx_generation/无合并/1000行x10列",
+            "value": 18203664,
+            "range": "± 101285",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "xlsx_generation/无合并/5000行x10列",
+            "value": 100464220,
+            "range": "± 434365",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "xlsx_generation/无合并/1000行x50列",
+            "value": 108807000,
+            "range": "± 941706",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "xlsx_generation/含合并/1000行x10列",
+            "value": 19300106,
+            "range": "± 345505",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_escape/普通文本",
+            "value": 9,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_escape/公式文本",
+            "value": 52,
             "range": "± 0",
             "unit": "ns/iter"
           }
