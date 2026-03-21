@@ -87,7 +87,7 @@ export function export_data(data: any, options?: any | null): void;
  * 将 CSV 输出按 `chunkSize` 行分块写入，每块转为 `Uint8Array` 后立即释放 Rust 侧内存，
  * 最后用所有分块拼接成单个 `Blob` 触发下载。
  *
- * **内存优化**：Rust 侧内存峰值仅为一个分块大小，而非全部数据。
+ * **内存优化**：CSV 编码缓冲峰值仅为一个分块大小（源数据仍完整驻留内存中）。
  *
  * **XLSX 限制**：当 `format=Xlsx` 时，由于 XLSX 库不支持流式写入，
  * 会自动回退到 `export_data` 的同步逻辑。
