@@ -9,6 +9,22 @@
 
 ## [Unreleased]
 
+### 修复 (Fixed)
+
+- 🐛 修复批量 XLSX 导出（`export_table_to_xlsx_batch` / `export_tables_to_xlsx_batch`）中 `header_row_count` 始终为 0 的问题：
+  - 从 `<thead>` 自动计算表头行数，使传入的 `header_style` 和冻结窗格能正确生效
+- 🐛 修复 `apply_tint` 颜色 tint 计算中浮点误差可能导致 u8 溢出的问题，添加 `.clamp(0.0, 255.0)` 防护
+
+### 优化 (Changed)
+
+- ♻️ `excel_reader.rs` 消除 `parse_sheet_xml` 中冗余的 `current_row` 外层变量和 `let _ = current_row` 抑制语句
+- ♻️ `style.rs` 为 `BorderLine` 实现标准 `std::str::FromStr` trait，支持 `.parse::<BorderLine>()` 语法
+
+### 文档 (Documentation)
+
+- 📝 更新 AI 助手规则文件（`.agent`、`.cursor`、`.kiro`、`.trae`）：同步模块结构、测试数量（103→190）、子包列表（新增 svelte/solid/worker）
+- 📝 更新 `tests/README.md`：测试总数 130→190，新增 `test_excel_preview.rs` 说明
+
 ---
 
 ## [1.1.6] - 2026-03-20
