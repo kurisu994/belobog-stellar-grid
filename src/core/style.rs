@@ -57,16 +57,24 @@ impl BorderLine {
         }
     }
 
-    /// 从字符串解析边框线条类型
+    /// 从字符串解析边框线条类型（兼容方法，内部委托给 FromStr）
     pub fn from_str(s: &str) -> Option<Self> {
+        s.parse().ok()
+    }
+}
+
+impl std::str::FromStr for BorderLine {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "thin" => Some(BorderLine::Thin),
-            "medium" => Some(BorderLine::Medium),
-            "thick" => Some(BorderLine::Thick),
-            "dashed" => Some(BorderLine::Dashed),
-            "dotted" => Some(BorderLine::Dotted),
-            "double" => Some(BorderLine::Double),
-            _ => None,
+            "thin" => Ok(BorderLine::Thin),
+            "medium" => Ok(BorderLine::Medium),
+            "thick" => Ok(BorderLine::Thick),
+            "dashed" => Ok(BorderLine::Dashed),
+            "dotted" => Ok(BorderLine::Dotted),
+            "double" => Ok(BorderLine::Double),
+            _ => Err(()),
         }
     }
 }

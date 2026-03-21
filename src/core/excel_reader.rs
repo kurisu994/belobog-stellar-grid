@@ -673,7 +673,6 @@ fn parse_sheet_xml(xml: &str) -> Result<SheetDimensions, String> {
     let mut reader = quick_xml::Reader::from_str(xml);
     let mut buf = Vec::new();
     let mut dims = SheetDimensions::default();
-    let mut current_row: Option<u32> = None;
 
     loop {
         match reader.read_event_into(&mut buf) {
@@ -709,8 +708,8 @@ fn parse_sheet_xml(xml: &str) -> Result<SheetDimensions, String> {
                         }
                     }
                     "row" => {
-                        current_row = get_rel_attr(e, "r").and_then(|v| v.parse::<u32>().ok());
-                        if let Some(row) = current_row {
+                        let row = get_rel_attr(e, "r").and_then(|v| v.parse::<u32>().ok());
+                        if let Some(row) = row {
                             // 限制行号范围防止恶意文件导致 DoS
                             if (row as usize) <= MAX_ROWS_LIMIT {
                                 if let Some(ht) =
@@ -743,7 +742,6 @@ fn parse_sheet_xml(xml: &str) -> Result<SheetDimensions, String> {
         }
         buf.clear();
     }
-    let _ = current_row;
 
     Ok(dims)
 }

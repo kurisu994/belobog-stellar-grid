@@ -763,16 +763,16 @@ pub fn apply_tint(hex: &str, tint: f64) -> String {
     };
 
     let (r, g, b) = if tint > 0.0 {
-        let r = r as f64 + (255.0 - r as f64) * tint;
-        let g = g as f64 + (255.0 - g as f64) * tint;
-        let b = b as f64 + (255.0 - b as f64) * tint;
+        let r = (r as f64 + (255.0 - r as f64) * tint).clamp(0.0, 255.0);
+        let g = (g as f64 + (255.0 - g as f64) * tint).clamp(0.0, 255.0);
+        let b = (b as f64 + (255.0 - b as f64) * tint).clamp(0.0, 255.0);
         (r.round() as u8, g.round() as u8, b.round() as u8)
     } else {
         let factor = 1.0 + tint;
         (
-            (r as f64 * factor).round() as u8,
-            (g as f64 * factor).round() as u8,
-            (b as f64 * factor).round() as u8,
+            (r as f64 * factor).clamp(0.0, 255.0).round() as u8,
+            (g as f64 * factor).clamp(0.0, 255.0).round() as u8,
+            (b as f64 * factor).clamp(0.0, 255.0).round() as u8,
         )
     };
 

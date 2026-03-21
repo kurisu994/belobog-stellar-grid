@@ -380,6 +380,12 @@ async fn extract_table_data_batch_with_offset(
     let table_rows = table.rows();
     let table_row_count = table_rows.length() as usize;
 
+    // 计算表头行数（来自 <thead> 的行），用于样式区分和冻结窗格
+    let header_row_count = table
+        .t_head()
+        .map(|thead| thead.rows().length() as usize)
+        .unwrap_or(0);
+
     // 获取数据表格体（如果有）
     let mut tbody_rows_collection = None;
     let mut tbody_row_count = 0;
@@ -417,6 +423,7 @@ async fn extract_table_data_batch_with_offset(
     }
 
     let mut table_data = TableData::with_capacity(total_rows);
+    table_data.header_row_count = header_row_count;
     let mut tracker = RowSpanTracker::new();
     let mut output_row_idx: u32 = 0;
 
