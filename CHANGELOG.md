@@ -9,6 +9,10 @@
 
 ## [Unreleased]
 
+---
+
+## [1.1.7] - 2026-03-23
+
 ### 新增 (Added)
 
 - 🚀 `@bsg-export/svelte` 新增 `createExcelPreview` Store 和 `ExcelPreview.svelte` 组件，支持 Excel 在线预览与多 Sheet 切换
