@@ -16,13 +16,18 @@
       "types": "./dist/ExportButton.svelte.d.ts",
       "svelte": "./dist/ExportButton.svelte",
       "import": "./dist/ExportButton.svelte"
+    },
+    "./ExcelPreview.svelte": {
+      "types": "./dist/ExcelPreview.svelte.d.ts",
+      "svelte": "./dist/ExcelPreview.svelte",
+      "import": "./dist/ExcelPreview.svelte"
     }
   },
   "files": [
     "dist"
   ],
   "scripts": {
-    "build": "tsc && cp src/ExportButton.svelte src/ExportButton.svelte.d.ts dist/",
+    "build": "tsc && cp src/ExportButton.svelte src/ExportButton.svelte.d.ts src/ExcelPreview.svelte src/ExcelPreview.svelte.d.ts dist/",
     "typecheck": "tsc --noEmit"
   },
   "keywords": [

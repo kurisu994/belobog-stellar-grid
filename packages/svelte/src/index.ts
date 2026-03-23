@@ -14,8 +14,13 @@ export type { ExporterStore } from './create-exporter';
 export { createWorkerExporter } from './create-worker-exporter';
 export type { WorkerExporterStore } from './create-worker-exporter';
 
-// 组件类型（组件本身通过 '@bsg-export/svelte/ExportButton.svelte' 导入）
+// Excel 预览
+export { createExcelPreview } from './create-excel-preview';
+export type { CreateExcelPreviewOptions, ExcelPreviewStore } from './create-excel-preview';
+
+// 组件类型（组件本身通过子路径导入，如 '@bsg-export/svelte/ExportButton.svelte'）
 export type { ExportButtonProps } from './ExportButton.svelte';
+export type { ExcelPreviewProps, ExcelPreviewEvents } from './ExcelPreview.svelte';
 
 // 重导出类型（方便用户不用额外安装 @bsg-export/types）
 export type {
@@ -33,6 +38,14 @@ export type {
   ExportCsvBatchOptions,
   ExportXlsxBatchOptions,
   ExportTablesBatchOptions,
+  // 预览相关类型
+  PreviewOptions,
+  SheetInfo,
+  ParsedWorkbook,
+  ParsedSheet,
+  ParsedRow,
+  ParsedCell,
+  MergeRegion,
 } from '@bsg-export/types';
 
 export { ExportFormat } from '@bsg-export/types';

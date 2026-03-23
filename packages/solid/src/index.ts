@@ -13,9 +13,16 @@ export type { CreateExporterReturn } from './create-exporter';
 export { createWorkerExporter } from './create-worker-exporter';
 export type { CreateWorkerExporterReturn } from './create-worker-exporter';
 
+// Excel 预览
+export { createExcelPreview } from './create-excel-preview';
+export type { CreateExcelPreviewOptions, ExcelPreviewReturn } from './create-excel-preview';
+
 // 组件
 export { ExportButton } from './ExportButton';
 export type { ExportButtonProps } from './ExportButton';
+
+export { ExcelPreview } from './ExcelPreview';
+export type { ExcelPreviewProps } from './ExcelPreview';
 
 // 重导出类型（方便用户不用额外安装 @bsg-export/types）
 export type {
@@ -33,6 +40,14 @@ export type {
   ExportCsvBatchOptions,
   ExportXlsxBatchOptions,
   ExportTablesBatchOptions,
+  // 预览相关类型
+  PreviewOptions,
+  SheetInfo,
+  ParsedWorkbook,
+  ParsedSheet,
+  ParsedRow,
+  ParsedCell,
+  MergeRegion,
 } from '@bsg-export/types';
 
 export { ExportFormat } from '@bsg-export/types';

@@ -9,6 +9,12 @@
 
 ## [Unreleased]
 
+### 新增 (Added)
+
+- 🚀 `@bsg-export/svelte` 新增 `createExcelPreview` Store 和 `ExcelPreview.svelte` 组件，支持 Excel 在线预览与多 Sheet 切换
+- 🚀 `@bsg-export/solid` 新增 `createExcelPreview` Primitive 和 `ExcelPreview` 组件，支持 Excel 在线预览与多 Sheet 切换
+- 🚀 Svelte/Solid 子包重导出预览相关类型（`PreviewOptions`、`SheetInfo`、`ParsedWorkbook` 等）
+
 ### 修复 (Fixed)
 
 - 🐛 修复批量 XLSX 导出（`export_table_to_xlsx_batch` / `export_tables_to_xlsx_batch`）中 `header_row_count` 始终为 0 的问题：
