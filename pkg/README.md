@@ -30,7 +30,7 @@
 - **🚀 极致性能**：Rust 原生速度 + WebAssembly 优化
 - **🔒 企业级安全**：内置文件名验证，防止路径遍历攻击
 - **📦 轻量级**：约 1.3MB 的 WASM 文件（Gzip 压缩后约 450KB）
-- **✅ 100% 测试覆盖**：190+ 个单元测试 + 45 个 E2E 测试确保代码质量
+- **✅ 100% 测试覆盖**：190 个单元测试 + 47 个 E2E 测试确保代码质量
 - **🏗️ 模块化架构**：清晰的模块设计，易于维护和扩展
 - **🌍 国际化支持**：完美支持中文、日文、韩文等 Unicode 字符
 - **💾 多格式导出**：支持 CSV 和 XLSX (Excel) 两种格式
@@ -254,20 +254,22 @@ try {
 
 查看 [examples/](./examples/) 目录获取完整示例：
 
-| 示例                       | 难度                                                   | 描述                                        |
-| -------------------------- | ------------------------------------------------------ | ------------------------------------------- |
-| basic-export.html          | ![简单](https://img.shields.io/badge/难度-简单-green)  | 基础导出示例                                |
-| progress-export.html       | ![中等](https://img.shields.io/badge/难度-中等-yellow) | 进度显示示例                                |
-| advanced-features.html     | ![进阶](https://img.shields.io/badge/难度-进阶-orange) | 高级特性示例                                |
-| container-export.html      | ![中等](https://img.shields.io/badge/难度-中等-yellow) | 容器元素导出示例                            |
-| array-export.html          | ![进阶](https://img.shields.io/badge/难度-进阶-orange) | 数组导出（嵌套表头 + 数据合并）示例         |
-| tree-export.html           | ![进阶](https://img.shields.io/badge/难度-进阶-orange) | 树形数据导出（递归拍平 + 层级缩进）示例     |
-| multi-sheet-export.html    | ![进阶](https://img.shields.io/badge/难度-进阶-orange) | 多工作表导出示例                            |
-| worker-export.html         | ![高级](https://img.shields.io/badge/难度-高级-red)    | Web Worker 导出（避免主线程阻塞）示例       |
-| virtual-scroll-export.html | ![高级](https://img.shields.io/badge/难度-高级-red)    | 虚拟滚动导出（百万级数据）示例              |
-| streaming-export.html      | ![高级](https://img.shields.io/badge/难度-高级-red)    | 流式 CSV 导出（分块 Blob 降低内存峰值）示例 |
+| 示例                       | 难度                                                   | 描述                                           |
+| -------------------------- | ------------------------------------------------------ | ---------------------------------------------- |
+| basic-export.html          | ![简单](https://img.shields.io/badge/难度-简单-green)  | 基础导出示例                                   |
+| progress-export.html       | ![中等](https://img.shields.io/badge/难度-中等-yellow) | 进度显示示例                                   |
+| advanced-features.html     | ![进阶](https://img.shields.io/badge/难度-进阶-orange) | 高级特性示例                                   |
+| container-export.html      | ![中等](https://img.shields.io/badge/难度-中等-yellow) | 容器元素导出示例                               |
+| array-export.html          | ![进阶](https://img.shields.io/badge/难度-进阶-orange) | 数组导出（嵌套表头 + 数据合并）示例            |
+| tree-export.html           | ![进阶](https://img.shields.io/badge/难度-进阶-orange) | 树形数据导出（递归拍平 + 层级缩进）示例        |
+| style-export.html          | ![进阶](https://img.shields.io/badge/难度-进阶-orange) | Excel 样式定制（三级样式体系）示例             |
+| multi-sheet-export.html    | ![进阶](https://img.shields.io/badge/难度-进阶-orange) | 多工作表导出示例                               |
+| cdn-export.html            | ![简单](https://img.shields.io/badge/难度-简单-green)  | CDN 引入（无构建工具）示例                     |
+| worker-export.html         | ![高级](https://img.shields.io/badge/难度-高级-red)    | Web Worker 导出（避免主线程阻塞）示例          |
+| virtual-scroll-export.html | ![高级](https://img.shields.io/badge/难度-高级-red)    | 虚拟滚动导出（百万级数据）示例                 |
+| streaming-export.html      | ![高级](https://img.shields.io/badge/难度-高级-red)    | 流式 CSV 导出（分块 Blob 降低内存峰值）示例    |
 | excel-preview.html         | ![中等](https://img.shields.io/badge/难度-中等-yellow) | Excel 在线预览（解析 xlsx/xls 渲染为表格）示例 |
-| benchmark.html             | ![高级](https://img.shields.io/badge/难度-高级-red)    | 性能基准测试（E2E Benchmark）               |
+| benchmark.html             | ![高级](https://img.shields.io/badge/难度-高级-red)    | 性能基准测试（E2E Benchmark）                  |
 
 #### 框架集成示例
 
@@ -350,7 +352,7 @@ console.log(workbook.sheets[0].rows);
 
 // 获取工作表列表
 const sheets = getExcelSheetList(data);
-sheets.forEach(s => console.log(`${s.name} (${s.rows}×${s.cols})${s.hidden ? ' [隐藏]' : ''}`));
+sheets.forEach((s) => console.log(`${s.name} (${s.rows}×${s.cols})${s.hidden ? " [隐藏]" : ""}`));
 ```
 
 **框架预览组件**：
@@ -511,49 +513,51 @@ just e2e        # 运行 E2E 测试（Playwright）
 
 ```
 belobog-stellar-grid/
-├── src/                    # 源代码
-│   ├── lib.rs             # 主入口
+├── src/                    # 源代码（8,500+ 行 Rust）
+│   ├── lib.rs             # 主入口（仅模块声明和重导出）
 │   ├── validation.rs      # 文件名验证（含 1 个内联测试）
-│   ├── resource.rs        # RAII 资源管理
+│   ├── resource.rs        # RAII 资源管理（UrlGuard）
 │   ├── core/              # 核心导出模块组
 │   │   ├── mod.rs         # 统一 API 和协调
-│   │   ├── table_extractor.rs  # 表格数据提取
-│   │   ├── data_export.rs # 数据导出（columns + dataSource，支持嵌套表头、数据合并、树形数据，含 29 个内联测试）
+│   │   ├── style.rs       # Excel 导出样式模块（三级样式体系，含 13 个内联测试）
+│   │   ├── table_extractor.rs  # 表格数据提取（DOM 解析）
+│   │   ├── data_export.rs # 数据导出（嵌套表头、数据合并、树形数据，含 29 个内联测试）
 │   │   ├── export_csv.rs  # CSV 导出
-│   │   ├── export_xlsx.rs # XLSX 导出
-│   │   ├── excel_reader.rs # Excel 解析核心（calamine + zip 样式 + 隐藏 Sheet）
-│   │   ├── excel_style.rs # OOXML 样式 → CSS 映射引擎
-│   │   └── html_builder.rs # HTML Table 拼装器
+│   │   ├── export_xlsx.rs # XLSX 导出（合并单元格、冻结窗格、样式）
+│   │   ├── excel_reader.rs # Excel 解析核心（calamine + zip 样式 + 隐藏 Sheet，含 23 个内联测试）
+│   │   ├── excel_style.rs # OOXML 样式 → CSS 映射引擎（含 12 个内联测试）
+│   │   └── html_builder.rs # HTML Table 拼装器（含 8 个内联测试）
 │   ├── batch_export.rs    # 异步分批导出（CSV）
 │   ├── batch_export_xlsx.rs # 异步分批导出（XLSX）
 │   ├── streaming_export.rs # 流式 CSV 导出（分块写入 + Blob 拼接）
 │   └── utils.rs           # 调试工具（含 2 个内联测试）
-├── tests/                 # 单元测试目录（190+ 个测试）
-│   ├── lib_tests.rs       # 基础功能测试（70 个）
-│   ├── test_data_export.rs # 数据导出测试（41 个）
-│   ├── test_streaming_export.rs # 流式导出测试（34 个）
-│   ├── test_excel_preview.rs # Excel 预览测试（26 个）
+├── tests/                 # 集成测试目录（120 个测试）
+│   ├── lib_tests.rs       # 基础功能测试（41 个）
+│   ├── test_data_export.rs # 数据导出测试（34 个）
+│   ├── test_streaming_export.rs # 流式导出测试（26 个）
+│   ├── test_excel_preview.rs # Excel 预览测试（4 个）
 │   ├── test_resource.rs   # RAII 资源测试（8 个）
 │   ├── test_unified_api.rs # 统一 API 测试（4 个）
 │   └── test_security.rs   # 安全/CSV注入测试（3 个）
 ├── benches/               # 性能基准测试（Criterion）
-│   └── export_benchmarks.rs # CSV/XLSX 生成 Benchmark
-├── e2e/                   # E2E 测试目录（Playwright，45 个测试）
+│   └── export_benchmarks.rs # CSV/XLSX 生成 + CSV 注入转义 Benchmark
+├── e2e/                   # E2E 测试目录（Playwright，47 个测试）
 │   ├── playwright.config.ts # Playwright 配置
 │   └── tests/             # E2E 测试用例
-│       ├── basic-export.spec.ts      # 基础导出测试（6 个）
+│       ├── basic-export.spec.ts      # 基础导出测试（7 个）
 │       ├── array-export.spec.ts      # 数组导出测试（9 个）
+│       ├── style-export.spec.ts      # 样式导出测试（7 个）
 │       ├── container-export.spec.ts  # 容器导出测试（5 个）
 │       ├── multi-sheet-export.spec.ts # 多工作表测试（3 个）
 │       ├── tree-export.spec.ts       # 树形数据测试（7 个）
 │       ├── wasm-init.spec.ts         # WASM 初始化测试（3 个）
 │       └── benchmark.spec.ts        # 性能基准测试（6 个）
-├── examples/              # 原生 HTML 示例目录
+├── examples/              # 原生 HTML 示例目录（14 个示例）
 ├── packages/              # 框架集成子包
 │   ├── types/             # @bsg-export/types - 严格 TypeScript 类型定义
-│   ├── react/             # @bsg-export/react - React Hook + 组件封装
+│   ├── react/             # @bsg-export/react - React Hook + 组件 + Excel 预览
 │   │   └── examples/      # Rsbuild + React 示例项目
-│   ├── vue/               # @bsg-export/vue - Vue 3 Composable + 组件封装
+│   ├── vue/               # @bsg-export/vue - Vue 3 Composable + 组件 + Excel 预览
 │   │   └── examples/      # Rsbuild + Vue 3 示例项目
 │   ├── svelte/            # @bsg-export/svelte - Svelte Store 封装 + 组件
 │   │   └── examples/      # Rsbuild + Svelte 5 示例项目
@@ -612,28 +616,26 @@ belobog-stellar-grid/
 
 ### ✨ 功能增强
 
-- [x] **Excel 样式定制**: 支持设置字体、颜色、边框、背景色等单元格样式。三级样式体系（全局→列级→单元格）。 ✅
-- [ ] **条件格式**: 支持根据数据值自动应用颜色、图标集等条件格式规则。
-- [x] **冻结窗格**: 支持冻结表头行/列，方便大数据量 Excel 浏览。 ✅
-- [ ] **数据验证**: 支持 Excel 下拉列表、数值范围等数据验证规则。
-- [ ] **图片导出**: 支持将图片插入到 Excel 单元格中。
-- [ ] **数据选择与过滤**: 支持选择性导出特定行或列，以及数据预处理/转换。
-- [x] **Excel 在线预览**: 基于 `calamine` 在 WASM 侧解析 xlsx/xls 文件，渲染为 HTML `<table>`，保留原始样式（字体/颜色/边框/合并单元格/主题色），只读查看模式。提供双输出（HTML 直出 + JSON 结构化数据），配套 React/Vue 预览组件。 ✅
+- [ ] **条件格式**: 支持根据数据值自动应用颜色/图标集等条件格式规则（rust_xlsxwriter 已支持底层 API）
+- [ ] **数据验证**: 支持 Excel 下拉列表、数值范围等数据验证规则
+- [ ] **图片导出**: 支持将图片（Base64/URL）插入到 Excel 单元格中
+- [ ] **数据选择与过滤**: 支持选择性导出特定行/列，以及数据预处理回调（`valueFormatter`）
+- [ ] **PDF 导出**: 基于现有 XLSX 生成能力，探索浏览器端 PDF 导出方案
+- [ ] **CSV 导入解析**: 提供 `parseCsvToJson` 函数，与 Excel 预览对称的 CSV 解析能力
 
-### ⚡ 性能优化
+### ⚡ 性能与体验优化
 
-- [x] **Web Worker 支持**: 将导出计算移至 Worker 线程，彻底避免主线程阻塞。 ✅
-- [x] **E2E 测试体系**: 引入 Playwright 进行端到端测试，覆盖 33 个测试场景。 ✅
-- [x] **框架集成库**: 提供 React (`@bsg-export/react`)、Vue 3 (`@bsg-export/vue`)、Svelte (`@bsg-export/svelte`)、Solid.js (`@bsg-export/solid`) 官方封装组件。 ✅
-- [x] **严格 TypeScript 类型**: `@bsg-export/types` 提供完整类型安全定义。 ✅
-- [x] **Streaming 导出**: 对超大文件采用流式写入，降低内存峰值占用。 ✅
-- [x] **性能基准测试**: 建立自动化 Benchmark（Criterion + Playwright），持续追踪导出性能回归。 ✅
+- [ ] **WASM 体积优化**: 探索 wasm-opt + 模块拆分策略，将核心导出与 Excel 预览分为独立包，按需加载
+- [ ] **增量导出**: 支持追加数据到已有文件，避免重复生成完整文件
+- [ ] **SharedArrayBuffer 支持**: 利用共享内存减少 Worker 与主线程间的数据拷贝开销
+- [ ] **虚拟化预览渲染**: Excel 预览大文件时支持虚拟滚动，避免 DOM 节点过多导致的性能问题
 
 ### 🌍 生态扩展
 
-- [ ] **Node.js / 服务端支持**: 探索 `wasm32-wasip1` 或 `wasm32-unknown-unknown` 在非浏览器环境的运行能力。
-- [x] **更多框架集成**: 提供 Svelte、Solid.js 等框架的官方封装。✅
-- [x] **CDN 分发**: 提供 unpkg / jsDelivr 等 CDN 直接引用方式，简化非构建工具场景的接入。 ✅
+- [ ] **Node.js / 服务端支持**: 探索 `wasm32-wasip1` 在 Node.js / Deno / Bun 环境下运行的可行性
+- [ ] **Svelte / Solid Excel 预览组件**: 为 Svelte 和 Solid.js 补充 `ExcelPreview` 预览组件（React/Vue 已支持）
+- [ ] **Angular 封装**: 提供 `@bsg-export/angular` 官方封装（Service + Directive）
+- [ ] **Nuxt / Next.js 集成指南**: 提供 SSR/SSG 框架的最佳实践文档和示例
 
 ---
 
