@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1774064041799,
+  "lastUpdate": 1774234638470,
   "repoUrl": "https://github.com/kurisu994/belobog-stellar-grid",
   "entries": {
     "Rust Benchmark": [
@@ -2398,6 +2398,102 @@ window.BENCHMARK_DATA = {
           {
             "name": "csv_escape/公式文本",
             "value": 52,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "makise_kurisuu@outlook.jp",
+            "name": "Kurisu",
+            "username": "kurisu994"
+          },
+          "committer": {
+            "email": "makise_kurisuu@outlook.jp",
+            "name": "Kurisu",
+            "username": "kurisu994"
+          },
+          "distinct": true,
+          "id": "3d9a656f2726161f1bbece3742c06a7398518b2c",
+          "message": "📝 docs: 更新测试统计与项目文档\n\n- 同步单元测试与 E2E 测试数量，避免文档过时\n- 补充新增示例、预览能力和目录结构说明\n- 调整测试分布说明，便于快速定位相关用例",
+          "timestamp": "2026-03-23T10:53:51+08:00",
+          "tree_id": "7a49ab1a4c3ab32ade42b0db3807ef1fd476da67",
+          "url": "https://github.com/kurisu994/belobog-stellar-grid/commit/3d9a656f2726161f1bbece3742c06a7398518b2c"
+        },
+        "date": 1774234636837,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "csv_generation/无BOM/100行x10列",
+            "value": 81626,
+            "range": "± 664",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_generation/无BOM/1000行x10列",
+            "value": 850866,
+            "range": "± 5092",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_generation/无BOM/5000行x10列",
+            "value": 4473318,
+            "range": "± 26713",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_generation/无BOM/1000行x50列",
+            "value": 4160654,
+            "range": "± 29714",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_generation/带BOM/1000行x10列",
+            "value": 883218,
+            "range": "± 9265",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "xlsx_generation/无合并/100行x10列",
+            "value": 1995377,
+            "range": "± 8135",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "xlsx_generation/无合并/1000行x10列",
+            "value": 18460986,
+            "range": "± 168066",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "xlsx_generation/无合并/5000行x10列",
+            "value": 102187266,
+            "range": "± 385295",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "xlsx_generation/无合并/1000行x50列",
+            "value": 110978051,
+            "range": "± 413369",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "xlsx_generation/含合并/1000行x10列",
+            "value": 19408775,
+            "range": "± 99388",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_escape/普通文本",
+            "value": 9,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "csv_escape/公式文本",
+            "value": 51,
             "range": "± 0",
             "unit": "ns/iter"
           }
