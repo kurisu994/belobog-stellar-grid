@@ -633,7 +633,6 @@ belobog-stellar-grid/
 ### 🌍 生态扩展
 
 - [ ] **Node.js / 服务端支持**: 探索 `wasm32-wasip1` 在 Node.js / Deno / Bun 环境下运行的可行性
-- [ ] **Svelte / Solid Excel 预览组件**: ~~为 Svelte 和 Solid.js 补充 `ExcelPreview` 预览组件~~（✅ 已完成）
 - [ ] **Angular 封装**: 提供 `@bsg-export/angular` 官方封装（Service + Directive）
 - [ ] **Nuxt / Next.js 集成指南**: 提供 SSR/SSG 框架的最佳实践文档和示例
 
