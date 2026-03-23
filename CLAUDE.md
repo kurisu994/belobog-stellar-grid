@@ -111,9 +111,9 @@ src/
 ├── streaming_export.rs # 流式 CSV 数据导出 (分块写入 + Blob 拼接，降低内存峰值)
 └── utils.rs            # 调试与辅助工具
 
-tests/                   # 单元测试目录 (190+ 个测试)
+tests/                   # 单元测试目录 (190 个测试)
 benches/                 # 性能基准测试目录 (Criterion)
-e2e/                     # E2E 浏览器自动化测试目录 (Playwright)
+e2e/                     # E2E 浏览器自动化测试目录 (Playwright, 47 个测试)
 
 packages/                # 框架封装子包 (均为 @bsg-export/ 命名空间)
 ├── types/              # 严格 TypeScript 类型定义（零运行时）
@@ -236,13 +236,15 @@ pub fn example_function(param: &str) -> Result<(), JsValue> {
 
 | 测试文件                 | 测试内容                          |
 | ------------------------ | --------------------------------- |
-| lib_tests.rs             | DOM 基础功能（70 个）             |
-| test_data_export.rs      | 纯数据/树形/合并/表头（41 个）    |
-| test_streaming_export.rs | 流式导出逻辑（34 个）            |
-| test_excel_preview.rs    | Excel 预览解析（26 个）           |
+| lib_tests.rs             | CSV 生成、文件名验证、输入校验（41 个） |
+| test_data_export.rs      | 纯数据/树形/合并/表头（34 个）    |
+| test_streaming_export.rs | 流式导出逻辑（26 个）            |
+| test_excel_preview.rs    | Excel 预览解析（4 个）            |
 | test_resource.rs         | RAII 资源管理（8 个）             |
 | test_unified_api.rs      | 统一 API 接口（4 个）            |
 | test_security.rs         | 安全测试（3 个）                  |
+
+> 另有 src/ 下的内联测试共 70 个（native），分布在 data_export.rs(14)、excel_reader.rs(23)、excel_style.rs(12)、style.rs(13)、html_builder.rs(8)、utils.rs(2)、validation.rs(1)。总计 190 个。
 
 ### 新增功能测试要求
 
