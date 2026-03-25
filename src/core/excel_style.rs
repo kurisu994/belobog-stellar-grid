@@ -340,6 +340,33 @@ impl ExcelStyleSheet {
                         &mut current_border_style,
                         &mut num_fmts,
                     );
+                    // 自闭合元素没有 End 事件，需立即提交到集合中
+                    match local {
+                        "xf" if section == Section::CellXfs => {
+                            if let Some(xf) = current_xf.take() {
+                                cell_xfs.push(xf);
+                            }
+                        }
+                        "font" if section == Section::Fonts => {
+                            if let Some(f) = current_font.take() {
+                                fonts.push(f);
+                            }
+                        }
+                        "fill" if section == Section::Fills => {
+                            if let Some(f) = current_fill.take() {
+                                fills.push(f);
+                            }
+                            in_pattern_fill = false;
+                        }
+                        "border" if section == Section::Borders => {
+                            if let Some(b) = current_border.take() {
+                                borders.push(b);
+                            }
+                            current_border_side = None;
+                            current_border_style = None;
+                        }
+                        _ => {}
+                    }
                 }
                 Ok(quick_xml::events::Event::End(ref e)) => {
                     let name_bytes = e.name().as_ref().to_vec();
@@ -1173,5 +1200,56 @@ mod tests {
         assert_eq!(parse_hex_rgb("FF4472C4"), Some((0x44, 0x72, 0xC4)));
         assert_eq!(parse_hex_rgb("4472C4"), Some((0x44, 0x72, 0xC4)));
         assert_eq!(parse_hex_rgb("123"), None);
+    }
+
+    #[test]
+    fn test_self_closing_xf_elements_are_collected() {
+        // 自闭合 <xf .../> 元素必须正确收集，不能丢失导致索引偏移
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <numFmts count="0"/>
+  <fonts count="1"><font><sz val="11"/></font></fonts>
+  <fills count="1"><fill><patternFill patternType="none"/></fill></fills>
+  <borders count="1"><border><left/><right/><top/><bottom/></border></borders>
+  <cellXfs count="4">
+    <xf numFmtId="0" fontId="0" fillId="0" borderId="0"><alignment horizontal="center"/></xf>
+    <xf numFmtId="9" fontId="0" fillId="0" borderId="0"/>
+    <xf numFmtId="0" fontId="0" fillId="0" borderId="0"><alignment wrapText="1"/></xf>
+    <xf numFmtId="10" fontId="0" fillId="0" borderId="0"/>
+  </cellXfs>
+</styleSheet>"#;
+        let ss = ExcelStyleSheet::parse_styles_xml(xml).unwrap();
+        assert_eq!(ss.xf_count(), 4, "应正确收集 4 个 xf（含自闭合）");
+        // xf[0] General，xf[1] 0%（自闭合），xf[2] General，xf[3] 0.00%（自闭合）
+        let s0 = ss.get_cell_style(0);
+        assert_eq!(s0.number_format.as_deref(), Some("General"));
+        let s1 = ss.get_cell_style(1);
+        assert_eq!(s1.number_format.as_deref(), Some("0%"));
+        let s2 = ss.get_cell_style(2);
+        assert_eq!(s2.number_format.as_deref(), Some("General"));
+        let s3 = ss.get_cell_style(3);
+        assert_eq!(s3.number_format.as_deref(), Some("0.00%"));
+    }
+
+    #[test]
+    fn test_demo_xlsx_style_count() {
+        // 验证 demo.xlsx 的 337 个 cellXfs 全部正确解析（含 6 个自闭合元素）
+        let data = std::fs::read("demo.xlsx");
+        if let Ok(data) = data {
+            let cursor = std::io::Cursor::new(&data);
+            let ss = ExcelStyleSheet::from_xlsx_zip(cursor).unwrap();
+            assert_eq!(ss.xf_count(), 337, "demo.xlsx 应有 337 个 cellXfs");
+
+            // 验证关键样式索引的数字格式正确
+            // style 96: numFmtId=0 (General) — 普通数字，不是百分比
+            let s96 = ss.get_cell_style(96);
+            assert_eq!(s96.number_format.as_deref(), Some("General"));
+            // style 97: numFmtId=9 (0%) — 百分比
+            let s97 = ss.get_cell_style(97);
+            assert_eq!(s97.number_format.as_deref(), Some("0%"));
+            // style 108: numFmtId=10 (0.00%) — 带小数的百分比
+            let s108 = ss.get_cell_style(108);
+            assert_eq!(s108.number_format.as_deref(), Some("0.00%"));
+        }
     }
 }
