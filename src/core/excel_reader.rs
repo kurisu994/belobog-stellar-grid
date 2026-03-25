@@ -528,7 +528,7 @@ fn build_parsed_sheet(
                 .get(&abs_col)
                 .copied()
                 .or(dimensions.default_col_width)
-                .map(|w| (w * 7.0 + 12.0).clamp(55.0, 450.0)) // 字符宽 → 像素近似
+                .map(|w| (w * 7.0 + 12.0).clamp(65.0, 450.0)) // 字符宽 → 像素近似
                 .unwrap_or(60.0) // 默认宽度
         })
         .collect();
