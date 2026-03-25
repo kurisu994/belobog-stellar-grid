@@ -397,10 +397,20 @@ fn build_parsed_sheet(
         (max_rows, max_cols, truncated)
     };
 
+    // 过滤掉原点在隐藏行/列中的合并区域（原点不可见则整个合并失效）
+    let visible_merges: Vec<MergeRegion> = merge_regions
+        .iter()
+        .filter(|m| {
+            !dimensions.hidden_rows.contains(&m.start_row)
+                && !dimensions.hidden_cols.contains(&m.start_col)
+        })
+        .cloned()
+        .collect();
+
     // 构建合并单元格查找表：(row, col) → (rowSpan, colSpan)
-    let merge_map = build_merge_map(merge_regions, data_rows as u32, data_cols as u32);
+    let merge_map = build_merge_map(&visible_merges, data_rows as u32, data_cols as u32);
     // 被合并占用的单元格集合
-    let skip_set = build_skip_set(merge_regions, data_rows as u32, data_cols as u32);
+    let skip_set = build_skip_set(&visible_merges, data_rows as u32, data_cols as u32);
 
     let start = range.start().unwrap_or((0, 0));
 
@@ -523,16 +533,13 @@ fn build_parsed_sheet(
         })
         .collect();
 
-    // 过滤合并区域到数据范围内（排除起始于隐藏行列的合并）
-    let filtered_merges: Vec<MergeRegion> = merge_regions
-        .iter()
+    // 过滤合并区域到数据范围内
+    let filtered_merges: Vec<MergeRegion> = visible_merges
+        .into_iter()
         .filter(|m| {
             (m.start_row as usize) < data_rows + start.0 as usize
                 && (m.start_col as usize) < data_cols + start.1 as usize
-                && !dimensions.hidden_rows.contains(&m.start_row)
-                && !dimensions.hidden_cols.contains(&m.start_col)
         })
-        .cloned()
         .collect();
 
     Ok(ParsedSheet {
@@ -1885,5 +1892,57 @@ mod tests {
         assert!(dims.hidden_cols.contains(&2)); // col C (0-based=2)
         assert!(!dims.hidden_cols.contains(&0));
         assert!(!dims.hidden_cols.contains(&3));
+    }
+
+    /// 测试隐藏列时合并单元格不导致列数错位
+    #[test]
+    fn test_hidden_col_merge_origin_no_misalignment() {
+        // 构造 Excel：5 列(A-E), 列B隐藏, 合并 B1:D1
+        let mut wb = rust_xlsxwriter::Workbook::new();
+        let ws = wb.add_worksheet();
+        ws.set_name("Sheet1").unwrap();
+
+        // 写入行 1: A1="A", B1:D1 合并 = "merged", E1="E"
+        ws.write_string(0, 0, "A").unwrap();
+        ws.write_string(0, 1, "merged").unwrap();
+        ws.write_string(0, 4, "E").unwrap();
+        ws.merge_range(0, 1, 0, 3, "merged", &Default::default())
+            .unwrap();
+
+        // 写入行 2: 每列独立
+        ws.write_string(1, 0, "a1").unwrap();
+        ws.write_string(1, 1, "b2").unwrap();
+        ws.write_string(1, 2, "c2").unwrap();
+        ws.write_string(1, 3, "d2").unwrap();
+        ws.write_string(1, 4, "e2").unwrap();
+
+        // 隐藏列 B
+        ws.set_column_hidden(1).unwrap();
+
+        let buf = wb.save_to_buffer().unwrap();
+        let opts = PreviewOptions::default();
+        let result = parse_excel(&buf, &opts);
+        assert!(result.is_ok(), "解析失败: {:?}", result.err());
+        let wb_parsed = result.unwrap();
+        let sheet = &wb_parsed.sheets[0];
+
+        // 可见列数应为 4 (A, C, D, E)，不是 5
+        assert_eq!(sheet.col_widths.len(), 4, "列宽数量应为 4（隐藏了列B）");
+
+        // 每行的 Some 单元格数（不含 None）+ colspan 占位 应等于 4
+        for (i, row) in sheet.rows.iter().enumerate() {
+            let mut col_slots = 0u32;
+            for cell in &row.cells {
+                match cell {
+                    Some(c) => col_slots += c.col_span.unwrap_or(1),
+                    None => {} // None 被 HTML 跳过，不占列槽
+                }
+            }
+            assert_eq!(
+                col_slots, 4,
+                "第 {} 行列槽数应为 4，实际为 {}",
+                i, col_slots
+            );
+        }
     }
 }
