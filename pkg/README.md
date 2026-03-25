@@ -7,7 +7,7 @@
   <p>一个安全、高效、易用的 Rust WebAssembly 库，用于将 HTML 表格导出为 CSV 和 XLSX 文件</p>
 
   <p>
-    <img src="https://img.shields.io/badge/version-1.1.6-blue.svg" alt="Version" />
+    <img src="https://img.shields.io/badge/version-1.1.8-blue.svg" alt="Version" />
     <img src="https://img.shields.io/badge/rust-edition%202024-orange.svg" alt="Rust Edition" />
     <img src="https://img.shields.io/badge/test_coverage-100%25-brightgreen.svg" alt="Test Coverage" />
     <img src="https://img.shields.io/badge/license-MIT%2FApache--2.0-green.svg" alt="License" />
@@ -633,7 +633,6 @@ belobog-stellar-grid/
 ### 🌍 生态扩展
 
 - [ ] **Node.js / 服务端支持**: 探索 `wasm32-wasip1` 在 Node.js / Deno / Bun 环境下运行的可行性
-- [ ] **Svelte / Solid Excel 预览组件**: 为 Svelte 和 Solid.js 补充 `ExcelPreview` 预览组件（React/Vue 已支持）
 - [ ] **Angular 封装**: 提供 `@bsg-export/angular` 官方封装（Service + Directive）
 - [ ] **Nuxt / Next.js 集成指南**: 提供 SSR/SSG 框架的最佳实践文档和示例
 
