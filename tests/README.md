@@ -1,6 +1,6 @@
 # 测试说明
 
-本目录包含 belobog-stellar-grid 项目的所有集成测试，共 **190 个测试用例**（`cargo test` 环境下）。
+本目录包含 belobog-stellar-grid 项目的所有集成测试，共 **204 个测试用例**（`cargo test` 环境下）。
 
 ## 目录结构
 
@@ -16,12 +16,12 @@ tests/
 └── test_unified_api.rs        # 统一 API 测试（4 个）
 ```
 
-> 另有 `src/` 下的内联单元测试共 70 个（native 环境），分布在 `data_export.rs`（14 个）、`excel_reader.rs`（23 个）、`excel_style.rs`（12 个）、`style.rs`（13 个）、`html_builder.rs`（8 个）、`utils.rs`（2 个）、`validation.rs`（1 个）。此外 `data_export.rs` 还有 18 个仅在 wasm32 环境运行的测试。
+> 另有 `src/` 下的内联单元测试共 84 个（native 环境），分布在 `excel_reader.rs`（33 个）、`excel_style.rs`（16 个）、`style.rs`（13 个）、`data_export.rs`（11 个）、`html_builder.rs`（8 个）、`utils.rs`（2 个）、`validation.rs`（1 个）。此外 `data_export.rs` 还有 18 个仅在 wasm32 环境运行的测试。
 
 ## 运行测试
 
 ```bash
-# 运行所有测试（190 个）
+# 运行所有测试（204 个）
 cargo test
 
 # 按文件运行
@@ -79,7 +79,7 @@ cargo test && cargo clippy -- -D warnings && cargo fmt --check
 
 Excel 预览解析（calamine + OOXML 样式），覆盖基本解析和数字格式化。
 
-> 大量预览相关测试位于 `src/core/excel_reader.rs`（23 个内联测试）和 `src/core/excel_style.rs`（12 个内联测试）中。
+> 大量预览相关测试位于 `src/core/excel_reader.rs`（33 个内联测试，含条件格式、隐藏行列、合并单元格等）和 `src/core/excel_style.rs`（16 个内联测试，含 dxf 差异格式解析）中。
 
 ### test_resource.rs（8 个）
 
@@ -104,18 +104,18 @@ CSV 注入防护测试：`=`、`+`、`-`、`@` 等危险前缀转义。
 | lib_tests.rs             | 41      | CSV 生成、文件名验证、输入校验       |
 | test_data_export.rs      | 34      | 纯数据导出、树形结构、嵌套表头       |
 | test_streaming_export.rs | 26      | 流式导出、分块策略、进度回调         |
-| data_export.rs（内联）   | 14      | 内部算法（表头解析、树形拍平）       |
+| excel_reader.rs（内联）  | 33      | Excel 解析、条件格式、隐藏行列、合并单元格 |
+| excel_style.rs（内联）   | 16      | OOXML 样式解析、dxf 差异格式、主题色、数字格式 |
 | style.rs（内联）         | 13      | 三级样式合并、颜色解析、边框配置     |
-| excel_reader.rs（内联）  | 23      | Excel 解析、合并单元格、数据类型     |
-| excel_style.rs（内联）   | 12      | OOXML 样式解析、主题色、数字格式     |
-| html_builder.rs（内联）  | 8       | HTML 表格生成                        |
+| data_export.rs（内联）   | 11      | 内部算法（表头解析、树形拍平）       |
 | test_resource.rs         | 8       | UrlGuard RAII                        |
+| html_builder.rs（内联）  | 8       | HTML 表格生成                        |
 | test_excel_preview.rs    | 4       | Excel 预览集成测试                   |
 | test_unified_api.rs      | 4       | ExportFormat 枚举                    |
 | test_security.rs         | 3       | CSV 注入防护                         |
 | utils.rs（内联）         | 2       | 工具函数                             |
 | validation.rs（内联）    | 1       | 文件名验证                           |
-| **合计**                 | **190** |                                      |
+| **合计**                 | **204** |                                      |
 
 > 注：`data_export.rs` 中另有 18 个 `#[cfg(target_arch = "wasm32")]` 测试仅在 wasm32 环境运行，不计入上表。
 

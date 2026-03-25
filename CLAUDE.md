@@ -103,15 +103,15 @@ src/
 │   ├── table_extractor.rs  # DOM 解析与数据提取 (支持合并单元格、隐藏行列检测)
 │   ├── export_csv.rs   # CSV 格式生成
 │   ├── export_xlsx.rs  # XLSX 格式生成 (支持合并单元格、公式导出、多 Sheet、样式)
-│   ├── excel_reader.rs # Excel 解析核心 (calamine 数据 + zip 样式 + 隐藏 Sheet 检测 + 数字格式)
-│   ├── excel_style.rs  # OOXML 样式 → CSS 映射引擎 (主题色、字体、边框、填充、对齐、数字格式)
+│   ├── excel_reader.rs # Excel 解析核心 (calamine 数据 + zip 样式 + 隐藏 Sheet/行/列检测 + 条件格式 + 数字格式)
+│   ├── excel_style.rs  # OOXML 样式 → CSS 映射引擎 (主题色、字体、边框、填充、对齐、数字格式、dxf 差异格式)
 │   └── html_builder.rs # HTML Table 拼装器 (内嵌默认样式，合并单元格)
 ├── batch_export.rs     # CSV 异步分批处理 (分块 Blob 策略，降低内存峰值)
 ├── batch_export_xlsx.rs # XLSX 异步分批处理
 ├── streaming_export.rs # 流式 CSV 数据导出 (分块写入 + Blob 拼接，降低内存峰值)
 └── utils.rs            # 调试与辅助工具
 
-tests/                   # 单元测试目录 (190 个测试)
+tests/                   # 单元测试目录 (204 个测试)
 benches/                 # 性能基准测试目录 (Criterion)
 e2e/                     # E2E 浏览器自动化测试目录 (Playwright, 47 个测试)
 
@@ -155,7 +155,9 @@ packages/                # 框架封装子包 (均为 @bsg-export/ 命名空间)
 - **Excel 解析**: 基于 calamine 读取单元格数据，zip + quick-xml 解析 OOXML 样式
 - **样式映射**: 主题色（tint 算法）、字体、边框、填充、对齐、数字格式 → CSS
 - **数字格式**: 动态解析格式字符串（分号分段、颜色标记、千位分隔、百分比等）
+- **条件格式**: 解析 conditionalFormatting/cfRule（cellIs 类型），通过 dxf 差异格式渲染字体颜色和背景色
 - **隐藏 Sheet**: 解析 xl/workbook.xml 检测 state="hidden"/"veryHidden"
+- **隐藏行列**: 检测 row/col 元素的 hidden="1" 属性，跳过隐藏行列渲染，合并跨度自动扣减
 - **HTML 生成**: 内嵌默认样式表 + 行内样式覆盖，支持合并单元格
 - **安全限制**: MAX_ROWS=100,000、MAX_COLS=16,384 防止 DOM 假死
 
@@ -244,7 +246,7 @@ pub fn example_function(param: &str) -> Result<(), JsValue> {
 | test_unified_api.rs      | 统一 API 接口（4 个）            |
 | test_security.rs         | 安全测试（3 个）                  |
 
-> 另有 src/ 下的内联测试共 70 个（native），分布在 data_export.rs(14)、excel_reader.rs(23)、excel_style.rs(12)、style.rs(13)、html_builder.rs(8)、utils.rs(2)、validation.rs(1)。总计 190 个。
+> 另有 src/ 下的内联测试共 84 个（native），分布在 excel_reader.rs(33)、excel_style.rs(16)、style.rs(13)、data_export.rs(11)、html_builder.rs(8)、utils.rs(2)、validation.rs(1)。总计 204 个。
 
 ### 新增功能测试要求
 

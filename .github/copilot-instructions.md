@@ -11,7 +11,7 @@ Rust WebAssembly 库，在浏览器端将 HTML 表格或 JS 数据导出为 CSV/
 wasm-pack build --target web          # 或 just build
 
 # 测试
-cargo test                            # 全部（190+ 个）
+cargo test                            # 全部（204 个）
 cargo test --test lib_tests           # DOM 基础功能
 cargo test --test test_data_export    # 纯数据/树形/合并/表头
 cargo test --test test_resource       # RAII 资源管理
@@ -43,8 +43,8 @@ just ci-release patch|minor|major     # CI 自动发布（推荐）
 - `src/core/data_export.rs` — 核心算法：嵌套表头解析、树形拍平、合并单元格处理
 - `src/core/table_extractor.rs` — DOM 提取，含 `find_table_element()` 容器查找
 - `src/core/export_csv.rs` / `export_xlsx.rs` — 格式生成器
-- `src/core/excel_reader.rs` — Excel 解析核心（calamine 数据 + zip 样式 + 隐藏 Sheet 检测）
-- `src/core/excel_style.rs` — OOXML 样式 → CSS 映射引擎（主题色、数字格式、边框）
+- `src/core/excel_reader.rs` — Excel 解析核心（calamine 数据 + zip 样式 + 隐藏 Sheet/行/列检测 + 条件格式 + 数字格式）
+- `src/core/excel_style.rs` — OOXML 样式 → CSS 映射引擎（主题色、数字格式、边框、dxf 差异格式）
 - `src/core/html_builder.rs` — HTML Table 拼装器（内嵌默认样式）
 - `src/batch_export.rs` / `batch_export_xlsx.rs` — 大数据量异步分批导出
 - `src/streaming_export.rs` — 流式 CSV 导出（分块写入 + Blob 拼接）
@@ -67,10 +67,10 @@ just ci-release patch|minor|major     # CI 自动发布（推荐）
 
 | 测试文件                 | 测试内容                          |
 | ------------------------ | --------------------------------- |
-| lib_tests.rs             | DOM 基础功能（70 个）             |
-| test_data_export.rs      | 纯数据/树形/合并/表头（41 个）    |
-| test_streaming_export.rs | 流式导出逻辑（34 个）            |
-| test_excel_preview.rs    | Excel 预览解析（26 个）           |
+| lib_tests.rs             | DOM 基础功能（41 个）             |
+| test_data_export.rs      | 纯数据/树形/合并/表头（34 个）    |
+| test_streaming_export.rs | 流式导出逻辑（26 个）            |
+| test_excel_preview.rs    | Excel 预览解析（4 个）            |
 | test_resource.rs         | RAII 资源管理（8 个）             |
 | test_unified_api.rs      | 统一 API 接口（4 个）            |
 | test_security.rs         | 安全测试（3 个）                  |

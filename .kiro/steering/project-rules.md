@@ -14,8 +14,8 @@ src/
 │   ├── table_extractor.rs  # DOM 数据提取
 │   ├── export_csv.rs   # CSV 格式生成
 │   ├── export_xlsx.rs  # XLSX 格式生成 (多 Sheet、样式、冻结窗格)
-│   ├── excel_reader.rs # Excel 解析核心 (calamine 数据 + zip 样式)
-│   ├── excel_style.rs  # OOXML 样式 → CSS 映射引擎
+│   ├── excel_reader.rs # Excel 解析核心 (calamine 数据 + zip 样式 + 隐藏 Sheet/行/列 + 条件格式)
+│   ├── excel_style.rs  # OOXML 样式 → CSS 映射引擎 (含 dxf 差异格式)
 │   └── html_builder.rs # HTML Table 拼装器 (合并单元格 + XSS 防护)
 ├── batch_export.rs     # CSV 异步分批处理
 ├── batch_export_xlsx.rs # XLSX 异步分批处理
@@ -60,7 +60,7 @@ just publish-packages               # 发布子包到 npm
 ## 测试
 
 ```bash
-cargo test                              # 运行所有测试 (190 个)
+cargo test                              # 运行所有测试 (204 个)
 cargo test --test lib_tests             # DOM 基础功能测试
 cargo test --test test_data_export      # 纯数据/树形/合并/表头测试
 cargo test --test test_resource         # RAII 资源管理测试
@@ -94,15 +94,21 @@ cargo test -- test_flatten_tree         # 按名称过滤单个测试
 
 | 测试文件                 | 测试内容                          | 数量  |
 |------------------------|---------------------------------|------|
-| lib_tests.rs           | DOM 基础功能                      | 70   |
-| test_data_export.rs    | 纯数据/树形/合并/表头               | 41   |
-| test_streaming_export.rs | 流式导出逻辑                     | 34   |
-| test_excel_preview.rs  | Excel 预览解析                    | 26   |
+| lib_tests.rs           | DOM 基础功能                      | 41   |
+| test_data_export.rs    | 纯数据/树形/合并/表头               | 34   |
+| test_streaming_export.rs | 流式导出逻辑                     | 26   |
+| excel_reader.rs (内联) | Excel 解析/条件格式/隐藏行列        | 33   |
+| excel_style.rs (内联)  | OOXML 样式解析/dxf/主题色/数字格式   | 16   |
+| style.rs (内联)        | 三级样式合并、颜色解析、边框配置     | 13   |
+| data_export.rs (内联)  | 内部算法（表头解析、树形拍平）       | 11   |
 | test_resource.rs       | RAII 资源管理                     | 8    |
+| html_builder.rs (内联) | HTML 表格生成                     | 8    |
+| test_excel_preview.rs  | Excel 预览解析                    | 4    |
 | test_unified_api.rs    | 统一 API 接口                     | 4    |
 | test_security.rs       | 安全测试 (CSV 注入等)              | 3    |
-| excel_reader.rs (内联) | Excel 解析内联测试                 | 4    |
-| **总计**               | **190 个单元测试**                | **190**|
+| utils.rs (内联)        | 工具函数                          | 2    |
+| validation.rs (内联)   | 文件名验证                        | 1    |
+| **总计**               | **204 个单元测试**                | **204**|
 
 ## 关键设计原则
 
@@ -110,5 +116,5 @@ cargo test -- test_flatten_tree         # 按名称过滤单个测试
 2. **安全第一** - 验证输入、优雅错误处理、中文消息
 3. **模块化** - 清晰的职责分离 (DOM vs Data vs Excel 预览)
 4. **性能优化** - 零拷贝 + 分批异步 + RAII
-5. **全面测试** - 190 个单元测试覆盖所有核心功能
+5. **全面测试** - 204 个单元测试覆盖所有核心功能
 6. **易用性强** - 中文错误提示和简单的 API
