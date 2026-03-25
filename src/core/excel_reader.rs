@@ -155,6 +155,10 @@ struct SheetDimensions {
     default_col_width: Option<f64>,
     /// 条件格式规则
     conditional_formats: Vec<ConditionalFormatEntry>,
+    /// 隐藏的行（0-based 行号）
+    hidden_rows: std::collections::HashSet<u32>,
+    /// 隐藏的列（0-based 列号）
+    hidden_cols: std::collections::HashSet<u32>,
 }
 
 /// 条件格式条目（对应一个 <conditionalFormatting> 元素）
@@ -400,10 +404,22 @@ fn build_parsed_sheet(
 
     let start = range.start().unwrap_or((0, 0));
 
-    // 构建行数据
+    // 构建可见列索引映射：原始列号 → 是否可见
+    let visible_cols: Vec<u32> = (0..data_cols as u32)
+        .map(|c| start.1 + c)
+        .filter(|abs_col| !dimensions.hidden_cols.contains(abs_col))
+        .collect();
+
+    // 构建行数据（跳过隐藏行和隐藏列）
     let mut rows = Vec::with_capacity(data_rows);
     for r in 0..data_rows {
         let abs_row = start.0 + r as u32;
+
+        // 跳过隐藏行
+        if dimensions.hidden_rows.contains(&abs_row) {
+            continue;
+        }
+
         let height = dimensions
             .row_heights
             .get(&abs_row)
@@ -411,9 +427,9 @@ fn build_parsed_sheet(
             .or(dimensions.default_row_height)
             .map(|h| h * 1.333); // pt → px 近似转换
 
-        let mut cells = Vec::with_capacity(data_cols);
-        for c in 0..data_cols {
-            let abs_col = start.1 + c as u32;
+        let mut cells = Vec::with_capacity(visible_cols.len());
+        for &abs_col in &visible_cols {
+            let c = (abs_col - start.1) as usize;
 
             // 被合并占用的单元格输出 null
             if skip_set.contains(&(abs_row, abs_col)) {
@@ -460,11 +476,27 @@ fn build_parsed_sheet(
                 }
             }
 
-            // 合并信息
-            let (row_span, col_span) = merge_map
+            // 合并信息（扣除隐藏行列后的可见跨度）
+            let (raw_row_span, raw_col_span) = merge_map
                 .get(&(abs_row, abs_col))
                 .copied()
                 .unwrap_or((1, 1));
+            let row_span = if raw_row_span > 1 {
+                // 计算合并范围内的可见行数
+                (0..raw_row_span)
+                    .filter(|dr| !dimensions.hidden_rows.contains(&(abs_row + dr)))
+                    .count() as u32
+            } else {
+                1
+            };
+            let col_span = if raw_col_span > 1 {
+                // 计算合并范围内的可见列数
+                (0..raw_col_span)
+                    .filter(|dc| !dimensions.hidden_cols.contains(&(abs_col + dc)))
+                    .count() as u32
+            } else {
+                1
+            };
 
             cells.push(Some(ParsedCell {
                 value,
@@ -477,10 +509,10 @@ fn build_parsed_sheet(
         rows.push(ParsedRow { height, cells });
     }
 
-    // 构建列宽
-    let col_widths = (0..data_cols as u32)
-        .map(|c| {
-            let abs_col = start.1 + c;
+    // 构建列宽（仅可见列）
+    let col_widths = visible_cols
+        .iter()
+        .map(|&abs_col| {
             dimensions
                 .col_widths
                 .get(&abs_col)
@@ -491,12 +523,14 @@ fn build_parsed_sheet(
         })
         .collect();
 
-    // 过滤合并区域到数据范围内
+    // 过滤合并区域到数据范围内（排除起始于隐藏行列的合并）
     let filtered_merges: Vec<MergeRegion> = merge_regions
         .iter()
         .filter(|m| {
             (m.start_row as usize) < data_rows + start.0 as usize
                 && (m.start_col as usize) < data_cols + start.1 as usize
+                && !dimensions.hidden_rows.contains(&m.start_row)
+                && !dimensions.hidden_cols.contains(&m.start_col)
         })
         .cloned()
         .collect();
@@ -775,6 +809,13 @@ fn get_rel_attr(event: &quick_xml::events::BytesStart, name: &str) -> Option<Str
     None
 }
 
+/// 检查 XML 元素是否带 hidden="1" 属性
+fn is_hidden_attr(event: &quick_xml::events::BytesStart) -> bool {
+    get_rel_attr(event, "hidden")
+        .as_deref()
+        .is_some_and(|v| v == "1" || v == "true")
+}
+
 /// 解析 sheet xml 获取行高/列宽/样式索引/条件格式
 fn parse_sheet_xml(xml: &str) -> Result<SheetDimensions, String> {
     let mut reader = quick_xml::Reader::from_str(xml);
@@ -804,10 +845,14 @@ fn parse_sheet_xml(xml: &str) -> Result<SheetDimensions, String> {
                         let row = get_rel_attr(e, "r").and_then(|v| v.parse::<u32>().ok());
                         if let Some(row) = row {
                             if (row as usize) <= MAX_ROWS_LIMIT {
+                                let row_idx = row - 1;
                                 if let Some(ht) =
                                     get_rel_attr(e, "ht").and_then(|v| v.parse::<f64>().ok())
                                 {
-                                    dims.row_heights.insert(row - 1, ht);
+                                    dims.row_heights.insert(row_idx, ht);
+                                }
+                                if is_hidden_attr(e) {
+                                    dims.hidden_rows.insert(row_idx);
                                 }
                             }
                         }
@@ -818,12 +863,17 @@ fn parse_sheet_xml(xml: &str) -> Result<SheetDimensions, String> {
                         {
                             if let (Ok(min), Ok(max)) = (min_s.parse::<u32>(), max_s.parse::<u32>())
                             {
+                                let safe_max = max.min(MAX_COLS_LIMIT as u32);
+                                let hidden = is_hidden_attr(e);
                                 let width =
                                     get_rel_attr(e, "width").and_then(|v| v.parse::<f64>().ok());
-                                if let Some(w) = width {
-                                    let safe_max = max.min(MAX_COLS_LIMIT as u32);
-                                    for col in min..=safe_max {
-                                        dims.col_widths.insert(col - 1, w);
+                                for col in min..=safe_max {
+                                    let col_idx = col - 1;
+                                    if let Some(w) = width {
+                                        dims.col_widths.insert(col_idx, w);
+                                    }
+                                    if hidden {
+                                        dims.hidden_cols.insert(col_idx);
                                     }
                                 }
                             }
@@ -877,12 +927,17 @@ fn parse_sheet_xml(xml: &str) -> Result<SheetDimensions, String> {
                         {
                             if let (Ok(min), Ok(max)) = (min_s.parse::<u32>(), max_s.parse::<u32>())
                             {
+                                let safe_max = max.min(MAX_COLS_LIMIT as u32);
+                                let hidden = is_hidden_attr(e);
                                 let width =
                                     get_rel_attr(e, "width").and_then(|v| v.parse::<f64>().ok());
-                                if let Some(w) = width {
-                                    let safe_max = max.min(MAX_COLS_LIMIT as u32);
-                                    for col in min..=safe_max {
-                                        dims.col_widths.insert(col - 1, w);
+                                for col in min..=safe_max {
+                                    let col_idx = col - 1;
+                                    if let Some(w) = width {
+                                        dims.col_widths.insert(col_idx, w);
+                                    }
+                                    if hidden {
+                                        dims.hidden_cols.insert(col_idx);
                                     }
                                 }
                             }
@@ -1796,5 +1851,39 @@ mod tests {
         assert_eq!(dims.conditional_formats[0].rules.len(), 1);
         assert_eq!(dims.conditional_formats[0].rules[0].dxf_id, 1);
         assert!(dims.conditional_formats[0].rules[0].formulas.is_empty());
+    }
+
+    #[test]
+    fn test_parse_hidden_rows() {
+        let xml = r#"<?xml version="1.0"?>
+<worksheet>
+  <sheetFormatPr defaultRowHeight="15"/>
+  <sheetData>
+    <row r="1"><c r="A1"><v>1</v></c></row>
+    <row r="2" hidden="1"><c r="A2"><v>2</v></c></row>
+    <row r="3"><c r="A3"><v>3</v></c></row>
+  </sheetData>
+</worksheet>"#;
+        let dims = parse_sheet_xml(xml).unwrap();
+        assert!(dims.hidden_rows.contains(&1)); // row 2 (0-based=1)
+        assert!(!dims.hidden_rows.contains(&0));
+        assert!(!dims.hidden_rows.contains(&2));
+    }
+
+    #[test]
+    fn test_parse_hidden_cols() {
+        let xml = r#"<?xml version="1.0"?>
+<worksheet>
+  <cols>
+    <col min="1" max="1" width="10"/>
+    <col min="2" max="3" width="8" hidden="1"/>
+    <col min="4" max="4" width="12"/>
+  </cols>
+</worksheet>"#;
+        let dims = parse_sheet_xml(xml).unwrap();
+        assert!(dims.hidden_cols.contains(&1)); // col B (0-based=1)
+        assert!(dims.hidden_cols.contains(&2)); // col C (0-based=2)
+        assert!(!dims.hidden_cols.contains(&0));
+        assert!(!dims.hidden_cols.contains(&3));
     }
 }
