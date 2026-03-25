@@ -153,6 +153,30 @@ struct SheetDimensions {
     default_row_height: Option<f64>,
     /// 默认列宽
     default_col_width: Option<f64>,
+    /// 条件格式规则
+    conditional_formats: Vec<ConditionalFormatEntry>,
+}
+
+/// 条件格式条目（对应一个 <conditionalFormatting> 元素）
+#[derive(Debug, Clone)]
+struct ConditionalFormatEntry {
+    /// 应用范围（已展开为 0-based 行列坐标集合）
+    cells: Vec<(u32, u32)>,
+    /// 规则列表（按优先级排序）
+    rules: Vec<ConditionalFormatRule>,
+}
+
+/// 条件格式规则
+#[derive(Debug, Clone)]
+struct ConditionalFormatRule {
+    /// 规则类型（目前仅支持 "cellIs"）
+    rule_type: String,
+    /// 比较操作符
+    operator: String,
+    /// 差异格式索引（对应 styles.xml 中的 dxfs）
+    dxf_id: usize,
+    /// 公式/阈值
+    formulas: Vec<String>,
 }
 
 /// 获取 Excel 文件的工作表列表（含隐藏状态）
@@ -401,7 +425,7 @@ fn build_parsed_sheet(
             let value = cell_value_to_string(cell_data, dimensions, abs_row, abs_col, style_sheet);
 
             // 获取样式
-            let style_css = if let Some(ss) = style_sheet {
+            let mut style_css = if let Some(ss) = style_sheet {
                 let style_idx = dimensions
                     .cell_styles
                     .get(&(abs_row, abs_col))
@@ -420,6 +444,21 @@ fn build_parsed_sheet(
             } else {
                 None
             };
+
+            // 应用条件格式
+            if let Some(ss) = style_sheet {
+                let cf_css =
+                    evaluate_conditional_format(dimensions, ss, abs_row, abs_col, cell_data);
+                if let Some(extra) = cf_css {
+                    match &mut style_css {
+                        Some(base) => {
+                            base.push(';');
+                            base.push_str(&extra);
+                        }
+                        None => style_css = Some(extra),
+                    }
+                }
+            }
 
             // 合并信息
             let (row_span, col_span) = merge_map
@@ -528,6 +567,74 @@ fn find_data_bounds(range: &calamine::Range<Data>) -> (usize, usize) {
     }
 
     (max_row.min(total_rows), max_col.min(total_cols))
+}
+
+/// 评估条件格式，返回应用的 CSS 字符串（如有匹配）
+fn evaluate_conditional_format(
+    dims: &SheetDimensions,
+    style_sheet: &ExcelStyleSheet,
+    row: u32,
+    col: u32,
+    cell_data: Option<&Data>,
+) -> Option<String> {
+    // 提取单元格数值
+    let cell_val = match cell_data {
+        Some(Data::Float(f)) => *f,
+        Some(Data::Int(i)) => *i as f64,
+        _ => return None,
+    };
+
+    for entry in &dims.conditional_formats {
+        if !entry.cells.contains(&(row, col)) {
+            continue;
+        }
+        // 按优先级顺序匹配规则（先定义的优先）
+        for rule in &entry.rules {
+            if rule.rule_type != "cellIs" {
+                continue;
+            }
+            if evaluate_cell_is_rule(&rule.operator, &rule.formulas, cell_val) {
+                if let Some(dxf_style) = style_sheet.get_dxf_style(rule.dxf_id) {
+                    let css = cell_style_to_css(dxf_style);
+                    if !css.is_empty() {
+                        return Some(css);
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+/// 评估 cellIs 类型的条件格式规则
+fn evaluate_cell_is_rule(operator: &str, formulas: &[String], val: f64) -> bool {
+    let parse_f = |idx: usize| -> Option<f64> {
+        formulas.get(idx).and_then(|s| s.trim().parse::<f64>().ok())
+    };
+
+    match operator {
+        "lessThan" => parse_f(0).is_some_and(|threshold| val < threshold),
+        "lessThanOrEqual" => parse_f(0).is_some_and(|threshold| val <= threshold),
+        "greaterThan" => parse_f(0).is_some_and(|threshold| val > threshold),
+        "greaterThanOrEqual" => parse_f(0).is_some_and(|threshold| val >= threshold),
+        "equal" => parse_f(0).is_some_and(|threshold| (val - threshold).abs() < f64::EPSILON),
+        "notEqual" => parse_f(0).is_some_and(|threshold| (val - threshold).abs() >= f64::EPSILON),
+        "between" => {
+            if let (Some(lo), Some(hi)) = (parse_f(0), parse_f(1)) {
+                val >= lo && val <= hi
+            } else {
+                false
+            }
+        }
+        "notBetween" => {
+            if let (Some(lo), Some(hi)) = (parse_f(0), parse_f(1)) {
+                val < lo || val > hi
+            } else {
+                false
+            }
+        }
+        _ => false,
+    }
 }
 
 /// 将单元格数据转换为显示字符串
@@ -668,19 +775,67 @@ fn get_rel_attr(event: &quick_xml::events::BytesStart, name: &str) -> Option<Str
     None
 }
 
-/// 解析 sheet xml 获取行高/列宽/样式索引
+/// 解析 sheet xml 获取行高/列宽/样式索引/条件格式
 fn parse_sheet_xml(xml: &str) -> Result<SheetDimensions, String> {
     let mut reader = quick_xml::Reader::from_str(xml);
     let mut buf = Vec::new();
     let mut dims = SheetDimensions::default();
 
+    // 条件格式解析状态
+    let mut current_cf_sqref: Option<String> = None;
+    let mut current_cf_rules: Vec<ConditionalFormatRule> = Vec::new();
+    let mut current_cf_rule: Option<ConditionalFormatRule> = None;
+    let mut in_cf_formula = false;
+    let mut formula_text = String::new();
+
     loop {
         match reader.read_event_into(&mut buf) {
-            Ok(quick_xml::events::Event::Start(ref e))
-            | Ok(quick_xml::events::Event::Empty(ref e)) => {
+            Ok(quick_xml::events::Event::Start(ref e)) => {
                 let name_bytes = e.name().as_ref().to_vec();
                 let local = local_name_str(&name_bytes);
-
+                match local {
+                    "sheetFormatPr" => {
+                        dims.default_row_height =
+                            get_rel_attr(e, "defaultRowHeight").and_then(|v| v.parse::<f64>().ok());
+                        dims.default_col_width =
+                            get_rel_attr(e, "defaultColWidth").and_then(|v| v.parse::<f64>().ok());
+                    }
+                    "row" => {
+                        let row = get_rel_attr(e, "r").and_then(|v| v.parse::<u32>().ok());
+                        if let Some(row) = row {
+                            if (row as usize) <= MAX_ROWS_LIMIT {
+                                if let Some(ht) =
+                                    get_rel_attr(e, "ht").and_then(|v| v.parse::<f64>().ok())
+                                {
+                                    dims.row_heights.insert(row - 1, ht);
+                                }
+                            }
+                        }
+                    }
+                    "conditionalFormatting" => {
+                        current_cf_sqref = get_rel_attr(e, "sqref");
+                        current_cf_rules.clear();
+                    }
+                    "cfRule" if current_cf_sqref.is_some() => {
+                        current_cf_rule = Some(ConditionalFormatRule {
+                            rule_type: get_rel_attr(e, "type").unwrap_or_default(),
+                            operator: get_rel_attr(e, "operator").unwrap_or_default(),
+                            dxf_id: get_rel_attr(e, "dxfId")
+                                .and_then(|v| v.parse().ok())
+                                .unwrap_or(0),
+                            formulas: Vec::new(),
+                        });
+                    }
+                    "formula" if current_cf_rule.is_some() => {
+                        in_cf_formula = true;
+                        formula_text.clear();
+                    }
+                    _ => {}
+                }
+            }
+            Ok(quick_xml::events::Event::Empty(ref e)) => {
+                let name_bytes = e.name().as_ref().to_vec();
+                let local = local_name_str(&name_bytes);
                 match local {
                     "sheetFormatPr" => {
                         dims.default_row_height =
@@ -697,9 +852,7 @@ fn parse_sheet_xml(xml: &str) -> Result<SheetDimensions, String> {
                                 let width =
                                     get_rel_attr(e, "width").and_then(|v| v.parse::<f64>().ok());
                                 if let Some(w) = width {
-                                    // 限制范围防止恶意文件设置极大 max 导致 DoS
                                     let safe_max = max.min(MAX_COLS_LIMIT as u32);
-                                    // col 索引从 1 开始，转为 0-based
                                     for col in min..=safe_max {
                                         dims.col_widths.insert(col - 1, w);
                                     }
@@ -707,22 +860,7 @@ fn parse_sheet_xml(xml: &str) -> Result<SheetDimensions, String> {
                             }
                         }
                     }
-                    "row" => {
-                        let row = get_rel_attr(e, "r").and_then(|v| v.parse::<u32>().ok());
-                        if let Some(row) = row {
-                            // 限制行号范围防止恶意文件导致 DoS
-                            if (row as usize) <= MAX_ROWS_LIMIT {
-                                if let Some(ht) =
-                                    get_rel_attr(e, "ht").and_then(|v| v.parse::<f64>().ok())
-                                {
-                                    // row 索引从 1 开始，转为 0-based
-                                    dims.row_heights.insert(row - 1, ht);
-                                }
-                            }
-                        }
-                    }
                     "c" => {
-                        // 单元格样式索引
                         if let Some(r_attr) = get_rel_attr(e, "r") {
                             if let Some((row, col)) = parse_cell_ref(&r_attr) {
                                 if let Some(s) =
@@ -731,6 +869,56 @@ fn parse_sheet_xml(xml: &str) -> Result<SheetDimensions, String> {
                                     dims.cell_styles.insert((row, col), s);
                                 }
                             }
+                        }
+                    }
+                    // cfRule 自闭合（无 formula 子元素）
+                    "cfRule" if current_cf_sqref.is_some() => {
+                        let rule = ConditionalFormatRule {
+                            rule_type: get_rel_attr(e, "type").unwrap_or_default(),
+                            operator: get_rel_attr(e, "operator").unwrap_or_default(),
+                            dxf_id: get_rel_attr(e, "dxfId")
+                                .and_then(|v| v.parse().ok())
+                                .unwrap_or(0),
+                            formulas: Vec::new(),
+                        };
+                        current_cf_rules.push(rule);
+                    }
+                    _ => {}
+                }
+            }
+            Ok(quick_xml::events::Event::Text(ref t)) => {
+                if in_cf_formula {
+                    if let Ok(text) = t.unescape() {
+                        formula_text.push_str(&text);
+                    }
+                }
+            }
+            Ok(quick_xml::events::Event::End(ref e)) => {
+                let name_bytes = e.name().as_ref().to_vec();
+                let local = local_name_str(&name_bytes);
+                match local {
+                    "formula" if current_cf_rule.is_some() => {
+                        in_cf_formula = false;
+                        if let Some(rule) = &mut current_cf_rule {
+                            rule.formulas.push(formula_text.clone());
+                        }
+                        formula_text.clear();
+                    }
+                    "cfRule" => {
+                        if let Some(rule) = current_cf_rule.take() {
+                            current_cf_rules.push(rule);
+                        }
+                    }
+                    "conditionalFormatting" => {
+                        if let Some(sqref) = current_cf_sqref.take() {
+                            let cells = parse_sqref(&sqref);
+                            if !cells.is_empty() && !current_cf_rules.is_empty() {
+                                dims.conditional_formats.push(ConditionalFormatEntry {
+                                    cells,
+                                    rules: current_cf_rules.clone(),
+                                });
+                            }
+                            current_cf_rules.clear();
                         }
                     }
                     _ => {}
@@ -744,6 +932,27 @@ fn parse_sheet_xml(xml: &str) -> Result<SheetDimensions, String> {
     }
 
     Ok(dims)
+}
+
+/// 解析 sqref 范围字符串为单元格坐标列表（0-based）
+///
+/// 支持格式如 "E27:P27", "A1 B2:C3"（空格分隔多段）
+fn parse_sqref(sqref: &str) -> Vec<(u32, u32)> {
+    let mut cells = Vec::new();
+    for part in sqref.split_whitespace() {
+        if let Some((start, end)) = part.split_once(':') {
+            if let (Some((r1, c1)), Some((r2, c2))) = (parse_cell_ref(start), parse_cell_ref(end)) {
+                for r in r1..=r2 {
+                    for c in c1..=c2 {
+                        cells.push((r, c));
+                    }
+                }
+            }
+        } else if let Some((r, c)) = parse_cell_ref(part) {
+            cells.push((r, c));
+        }
+    }
+    cells
 }
 
 /// 解析单元格引用（如 "A1" → (0, 0)、"B3" → (2, 1)）
@@ -1469,5 +1678,95 @@ mod tests {
                 row.cells.len()
             );
         }
+    }
+
+    #[test]
+    fn test_parse_sqref_single_cell() {
+        let cells = parse_sqref("A1");
+        assert_eq!(cells, vec![(0, 0)]);
+    }
+
+    #[test]
+    fn test_parse_sqref_range() {
+        let cells = parse_sqref("E27:G27");
+        // E=4, row 27=26(0-based), 范围 E27, F27, G27
+        assert_eq!(cells, vec![(26, 4), (26, 5), (26, 6)]);
+    }
+
+    #[test]
+    fn test_parse_sqref_multi_ranges() {
+        let cells = parse_sqref("A1 C3:D4");
+        assert_eq!(cells.len(), 5); // A1 + C3,D3,C4,D4
+        assert!(cells.contains(&(0, 0))); // A1
+        assert!(cells.contains(&(2, 2))); // C3
+        assert!(cells.contains(&(3, 3))); // D4
+    }
+
+    #[test]
+    fn test_evaluate_cell_is_rule_less_than() {
+        assert!(evaluate_cell_is_rule(
+            "lessThan",
+            &["75".to_string()],
+            72.18
+        ));
+        assert!(!evaluate_cell_is_rule(
+            "lessThan",
+            &["75".to_string()],
+            80.0
+        ));
+    }
+
+    #[test]
+    fn test_evaluate_cell_is_rule_between() {
+        assert!(evaluate_cell_is_rule(
+            "between",
+            &["60".to_string(), "80".to_string()],
+            72.0
+        ));
+        assert!(!evaluate_cell_is_rule(
+            "between",
+            &["60".to_string(), "80".to_string()],
+            90.0
+        ));
+    }
+
+    #[test]
+    fn test_conditional_format_parsing() {
+        let xml = r#"<?xml version="1.0"?>
+<worksheet>
+  <sheetFormatPr defaultRowHeight="15"/>
+  <conditionalFormatting sqref="E27:F27">
+    <cfRule type="cellIs" dxfId="0" priority="2" operator="lessThan">
+      <formula>75</formula>
+    </cfRule>
+  </conditionalFormatting>
+</worksheet>"#;
+        let dims = parse_sheet_xml(xml).unwrap();
+        assert_eq!(dims.conditional_formats.len(), 1);
+        let entry = &dims.conditional_formats[0];
+        assert_eq!(entry.cells.len(), 2); // E27, F27
+        assert!(entry.cells.contains(&(26, 4))); // E27
+        assert!(entry.cells.contains(&(26, 5))); // F27
+        assert_eq!(entry.rules.len(), 1);
+        assert_eq!(entry.rules[0].rule_type, "cellIs");
+        assert_eq!(entry.rules[0].operator, "lessThan");
+        assert_eq!(entry.rules[0].dxf_id, 0);
+        assert_eq!(entry.rules[0].formulas, vec!["75"]);
+    }
+
+    #[test]
+    fn test_conditional_format_self_closing_cfrule() {
+        // cfRule 无 formula 子元素时为自闭合标签
+        let xml = r#"<?xml version="1.0"?>
+<worksheet>
+  <conditionalFormatting sqref="A1">
+    <cfRule type="cellIs" dxfId="1" priority="1" operator="greaterThan"/>
+  </conditionalFormatting>
+</worksheet>"#;
+        let dims = parse_sheet_xml(xml).unwrap();
+        assert_eq!(dims.conditional_formats.len(), 1);
+        assert_eq!(dims.conditional_formats[0].rules.len(), 1);
+        assert_eq!(dims.conditional_formats[0].rules[0].dxf_id, 1);
+        assert!(dims.conditional_formats[0].rules[0].formulas.is_empty());
     }
 }

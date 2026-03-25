@@ -103,6 +103,8 @@ pub struct ExcelStyleSheet {
     borders: Vec<BorderSetDef>,
     num_fmts: HashMap<usize, String>,
     cell_xfs: Vec<CellXf>,
+    /// 差异格式表（条件格式使用）
+    dxfs: Vec<ExcelCellStyle>,
 }
 
 impl Default for ExcelStyleSheet {
@@ -117,6 +119,7 @@ impl Default for ExcelStyleSheet {
             borders: Vec::new(),
             num_fmts: Self::builtin_num_fmts(),
             cell_xfs: Vec::new(),
+            dxfs: Vec::new(),
         }
     }
 }
@@ -294,6 +297,7 @@ impl ExcelStyleSheet {
         let mut borders: Vec<BorderSetDef> = Vec::new();
         let mut num_fmts = Self::builtin_num_fmts();
         let mut cell_xfs: Vec<CellXf> = Vec::new();
+        let mut dxfs: Vec<ExcelCellStyle> = Vec::new();
 
         let mut section = Section::None;
 
@@ -304,139 +308,174 @@ impl ExcelStyleSheet {
         let mut in_pattern_fill = false;
         let mut current_border_side: Option<String> = None;
         let mut current_border_style: Option<String> = None;
+        // dxf 解析状态
+        let mut current_dxf: Option<DxfParseState> = None;
 
         loop {
             match reader.read_event_into(&mut buf) {
                 Ok(quick_xml::events::Event::Start(ref e)) => {
                     let name_bytes = e.name().as_ref().to_vec();
                     let local = local_name(&name_bytes);
-                    handle_start_element(
-                        local,
-                        e,
-                        &mut section,
-                        &mut current_font,
-                        &mut current_fill,
-                        &mut current_border,
-                        &mut current_xf,
-                        &mut in_pattern_fill,
-                        &mut current_border_side,
-                        &mut current_border_style,
-                        &mut num_fmts,
-                    );
+                    // dxf 段内使用独立解析逻辑
+                    if section == Section::Dxfs {
+                        handle_dxf_start(local, e, &mut current_dxf);
+                    } else if local == "dxfs" {
+                        section = Section::Dxfs;
+                    } else {
+                        handle_start_element(
+                            local,
+                            e,
+                            &mut section,
+                            &mut current_font,
+                            &mut current_fill,
+                            &mut current_border,
+                            &mut current_xf,
+                            &mut in_pattern_fill,
+                            &mut current_border_side,
+                            &mut current_border_style,
+                            &mut num_fmts,
+                        );
+                    }
                 }
                 Ok(quick_xml::events::Event::Empty(ref e)) => {
                     let name_bytes = e.name().as_ref().to_vec();
                     let local = local_name(&name_bytes);
-                    handle_start_element(
-                        local,
-                        e,
-                        &mut section,
-                        &mut current_font,
-                        &mut current_fill,
-                        &mut current_border,
-                        &mut current_xf,
-                        &mut in_pattern_fill,
-                        &mut current_border_side,
-                        &mut current_border_style,
-                        &mut num_fmts,
-                    );
-                    // 自闭合元素没有 End 事件，需立即提交到集合中
-                    match local {
-                        "xf" if section == Section::CellXfs => {
-                            if let Some(xf) = current_xf.take() {
-                                cell_xfs.push(xf);
+                    if section == Section::Dxfs {
+                        handle_dxf_start(local, e, &mut current_dxf);
+                    } else {
+                        handle_start_element(
+                            local,
+                            e,
+                            &mut section,
+                            &mut current_font,
+                            &mut current_fill,
+                            &mut current_border,
+                            &mut current_xf,
+                            &mut in_pattern_fill,
+                            &mut current_border_side,
+                            &mut current_border_style,
+                            &mut num_fmts,
+                        );
+                        // 自闭合元素没有 End 事件，需立即提交到集合中
+                        match local {
+                            "xf" if section == Section::CellXfs => {
+                                if let Some(xf) = current_xf.take() {
+                                    cell_xfs.push(xf);
+                                }
                             }
-                        }
-                        "font" if section == Section::Fonts => {
-                            if let Some(f) = current_font.take() {
-                                fonts.push(f);
+                            "font" if section == Section::Fonts => {
+                                if let Some(f) = current_font.take() {
+                                    fonts.push(f);
+                                }
                             }
-                        }
-                        "fill" if section == Section::Fills => {
-                            if let Some(f) = current_fill.take() {
-                                fills.push(f);
+                            "fill" if section == Section::Fills => {
+                                if let Some(f) = current_fill.take() {
+                                    fills.push(f);
+                                }
+                                in_pattern_fill = false;
                             }
-                            in_pattern_fill = false;
-                        }
-                        "border" if section == Section::Borders => {
-                            if let Some(b) = current_border.take() {
-                                borders.push(b);
+                            "border" if section == Section::Borders => {
+                                if let Some(b) = current_border.take() {
+                                    borders.push(b);
+                                }
+                                current_border_side = None;
+                                current_border_style = None;
                             }
-                            current_border_side = None;
-                            current_border_style = None;
+                            _ => {}
                         }
-                        _ => {}
                     }
                 }
                 Ok(quick_xml::events::Event::End(ref e)) => {
                     let name_bytes = e.name().as_ref().to_vec();
                     let local = local_name(&name_bytes);
-                    match local {
-                        "fonts" | "fills" | "borders" | "numFmts" | "cellXfs" => {
-                            section = Section::None;
-                        }
-                        "font" if section == Section::Fonts => {
-                            if let Some(f) = current_font.take() {
-                                fonts.push(f);
+                    if section == Section::Dxfs {
+                        match local {
+                            "dxfs" => section = Section::None,
+                            "dxf" => {
+                                if let Some(state) = current_dxf.take() {
+                                    dxfs.push(state.into_style());
+                                }
                             }
-                        }
-                        "fill" if section == Section::Fills => {
-                            if let Some(f) = current_fill.take() {
-                                fills.push(f);
+                            "font" => {
+                                if let Some(s) = current_dxf.as_mut() {
+                                    s.in_font = false;
+                                }
                             }
-                            in_pattern_fill = false;
-                        }
-                        "patternFill" => {
-                            in_pattern_fill = false;
-                        }
-                        "border" if section == Section::Borders => {
-                            if let Some(b) = current_border.take() {
-                                borders.push(b);
+                            "fill" => {
+                                if let Some(s) = current_dxf.as_mut() {
+                                    s.in_fill = false;
+                                }
                             }
-                            current_border_side = None;
-                            current_border_style = None;
+                            _ => {}
                         }
-                        "left" | "right" | "top" | "bottom"
-                            if section == Section::Borders && current_border.is_some() =>
-                        {
-                            // 有样式但没颜色子元素时使用默认色
-                            if let Some(border) = &mut current_border {
-                                if let Some(side) = &current_border_side {
-                                    if let Some(style) = &current_border_style {
-                                        if !style.is_empty() {
-                                            let has_it = match side.as_str() {
-                                                "left" => border.left.is_some(),
-                                                "right" => border.right.is_some(),
-                                                "top" => border.top.is_some(),
-                                                "bottom" => border.bottom.is_some(),
-                                                _ => true,
-                                            };
-                                            if !has_it {
-                                                let raw = RawBorderDef {
-                                                    style: style.clone(),
-                                                    color: None,
+                    } else {
+                        match local {
+                            "fonts" | "fills" | "borders" | "numFmts" | "cellXfs" => {
+                                section = Section::None;
+                            }
+                            "font" if section == Section::Fonts => {
+                                if let Some(f) = current_font.take() {
+                                    fonts.push(f);
+                                }
+                            }
+                            "fill" if section == Section::Fills => {
+                                if let Some(f) = current_fill.take() {
+                                    fills.push(f);
+                                }
+                                in_pattern_fill = false;
+                            }
+                            "patternFill" => {
+                                in_pattern_fill = false;
+                            }
+                            "border" if section == Section::Borders => {
+                                if let Some(b) = current_border.take() {
+                                    borders.push(b);
+                                }
+                                current_border_side = None;
+                                current_border_style = None;
+                            }
+                            "left" | "right" | "top" | "bottom"
+                                if section == Section::Borders && current_border.is_some() =>
+                            {
+                                // 有样式但没颜色子元素时使用默认色
+                                if let Some(border) = &mut current_border {
+                                    if let Some(side) = &current_border_side {
+                                        if let Some(style) = &current_border_style {
+                                            if !style.is_empty() {
+                                                let has_it = match side.as_str() {
+                                                    "left" => border.left.is_some(),
+                                                    "right" => border.right.is_some(),
+                                                    "top" => border.top.is_some(),
+                                                    "bottom" => border.bottom.is_some(),
+                                                    _ => true,
                                                 };
-                                                match side.as_str() {
-                                                    "left" => border.left = Some(raw),
-                                                    "right" => border.right = Some(raw),
-                                                    "top" => border.top = Some(raw),
-                                                    "bottom" => border.bottom = Some(raw),
-                                                    _ => {}
+                                                if !has_it {
+                                                    let raw = RawBorderDef {
+                                                        style: style.clone(),
+                                                        color: None,
+                                                    };
+                                                    match side.as_str() {
+                                                        "left" => border.left = Some(raw),
+                                                        "right" => border.right = Some(raw),
+                                                        "top" => border.top = Some(raw),
+                                                        "bottom" => border.bottom = Some(raw),
+                                                        _ => {}
+                                                    }
                                                 }
                                             }
                                         }
                                     }
                                 }
+                                current_border_side = None;
+                                current_border_style = None;
                             }
-                            current_border_side = None;
-                            current_border_style = None;
-                        }
-                        "xf" if section == Section::CellXfs => {
-                            if let Some(xf) = current_xf.take() {
-                                cell_xfs.push(xf);
+                            "xf" if section == Section::CellXfs => {
+                                if let Some(xf) = current_xf.take() {
+                                    cell_xfs.push(xf);
+                                }
                             }
+                            _ => {}
                         }
-                        _ => {}
                     }
                 }
                 Ok(quick_xml::events::Event::Eof) => break,
@@ -456,6 +495,7 @@ impl ExcelStyleSheet {
             borders,
             num_fmts,
             cell_xfs,
+            dxfs,
         })
     }
 
@@ -521,6 +561,11 @@ impl ExcelStyleSheet {
     /// 样式索引数量
     pub fn xf_count(&self) -> usize {
         self.cell_xfs.len()
+    }
+
+    /// 获取差异格式样式（条件格式使用）
+    pub fn get_dxf_style(&self, dxf_id: usize) -> Option<&ExcelCellStyle> {
+        self.dxfs.get(dxf_id)
     }
 }
 
@@ -688,6 +733,112 @@ enum Section {
     Borders,
     NumFmts,
     CellXfs,
+    Dxfs,
+}
+
+/// dxf 解析中间状态（差异格式内联了 font/fill/border）
+#[derive(Debug, Default)]
+struct DxfParseState {
+    font_color: Option<ColorRef>,
+    bold: bool,
+    italic: bool,
+    bg_color: Option<ColorRef>,
+    in_font: bool,
+    in_fill: bool,
+}
+
+impl DxfParseState {
+    /// 将解析状态转为最终样式（颜色需要后续解析为 RGB）
+    fn into_style(self) -> ExcelCellStyle {
+        ExcelCellStyle {
+            font_color: self.font_color.and_then(|c| resolve_color_standalone(&c)),
+            bold: self.bold,
+            italic: self.italic,
+            bg_color: self.bg_color.and_then(|c| resolve_color_standalone(&c)),
+            ..Default::default()
+        }
+    }
+}
+
+/// 独立的颜色解析（dxf 中不依赖主题色，直接使用 RGB）
+fn resolve_color_standalone(color: &ColorRef) -> Option<String> {
+    match color {
+        ColorRef::Rgb(rgb) => Some(normalize_color(rgb)),
+        ColorRef::Indexed(idx) => indexed_color(*idx).map(|s| s.to_string()),
+        // dxf 中的主题色暂不支持 tint 计算，使用默认主题色
+        ColorRef::Theme(idx, _) => DEFAULT_THEME_COLORS.get(*idx).map(|s| (*s).to_string()),
+    }
+}
+
+/// 处理 dxf 内部元素
+fn handle_dxf_start(
+    local: &str,
+    e: &quick_xml::events::BytesStart,
+    state: &mut Option<DxfParseState>,
+) {
+    match local {
+        "dxf" => {
+            *state = Some(DxfParseState::default());
+        }
+        "font" if state.is_some() => {
+            if let Some(s) = state.as_mut() {
+                s.in_font = true;
+            }
+        }
+        "fill" if state.is_some() => {
+            if let Some(s) = state.as_mut() {
+                s.in_fill = true;
+            }
+        }
+        "b" if state.as_ref().is_some_and(|s| s.in_font) => {
+            if let Some(s) = state.as_mut() {
+                // <b/> 或 <b val="1"/> 表示加粗
+                let val = get_attr(e, "val");
+                s.bold = val.as_deref() != Some("0");
+            }
+        }
+        "i" if state.as_ref().is_some_and(|s| s.in_font) => {
+            if let Some(s) = state.as_mut() {
+                let val = get_attr(e, "val");
+                s.italic = val.as_deref() != Some("0");
+            }
+        }
+        "color" if state.as_ref().is_some_and(|s| s.in_font) => {
+            if let Some(s) = state.as_mut() {
+                s.font_color = parse_color_ref(e);
+            }
+        }
+        "bgColor" if state.as_ref().is_some_and(|s| s.in_fill) => {
+            if let Some(s) = state.as_mut() {
+                s.bg_color = parse_color_ref(e);
+            }
+        }
+        "fgColor" if state.as_ref().is_some_and(|s| s.in_fill) => {
+            // 某些文件用 fgColor 而非 bgColor
+            if let Some(s) = state.as_mut() {
+                if s.bg_color.is_none() {
+                    s.bg_color = parse_color_ref(e);
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+/// 从 XML 元素解析颜色引用
+fn parse_color_ref(e: &quick_xml::events::BytesStart) -> Option<ColorRef> {
+    if let Some(rgb) = get_attr(e, "rgb") {
+        Some(ColorRef::Rgb(rgb))
+    } else if let Some(theme) = get_attr(e, "theme").and_then(|v| v.parse::<usize>().ok()) {
+        let tint = get_attr(e, "tint")
+            .and_then(|v| v.parse::<f64>().ok())
+            .unwrap_or(0.0);
+        Some(ColorRef::Theme(theme, tint))
+    } else {
+        get_attr(e, "indexed")
+            .and_then(|v| v.parse::<usize>().ok())
+            .map(ColorRef::Indexed)
+    }
 }
 
 /// 将 ExcelCellStyle 转换为 CSS 内联样式字符串
@@ -885,24 +1036,6 @@ fn get_attr(event: &quick_xml::events::BytesStart, name: &str) -> Option<String>
 fn local_name(full_name: &[u8]) -> &str {
     let name = std::str::from_utf8(full_name).unwrap_or("");
     name.rsplit_once(':').map_or(name, |(_, local)| local)
-}
-
-fn parse_color_ref(event: &quick_xml::events::BytesStart) -> Option<ColorRef> {
-    if let Some(rgb) = get_attr(event, "rgb") {
-        return Some(ColorRef::Rgb(rgb));
-    }
-    if let Some(theme_str) = get_attr(event, "theme") {
-        let theme_idx = theme_str.parse::<usize>().ok()?;
-        let tint = get_attr(event, "tint")
-            .and_then(|v| v.parse::<f64>().ok())
-            .unwrap_or(0.0);
-        return Some(ColorRef::Theme(theme_idx, tint));
-    }
-    if let Some(idx_str) = get_attr(event, "indexed") {
-        let idx = idx_str.parse::<usize>().ok()?;
-        return Some(ColorRef::Indexed(idx));
-    }
-    None
 }
 
 /// 格式化数字值（动态解析格式字符串）
@@ -1251,5 +1384,54 @@ mod tests {
             let s108 = ss.get_cell_style(108);
             assert_eq!(s108.number_format.as_deref(), Some("0.00%"));
         }
+    }
+
+    #[test]
+    fn test_dxf_parsing_basic() {
+        let styles_xml = r#"<?xml version="1.0"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <dxfs count="2">
+    <dxf>
+      <font><color rgb="FF9C0006"/></font>
+      <fill><patternFill patternType="solid"><bgColor rgb="FFFFC7CE"/></patternFill></fill>
+    </dxf>
+    <dxf>
+      <font><color rgb="FF006100"/></font>
+      <fill><patternFill patternType="solid"><bgColor rgb="FFC6EFCE"/></patternFill></fill>
+    </dxf>
+  </dxfs>
+</styleSheet>"#;
+        let ss = ExcelStyleSheet::parse_styles_xml(styles_xml).unwrap();
+        // 验证 dxf 解析
+        let dxf0 = ss.get_dxf_style(0).expect("dxf[0] 应存在");
+        assert_eq!(dxf0.font_color.as_deref(), Some("#9C0006"));
+        assert_eq!(dxf0.bg_color.as_deref(), Some("#FFC7CE"));
+        let dxf1 = ss.get_dxf_style(1).expect("dxf[1] 应存在");
+        assert_eq!(dxf1.font_color.as_deref(), Some("#006100"));
+        assert_eq!(dxf1.bg_color.as_deref(), Some("#C6EFCE"));
+        // 不存在的索引
+        assert!(ss.get_dxf_style(2).is_none());
+    }
+
+    #[test]
+    fn test_dxf_to_css() {
+        let styles_xml = r#"<?xml version="1.0"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <dxfs count="1">
+    <dxf>
+      <font><color rgb="FF9C0006"/><b/></font>
+      <fill><patternFill patternType="solid"><bgColor rgb="FFFFC7CE"/></patternFill></fill>
+    </dxf>
+  </dxfs>
+</styleSheet>"#;
+        let ss = ExcelStyleSheet::parse_styles_xml(styles_xml).unwrap();
+        let dxf0 = ss.get_dxf_style(0).unwrap();
+        let css = cell_style_to_css(dxf0);
+        assert!(css.contains("color:#9C0006"), "应包含字体颜色, 实际: {css}");
+        assert!(
+            css.contains("background-color:#FFC7CE"),
+            "应包含背景颜色, 实际: {css}"
+        );
+        assert!(css.contains("font-weight:bold"), "应包含加粗, 实际: {css}");
     }
 }
