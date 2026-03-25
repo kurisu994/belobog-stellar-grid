@@ -812,6 +812,34 @@ fn parse_sheet_xml(xml: &str) -> Result<SheetDimensions, String> {
                             }
                         }
                     }
+                    "col" => {
+                        if let (Some(min_s), Some(max_s)) =
+                            (get_rel_attr(e, "min"), get_rel_attr(e, "max"))
+                        {
+                            if let (Ok(min), Ok(max)) = (min_s.parse::<u32>(), max_s.parse::<u32>())
+                            {
+                                let width =
+                                    get_rel_attr(e, "width").and_then(|v| v.parse::<f64>().ok());
+                                if let Some(w) = width {
+                                    let safe_max = max.min(MAX_COLS_LIMIT as u32);
+                                    for col in min..=safe_max {
+                                        dims.col_widths.insert(col - 1, w);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    "c" => {
+                        if let Some(r_attr) = get_rel_attr(e, "r") {
+                            if let Some((row, col)) = parse_cell_ref(&r_attr) {
+                                if let Some(s) =
+                                    get_rel_attr(e, "s").and_then(|v| v.parse::<usize>().ok())
+                                {
+                                    dims.cell_styles.insert((row, col), s);
+                                }
+                            }
+                        }
+                    }
                     "conditionalFormatting" => {
                         current_cf_sqref = get_rel_attr(e, "sqref");
                         current_cf_rules.clear();
