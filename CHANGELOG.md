@@ -9,6 +9,10 @@
 
 ## [Unreleased]
 
+---
+
+## [1.1.8] - 2026-03-25
+
 ### 新增 (Added)
 
 - 🚀 Excel 预览支持条件格式渲染：解析 `conditionalFormatting`/`cfRule`（cellIs 类型），通过 dxf 差异格式应用字体颜色和背景色
