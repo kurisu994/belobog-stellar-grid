@@ -976,11 +976,9 @@ fn parse_sheet_xml(xml: &str) -> Result<SheetDimensions, String> {
                     _ => {}
                 }
             }
-            Ok(quick_xml::events::Event::Text(ref t)) => {
-                if in_cf_formula {
-                    if let Ok(text) = t.unescape() {
-                        formula_text.push_str(&text);
-                    }
+            Ok(quick_xml::events::Event::Text(ref t)) if in_cf_formula => {
+                if let Ok(text) = t.unescape() {
+                    formula_text.push_str(&text);
                 }
             }
             Ok(quick_xml::events::Event::End(ref e)) => {

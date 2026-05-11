@@ -223,31 +223,29 @@ impl ExcelStyleSheet {
                         _ => {}
                     }
                 }
-                Ok(quick_xml::events::Event::Empty(ref e)) => {
-                    if in_clr_scheme {
-                        let name_bytes = e.name().as_ref().to_vec();
-                        let local = local_name(&name_bytes);
+                Ok(quick_xml::events::Event::Empty(ref e)) if in_clr_scheme => {
+                    let name_bytes = e.name().as_ref().to_vec();
+                    let local = local_name(&name_bytes);
 
-                        // 检查是否是颜色元素名称
-                        for &(name, idx) in order_map {
-                            if local == name {
-                                current_element_index = Some(idx);
-                                break;
-                            }
+                    // 检查是否是颜色元素名称
+                    for &(name, idx) in order_map {
+                        if local == name {
+                            current_element_index = Some(idx);
+                            break;
                         }
+                    }
 
-                        if current_element_index.is_some() {
-                            if local == "srgbClr" {
-                                if let Some(val) = get_attr(e, "val") {
-                                    if let Some(idx) = current_element_index.take() {
-                                        theme_map.insert(idx, format!("#{val}"));
-                                    }
+                    if current_element_index.is_some() {
+                        if local == "srgbClr" {
+                            if let Some(val) = get_attr(e, "val") {
+                                if let Some(idx) = current_element_index.take() {
+                                    theme_map.insert(idx, format!("#{val}"));
                                 }
-                            } else if local == "sysClr" {
-                                if let Some(val) = get_attr(e, "lastClr") {
-                                    if let Some(idx) = current_element_index.take() {
-                                        theme_map.insert(idx, format!("#{val}"));
-                                    }
+                            }
+                        } else if local == "sysClr" {
+                            if let Some(val) = get_attr(e, "lastClr") {
+                                if let Some(idx) = current_element_index.take() {
+                                    theme_map.insert(idx, format!("#{val}"));
                                 }
                             }
                         }
