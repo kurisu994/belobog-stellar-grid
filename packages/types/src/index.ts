@@ -37,6 +37,57 @@ export interface Column {
   key?: string;
   /** 子列配置，用于形成嵌套多级表头（自动生成合并单元格） */
   children?: Column[];
+  /** 列宽（字符数，仅 XLSX 有效） */
+  width?: number;
+  /** 该列数据单元格样式（仅 XLSX 有效） */
+  style?: CellStyle;
+  /** 该列表头单元格样式（仅 XLSX 有效） */
+  headerStyle?: CellStyle;
+}
+
+// =============================================================================
+// 样式类型（三级样式体系：全局 → 列级 → 单元格）
+// =============================================================================
+
+/** 边框线条类型 */
+export type BorderLineStyle = 'thin' | 'medium' | 'thick' | 'dashed' | 'dotted' | 'double';
+
+/** 分别指定四边边框 */
+export interface BorderSides {
+  top?: BorderLineStyle;
+  bottom?: BorderLineStyle;
+  left?: BorderLineStyle;
+  right?: BorderLineStyle;
+}
+
+/**
+ * 单元格样式配置（仅 XLSX 格式有效，CSV 会忽略）
+ *
+ * 三级样式体系的优先级：单元格 > 列级 > 全局。
+ */
+export interface CellStyle {
+  /** 加粗 */
+  bold?: boolean;
+  /** 斜体 */
+  italic?: boolean;
+  /** 字号（磅） */
+  fontSize?: number;
+  /** 字体名称 */
+  fontName?: string;
+  /** 字体颜色（十六进制，如 '#FF0000' 或 'FF0000'） */
+  fontColor?: string;
+  /** 背景填充色（十六进制） */
+  backgroundColor?: string;
+  /** 水平对齐 */
+  align?: 'left' | 'center' | 'right';
+  /** 垂直对齐 */
+  verticalAlign?: 'top' | 'center' | 'bottom';
+  /** 边框：`true` 为四边细线，或用对象分别指定四边 */
+  border?: boolean | BorderSides;
+  /** 数字格式字符串（如 '#,##0.00'、'0.00%'） */
+  numberFormat?: string;
+  /** 自动换行 */
+  textWrap?: boolean;
 }
 
 // =============================================================================
@@ -51,6 +102,8 @@ export interface MergeCellValue {
   colSpan?: number;
   /** 行合并数（默认 1） */
   rowSpan?: number;
+  /** 单元格级样式（优先级最高，仅 XLSX 有效） */
+  style?: CellStyle;
 }
 
 /** 单元格值类型 */
@@ -107,6 +160,10 @@ export interface ExportDataOptions {
   freezeRows?: number;
   /** 冻结前 N 列（仅 XLSX 有效，默认 0） */
   freezeCols?: number;
+  /** 全局表头样式（仅 XLSX 有效，会被列级 / 单元格样式覆盖） */
+  headerStyle?: CellStyle;
+  /** 全局数据行样式（仅 XLSX 有效，会被列级 / 单元格样式覆盖） */
+  cellStyle?: CellStyle;
 }
 
 // =============================================================================
@@ -127,6 +184,10 @@ export interface ExportTableOptions {
   withBom?: boolean;
   /** 回调失败是否中断导出 */
   strictProgressCallback?: boolean;
+  /** 全局表头样式（仅 XLSX 有效） */
+  headerStyle?: CellStyle;
+  /** 全局数据行样式（仅 XLSX 有效） */
+  cellStyle?: CellStyle;
 }
 
 /** 多工作表导出的参数配置 */
@@ -137,6 +198,10 @@ export interface ExportTablesXlsxOptions {
   filename?: string;
   /** 回调失败是否中断导出 */
   strictProgressCallback?: boolean;
+  /** 全局表头样式 */
+  headerStyle?: CellStyle;
+  /** 全局数据行样式 */
+  cellStyle?: CellStyle;
 }
 
 /** 分批导出 CSV 的参数配置 */
@@ -171,6 +236,10 @@ export interface ExportXlsxBatchOptions {
   excludeHidden?: boolean;
   /** 回调失败是否中断导出 */
   strictProgressCallback?: boolean;
+  /** 全局表头样式 */
+  headerStyle?: CellStyle;
+  /** 全局数据行样式 */
+  cellStyle?: CellStyle;
 }
 
 /** 多工作表分批导出的参数配置 */
@@ -183,6 +252,10 @@ export interface ExportTablesBatchOptions {
   batchSize?: number;
   /** 回调失败是否中断导出 */
   strictProgressCallback?: boolean;
+  /** 全局表头样式 */
+  headerStyle?: CellStyle;
+  /** 全局数据行样式 */
+  cellStyle?: CellStyle;
 }
 
 // =============================================================================
@@ -246,6 +319,8 @@ export declare function export_data(
  * @param progressCallback - 进度回调函数
  * @param withBom - 是否添加 UTF-8 BOM（仅 CSV 有效）
  * @param strictProgressCallback - 回调失败是否中断导出（默认 false）
+ * @param headerStyle - 全局表头样式（仅 XLSX 有效）
+ * @param cellStyle - 全局数据行样式（仅 XLSX 有效）
  * @throws 导出失败时抛出错误
  */
 export declare function export_table(
@@ -256,6 +331,8 @@ export declare function export_table(
   progressCallback?: ProgressCallback | null,
   withBom?: boolean | null,
   strictProgressCallback?: boolean | null,
+  headerStyle?: CellStyle | null,
+  cellStyle?: CellStyle | null,
 ): void;
 
 /**
@@ -264,6 +341,9 @@ export declare function export_table(
  * @param sheets - Sheet 配置数组
  * @param filename - 导出文件名（默认 'table_export.xlsx'）
  * @param progressCallback - 进度回调函数
+ * @param strictProgressCallback - 回调失败是否中断导出（默认 false）
+ * @param headerStyle - 全局表头样式
+ * @param cellStyle - 全局数据行样式
  * @throws 导出失败时抛出错误
  */
 export declare function export_tables_xlsx(
@@ -271,6 +351,8 @@ export declare function export_tables_xlsx(
   filename?: string | null,
   progressCallback?: ProgressCallback | null,
   strictProgressCallback?: boolean | null,
+  headerStyle?: CellStyle | null,
+  cellStyle?: CellStyle | null,
 ): void;
 
 /**
@@ -304,6 +386,9 @@ export declare function export_table_to_csv_batch(
  * @param batchSize - 每批处理行数（默认 1000）
  * @param excludeHidden - 是否排除隐藏行/列
  * @param progressCallback - 进度回调函数
+ * @param strictProgressCallback - 回调失败是否中断导出（默认 false）
+ * @param headerStyle - 全局表头样式
+ * @param cellStyle - 全局数据行样式
  */
 export declare function export_table_to_xlsx_batch(
   tableId: string,
@@ -313,6 +398,8 @@ export declare function export_table_to_xlsx_batch(
   excludeHidden?: boolean | null,
   progressCallback?: ProgressCallback | null,
   strictProgressCallback?: boolean | null,
+  headerStyle?: CellStyle | null,
+  cellStyle?: CellStyle | null,
 ): Promise<void>;
 
 /**
@@ -322,6 +409,9 @@ export declare function export_table_to_xlsx_batch(
  * @param filename - 导出文件名（默认 'table_export.xlsx'）
  * @param batchSize - 每批处理行数（默认 1000）
  * @param progressCallback - 进度回调函数
+ * @param strictProgressCallback - 回调失败是否中断导出（默认 false）
+ * @param headerStyle - 全局表头样式
+ * @param cellStyle - 全局数据行样式
  */
 export declare function export_tables_to_xlsx_batch(
   sheets: BatchSheetConfig[],
@@ -329,6 +419,8 @@ export declare function export_tables_to_xlsx_batch(
   batchSize?: number | null,
   progressCallback?: ProgressCallback | null,
   strictProgressCallback?: boolean | null,
+  headerStyle?: CellStyle | null,
+  cellStyle?: CellStyle | null,
 ): Promise<void>;
 
 /**
