@@ -44,8 +44,7 @@ fn test_excel_preview_exports_compile() {
             as fn(&[u8], JsValue) -> Result<JsValue, JsValue>;
         let _ = belobog_stellar_grid::parse_excel_to_json
             as fn(&[u8], JsValue) -> Result<JsValue, JsValue>;
-        let _ = belobog_stellar_grid::get_excel_sheet_list
-            as fn(&[u8]) -> Result<JsValue, JsValue>;
+        let _ = belobog_stellar_grid::get_excel_sheet_list as fn(&[u8]) -> Result<JsValue, JsValue>;
     }
 }
 
