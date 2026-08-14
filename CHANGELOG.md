@@ -9,6 +9,25 @@
 
 ## [Unreleased]
 
+### 修复 (Fixed)
+
+- 🐛 修复条件格式 `sqref` 展开为坐标集合导致的内存放大：整列条件格式（`sqref="A1:D1048576"`）会展开出数百万个坐标，极端的 `"A1:XFD1048576"` 更是上百亿个，足以耗尽 WASM 内存
+  - 改为保留矩形范围边界，内存与命中判断均从 O(单元格数) 降为 O(范围数)
+  - 顺带修复 `parse_cell_ref` 的两处 panic 隐患：`"A0"` 的 `0 - 1` 下溢、超长字母列名（如 `"AAAAAAAA1"`）的 u32 溢出
+- 🐛 修复框架子包 `getJsonData()` 解析到错误 Sheet：`activeSheet` 存的是可见列表位置，却被直接当作原始工作簿索引传给 WASM，文件含隐藏 Sheet 且用户切换过 Sheet 时会取到错误数据（react/vue/svelte/solid 四端均受影响）
+  - 同时修复加载时 `activeSheet` 被赋值为原始索引，导致 Sheet 标签高亮与后续切换错位
+  - 同时修复 `getJsonData(options)` 中 `sheetIndex` 被硬覆盖，用户显式传入的值不生效
+- 🐛 修复框架子包无法使用全局样式：`export_table`、`export_tables_xlsx`、`export_table_to_xlsx_batch`、`export_tables_to_xlsx_batch` 的 `headerStyle` / `cellStyle` 参数在 react/vue/svelte/solid 四端均未传递，1.1.1 声称的全局样式能力在框架层实际不可用
+- 🐛 修复 `tests/test_excel_preview.rs` 中 `parse_excel_to_html` / `parse_excel_to_json` / `get_excel_sheet_list` 的 fn 指针类型与真实签名不符（首参为 `&[u8]` 而非 `JsValue`），wasm32 目标下会编译失败
+
+### 新增 (Added)
+
+- ✨ `@bsg-export/types` 补全三级样式体系的类型定义：新增 `CellStyle`、`BorderSides`、`BorderLineStyle`；`Column` 补充 `width` / `style` / `headerStyle`；`MergeCellValue` 补充 `style`；各导出选项接口与函数声明补充 `headerStyle` / `cellStyle`
+
+### 优化 (Changed)
+
+- ♻️ `criterion` 移入 `cfg(not(target_arch = "wasm32"))` 段：它依赖 rayon 无法为 wasm32 编译，此前会拖垮整个 dev 依赖图，导致 `tests/` 下的 `#[cfg(target_arch = "wasm32")]` 测试块永远不被检查
+
 ---
 
 ## [1.1.8] - 2026-03-25
