@@ -63,6 +63,22 @@ export interface ExcelPreviewReturn {
 }
 
 /**
+ * 将可见列表位置映射为原始工作簿索引
+ *
+ * `PreviewOptions.sheetIndex` 是原始工作簿索引，而 `activeSheet` / `switchSheet`
+ * 用的是可见列表位置，存在隐藏 Sheet 时两者不相等，必须显式转换。
+ */
+function toRealIndex(visible: SheetInfo[], pos: number): number {
+  return visible[pos]?.index ?? pos;
+}
+
+/** 将原始工作簿索引反查为可见列表位置（指向隐藏 Sheet 时回退到 0） */
+function toVisiblePos(visible: SheetInfo[], realIndex: number): number {
+  const pos = visible.findIndex(s => s.index === realIndex);
+  return pos >= 0 ? pos : 0;
+}
+
+/**
  * Excel 文件预览 Primitive
  *
  * 管理 WASM 初始化、文件解析、Sheet 切换等完整预览生命周期。
@@ -95,7 +111,7 @@ export function createExcelPreview(config: CreateExcelPreviewOptions): ExcelPrev
     setSheets(visibleSheets);
     setHtml(config.parseExcelToHtml(bytes, mergedOptions));
     setData(null);
-    setActiveSheet(mergedOptions.sheetIndex ?? 0);
+    setActiveSheet(toVisiblePos(visibleSheets, mergedOptions.sheetIndex ?? 0));
   }
 
   /** 加载 Excel 文件（从 File 对象） */
@@ -156,7 +172,8 @@ export function createExcelPreview(config: CreateExcelPreviewOptions): ExcelPrev
     if (!fileData) return;
     setLoading(true);
     try {
-      const realIndex = visibleSheets[sheetIndex]?.index ?? sheetIndex;
+      // 将可见列表位置映射为原始工作簿索引
+      const realIndex = toRealIndex(visibleSheets, sheetIndex);
       const options = { ...config.defaultOptions, sheetIndex: realIndex };
       setHtml(config.parseExcelToHtml(fileData, options));
       setData(null);
@@ -168,12 +185,18 @@ export function createExcelPreview(config: CreateExcelPreviewOptions): ExcelPrev
     }
   }
 
-  /** 获取 JSON 数据 */
+  /**
+   * 获取 JSON 数据
+   *
+   * 默认解析当前活动 Sheet；`options.sheetIndex`（原始工作簿索引）可覆盖此默认值。
+   */
   async function getJsonData(options?: PreviewOptions): Promise<ParsedWorkbook | null> {
     if (!fileData) return null;
     try {
       await ensureInit();
-      const mergedOptions = { ...config.defaultOptions, ...options, sheetIndex: activeSheet() };
+      // activeSheet 是可见列表位置，需转换为原始工作簿索引后才能传给 WASM
+      const realIndex = options?.sheetIndex ?? toRealIndex(visibleSheets, activeSheet());
+      const mergedOptions = { ...config.defaultOptions, ...options, sheetIndex: realIndex };
       const result = config.parseExcelToJson(fileData, mergedOptions);
       setData(result);
       return result;

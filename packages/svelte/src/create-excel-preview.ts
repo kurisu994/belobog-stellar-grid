@@ -19,7 +19,7 @@
  * ```
  */
 
-import { writable, readonly, type Readable } from 'svelte/store';
+import { writable, readonly, get, type Readable } from 'svelte/store';
 import type { PreviewOptions, ParsedWorkbook, SheetInfo } from '@bsg-export/types';
 
 /** Excel 预览 Store 配置 */
@@ -69,6 +69,22 @@ export interface ExcelPreviewStore {
  *
  * 管理 WASM 初始化、文件解析、Sheet 切换等完整预览生命周期。
  */
+/**
+ * 将可见列表位置映射为原始工作簿索引
+ *
+ * `PreviewOptions.sheetIndex` 是原始工作簿索引，而 `activeSheet` / `switchSheet`
+ * 用的是可见列表位置，存在隐藏 Sheet 时两者不相等，必须显式转换。
+ */
+function toRealIndex(visible: SheetInfo[], pos: number): number {
+  return visible[pos]?.index ?? pos;
+}
+
+/** 将原始工作簿索引反查为可见列表位置（指向隐藏 Sheet 时回退到 0） */
+function toVisiblePos(visible: SheetInfo[], realIndex: number): number {
+  const pos = visible.findIndex(s => s.index === realIndex);
+  return pos >= 0 ? pos : 0;
+}
+
 export function createExcelPreview(config: CreateExcelPreviewOptions): ExcelPreviewStore {
   const loading = writable(false);
   const error = writable<string | null>(null);
@@ -97,7 +113,7 @@ export function createExcelPreview(config: CreateExcelPreviewOptions): ExcelPrev
     sheets.set(visibleSheets);
     html.set(config.parseExcelToHtml(bytes, mergedOptions));
     data.set(null);
-    activeSheet.set(mergedOptions.sheetIndex ?? 0);
+    activeSheet.set(toVisiblePos(visibleSheets, mergedOptions.sheetIndex ?? 0));
   }
 
   /** 加载 Excel 文件（从 File 对象） */
@@ -159,7 +175,7 @@ export function createExcelPreview(config: CreateExcelPreviewOptions): ExcelPrev
     loading.set(true);
     try {
       // 将可见列表位置映射为原始工作簿索引
-      const realIndex = visibleSheets[sheetIndex]?.index ?? sheetIndex;
+      const realIndex = toRealIndex(visibleSheets, sheetIndex);
       const options = { ...config.defaultOptions, sheetIndex: realIndex };
       html.set(config.parseExcelToHtml(fileData, options));
       data.set(null);
@@ -171,14 +187,18 @@ export function createExcelPreview(config: CreateExcelPreviewOptions): ExcelPrev
     }
   }
 
-  /** 获取 JSON 数据 */
+  /**
+   * 获取 JSON 数据
+   *
+   * 默认解析当前活动 Sheet；`options.sheetIndex`（原始工作簿索引）可覆盖此默认值。
+   */
   async function getJsonData(options?: PreviewOptions): Promise<ParsedWorkbook | null> {
     if (!fileData) return null;
     try {
       await ensureInit();
-      let currentActiveSheet = 0;
-      activeSheet.subscribe(v => { currentActiveSheet = v; })();
-      const mergedOptions = { ...config.defaultOptions, ...options, sheetIndex: currentActiveSheet };
+      // activeSheet 是可见列表位置，需转换为原始工作簿索引后才能传给 WASM
+      const realIndex = options?.sheetIndex ?? toRealIndex(visibleSheets, get(activeSheet));
+      const mergedOptions = { ...config.defaultOptions, ...options, sheetIndex: realIndex };
       const result = config.parseExcelToJson(fileData, mergedOptions);
       data.set(result);
       return result;

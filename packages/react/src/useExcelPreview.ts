@@ -70,6 +70,22 @@ export interface UseExcelPreviewReturn extends ExcelPreviewState {
  *
  * 管理 WASM 初始化、文件解析、Sheet 切换等完整预览生命周期。
  */
+/**
+ * 将可见列表位置映射为原始工作簿索引
+ *
+ * `PreviewOptions.sheetIndex` 是原始工作簿索引，而 `activeSheet` / `switchSheet`
+ * 用的是可见列表位置，存在隐藏 Sheet 时两者不相等，必须显式转换。
+ */
+function toRealIndex(visible: SheetInfo[], pos: number): number {
+  return visible[pos]?.index ?? pos;
+}
+
+/** 将原始工作簿索引反查为可见列表位置（指向隐藏 Sheet 时回退到 0） */
+function toVisiblePos(visible: SheetInfo[], realIndex: number): number {
+  const pos = visible.findIndex(s => s.index === realIndex);
+  return pos >= 0 ? pos : 0;
+}
+
 export function useExcelPreview(config: UseExcelPreviewOptions): UseExcelPreviewReturn {
   const [state, setState] = useState<ExcelPreviewState>({
     loading: false,
@@ -114,7 +130,7 @@ export function useExcelPreview(config: UseExcelPreviewOptions): UseExcelPreview
         html,
         data: null,
         sheets: visible,
-        activeSheet: mergedOptions.sheetIndex ?? 0,
+        activeSheet: toVisiblePos(visible, mergedOptions.sheetIndex ?? 0),
       });
     } catch (e) {
       setState(prev => ({
@@ -144,7 +160,7 @@ export function useExcelPreview(config: UseExcelPreviewOptions): UseExcelPreview
         html,
         data: null,
         sheets: visible,
-        activeSheet: mergedOptions.sheetIndex ?? 0,
+        activeSheet: toVisiblePos(visible, mergedOptions.sheetIndex ?? 0),
       });
     } catch (e) {
       setState(prev => ({
@@ -180,7 +196,7 @@ export function useExcelPreview(config: UseExcelPreviewOptions): UseExcelPreview
         html,
         data: null,
         sheets: visible,
-        activeSheet: mergedOptions.sheetIndex ?? 0,
+        activeSheet: toVisiblePos(visible, mergedOptions.sheetIndex ?? 0),
       });
     } catch (e) {
       setState(prev => ({
@@ -197,7 +213,7 @@ export function useExcelPreview(config: UseExcelPreviewOptions): UseExcelPreview
     setState(prev => ({ ...prev, loading: true }));
     try {
       // 将可见列表位置映射为原始工作簿索引
-      const realIndex = visibleSheetsRef.current[sheetIndex]?.index ?? sheetIndex;
+      const realIndex = toRealIndex(visibleSheetsRef.current, sheetIndex);
       const options = { ...config.defaultOptions, sheetIndex: realIndex };
       const html = config.parseExcelToHtml(fileDataRef.current!, options);
       setState(prev => ({
@@ -216,12 +232,18 @@ export function useExcelPreview(config: UseExcelPreviewOptions): UseExcelPreview
     }
   }, [config]);
 
-  /** 获取 JSON 数据 */
+  /**
+   * 获取 JSON 数据
+   *
+   * 默认解析当前活动 Sheet；`options.sheetIndex`（原始工作簿索引）可覆盖此默认值。
+   */
   const getJsonData = useCallback(async (options?: PreviewOptions): Promise<ParsedWorkbook | null> => {
     if (!fileDataRef.current) return null;
     try {
       await ensureInit();
-      const mergedOptions = { ...config.defaultOptions, ...options, sheetIndex: state.activeSheet };
+      // activeSheet 是可见列表位置，需转换为原始工作簿索引后才能传给 WASM
+      const realIndex = options?.sheetIndex ?? toRealIndex(visibleSheetsRef.current, state.activeSheet);
+      const mergedOptions = { ...config.defaultOptions, ...options, sheetIndex: realIndex };
       const data = config.parseExcelToJson(fileDataRef.current!, mergedOptions);
       setState(prev => ({ ...prev, data }));
       return data;
