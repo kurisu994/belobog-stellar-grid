@@ -143,6 +143,8 @@ export function useExporter() {
         createProgressCallback(),
         options.withBom,
         options.strictProgressCallback,
+        options.headerStyle,
+        options.cellStyle,
       );
     });
   };
@@ -165,6 +167,8 @@ export function useExporter() {
         options.filename,
         createProgressCallback(),
         options.strictProgressCallback,
+        options.headerStyle,
+        options.cellStyle,
       );
     });
   };
@@ -196,6 +200,8 @@ export function useExporter() {
         options.excludeHidden,
         createProgressCallback(),
         options.strictProgressCallback,
+        options.headerStyle,
+        options.cellStyle,
       );
     });
   };
@@ -209,6 +215,8 @@ export function useExporter() {
         options.batchSize,
         createProgressCallback(),
         options.strictProgressCallback,
+        options.headerStyle,
+        options.cellStyle,
       );
     });
   };

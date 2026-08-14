@@ -164,6 +164,8 @@ export function createExporter(): CreateExporterReturn {
         createProgressCallback(),
         options.withBom,
         options.strictProgressCallback,
+        options.headerStyle,
+        options.cellStyle,
       );
     });
   };
@@ -186,6 +188,8 @@ export function createExporter(): CreateExporterReturn {
         options.filename,
         createProgressCallback(),
         options.strictProgressCallback,
+        options.headerStyle,
+        options.cellStyle,
       );
     });
   };
@@ -217,6 +221,8 @@ export function createExporter(): CreateExporterReturn {
         options.excludeHidden,
         createProgressCallback(),
         options.strictProgressCallback,
+        options.headerStyle,
+        options.cellStyle,
       );
     });
   };
@@ -230,6 +236,8 @@ export function createExporter(): CreateExporterReturn {
         options.batchSize,
         createProgressCallback(),
         options.strictProgressCallback,
+        options.headerStyle,
+        options.cellStyle,
       );
     });
   };
