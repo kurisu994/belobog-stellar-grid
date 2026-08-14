@@ -392,16 +392,15 @@ export interface InitOutput {
     readonly getExcelSheetList: (a: number, b: number) => [number, number, number];
     readonly parseExcelToHtml: (a: number, b: number, c: any) => [number, number, number];
     readonly parseExcelToJson: (a: number, b: number, c: any) => [number, number, number];
-    readonly wasm_bindgen__closure__destroy__hb1f1e222d193ce94: (a: number, b: number) => void;
-    readonly wasm_bindgen__closure__destroy__hf303d41569bc49f4: (a: number, b: number) => void;
-    readonly wasm_bindgen__convert__closures_____invoke__h4c21a5017d209281: (a: number, b: number, c: any) => [number, number];
-    readonly wasm_bindgen__convert__closures_____invoke__h00d297b34697abe8: (a: number, b: number, c: any, d: any) => void;
-    readonly wasm_bindgen__convert__closures_____invoke__ha9c2500887b34685: (a: number, b: number) => void;
+    readonly wasm_bindgen_c67f70b73c5176f0___convert__closures_____invoke___wasm_bindgen_c67f70b73c5176f0___JsValue__core_9b3796e30d99ddb7___result__Result_____wasm_bindgen_c67f70b73c5176f0___JsError___true_: (a: number, b: number, c: any) => [number, number];
+    readonly wasm_bindgen_c67f70b73c5176f0___convert__closures_____invoke___js_sys_d4c08035d3a67332___Function_fn_wasm_bindgen_c67f70b73c5176f0___JsValue_____wasm_bindgen_c67f70b73c5176f0___sys__Undefined___js_sys_d4c08035d3a67332___Function_fn_wasm_bindgen_c67f70b73c5176f0___JsValue_____wasm_bindgen_c67f70b73c5176f0___sys__Undefined_______true_: (a: number, b: number, c: any, d: any) => void;
+    readonly wasm_bindgen_c67f70b73c5176f0___convert__closures_____invoke_______true_: (a: number, b: number) => void;
     readonly __wbindgen_malloc: (a: number, b: number) => number;
     readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
     readonly __wbindgen_exn_store: (a: number) => void;
     readonly __externref_table_alloc: () => number;
     readonly __wbindgen_externrefs: WebAssembly.Table;
+    readonly __wbindgen_destroy_closure: (a: number, b: number) => void;
     readonly __externref_table_dealloc: (a: number) => void;
     readonly __wbindgen_start: () => void;
 }
