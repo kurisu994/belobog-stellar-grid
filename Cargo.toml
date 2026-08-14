@@ -57,6 +57,11 @@ console_error_panic_hook = { version = "0.1.7", optional = true }
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.56"
+
+# criterion 依赖 rayon，无法在 wasm32 下编译。放在 native-only 段里，
+# 否则它会拖垮整个 dev 依赖图，导致 tests/ 根本无法为 wasm32 目标编译
+# （`#[cfg(target_arch = "wasm32")]` 测试块会因此永远不被检查）。
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
 
 [[bench]]

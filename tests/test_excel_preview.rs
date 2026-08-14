@@ -13,8 +13,10 @@
 //! `excel_reader::parse_excel()` 等内部函数。
 //!
 //! 通过 `lib.rs` 导出的 WASM API（`parse_excel_to_html`、`parse_excel_to_json`、
-//! `get_excel_sheet_list`）接收 `JsValue` 参数，仅在 `wasm32` 目标下可用，
-//! 已在 `e2e/` Playwright 测试中覆盖。
+//! `get_excel_sheet_list`）返回 `JsValue`，仅在 `wasm32` 目标下可调用。
+//!
+//! TODO: `e2e/` 目前尚无 Excel 预览的 Playwright spec，这三个入口的端到端行为
+//! （多 Sheet 切换、隐藏 Sheet 过滤、样式还原）实际处于无覆盖状态，待补。
 //!
 //! 此文件验证：
 //! 1. 公共导出符号的编译正确性
@@ -35,18 +37,15 @@ fn test_excel_preview_exports_compile() {
     // 但 fn 指针赋值可验证它们在 lib.rs 中正确重导出
     #[cfg(target_arch = "wasm32")]
     {
+        use wasm_bindgen::JsValue;
+
+        // 文件字节以 &[u8] 传入（零拷贝），仅 options 与返回值走 JsValue
         let _ = belobog_stellar_grid::parse_excel_to_html
-            as fn(
-                wasm_bindgen::JsValue,
-                wasm_bindgen::JsValue,
-            ) -> Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>;
+            as fn(&[u8], JsValue) -> Result<JsValue, JsValue>;
         let _ = belobog_stellar_grid::parse_excel_to_json
-            as fn(
-                wasm_bindgen::JsValue,
-                wasm_bindgen::JsValue,
-            ) -> Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>;
+            as fn(&[u8], JsValue) -> Result<JsValue, JsValue>;
         let _ = belobog_stellar_grid::get_excel_sheet_list
-            as fn(wasm_bindgen::JsValue) -> Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>;
+            as fn(&[u8]) -> Result<JsValue, JsValue>;
     }
 }
 
