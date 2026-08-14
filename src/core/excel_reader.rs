@@ -164,10 +164,29 @@ struct SheetDimensions {
 /// 条件格式条目（对应一个 <conditionalFormatting> 元素）
 #[derive(Debug, Clone)]
 struct ConditionalFormatEntry {
-    /// 应用范围（已展开为 0-based 行列坐标集合）
-    cells: Vec<(u32, u32)>,
+    /// 应用范围（0-based 闭区间矩形列表）
+    ranges: Vec<CellRange>,
     /// 规则列表（按优先级排序）
     rules: Vec<ConditionalFormatRule>,
+}
+
+/// 单元格矩形范围（0-based 闭区间）
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CellRange {
+    first_row: u32,
+    first_col: u32,
+    last_row: u32,
+    last_col: u32,
+}
+
+impl CellRange {
+    /// 判断坐标是否落在范围内
+    fn contains(&self, row: u32, col: u32) -> bool {
+        row >= self.first_row
+            && row <= self.last_row
+            && col >= self.first_col
+            && col <= self.last_col
+    }
 }
 
 /// 条件格式规则
@@ -626,7 +645,7 @@ fn evaluate_conditional_format(
     };
 
     for entry in &dims.conditional_formats {
-        if !entry.cells.contains(&(row, col)) {
+        if !entry.ranges.iter().any(|r| r.contains(row, col)) {
             continue;
         }
         // 按优先级顺序匹配规则（先定义的优先）
@@ -999,10 +1018,10 @@ fn parse_sheet_xml(xml: &str) -> Result<SheetDimensions, String> {
                     }
                     "conditionalFormatting" => {
                         if let Some(sqref) = current_cf_sqref.take() {
-                            let cells = parse_sqref(&sqref);
-                            if !cells.is_empty() && !current_cf_rules.is_empty() {
+                            let ranges = parse_sqref(&sqref);
+                            if !ranges.is_empty() && !current_cf_rules.is_empty() {
                                 dims.conditional_formats.push(ConditionalFormatEntry {
-                                    cells,
+                                    ranges,
                                     rules: current_cf_rules.clone(),
                                 });
                             }
@@ -1022,25 +1041,36 @@ fn parse_sheet_xml(xml: &str) -> Result<SheetDimensions, String> {
     Ok(dims)
 }
 
-/// 解析 sqref 范围字符串为单元格坐标列表（0-based）
+/// 解析 sqref 范围字符串为矩形范围列表（0-based）
 ///
 /// 支持格式如 "E27:P27", "A1 B2:C3"（空格分隔多段）
-fn parse_sqref(sqref: &str) -> Vec<(u32, u32)> {
-    let mut cells = Vec::new();
+///
+/// 这里保留范围边界而不展开成坐标集合：Excel 中「整列套条件格式」会写成
+/// `sqref="A1:D1048576"`，展开后有数百万个坐标；极端的 `"A1:XFD1048576"`
+/// 更是上百亿个，足以直接耗尽 WASM 内存。范围表示让内存与查找都是常量级。
+fn parse_sqref(sqref: &str) -> Vec<CellRange> {
+    let mut ranges = Vec::new();
     for part in sqref.split_whitespace() {
         if let Some((start, end)) = part.split_once(':') {
             if let (Some((r1, c1)), Some((r2, c2))) = (parse_cell_ref(start), parse_cell_ref(end)) {
-                for r in r1..=r2 {
-                    for c in c1..=c2 {
-                        cells.push((r, c));
-                    }
-                }
+                // 用 min/max 兜住反向书写的范围（如 "D4:C3"）
+                ranges.push(CellRange {
+                    first_row: r1.min(r2),
+                    first_col: c1.min(c2),
+                    last_row: r1.max(r2),
+                    last_col: c1.max(c2),
+                });
             }
         } else if let Some((r, c)) = parse_cell_ref(part) {
-            cells.push((r, c));
+            ranges.push(CellRange {
+                first_row: r,
+                first_col: c,
+                last_row: r,
+                last_col: c,
+            });
         }
     }
-    cells
+    ranges
 }
 
 /// 解析单元格引用（如 "A1" → (0, 0)、"B3" → (2, 1)）
@@ -1050,7 +1080,10 @@ fn parse_cell_ref(cell_ref: &str) -> Option<(u32, u32)> {
 
     for ch in cell_ref.chars() {
         if ch.is_ascii_alphabetic() {
-            col = col * 26 + (ch.to_ascii_uppercase() as u32 - b'A' as u32 + 1);
+            // 超长字母串（如 "AAAAAAAA1"）会溢出 u32，判为非法引用直接丢弃
+            col = col
+                .checked_mul(26)?
+                .checked_add(ch.to_ascii_uppercase() as u32 - b'A' as u32 + 1)?;
         } else if ch.is_ascii_digit() {
             row_str.push(ch);
         }
@@ -1061,6 +1094,11 @@ fn parse_cell_ref(cell_ref: &str) -> Option<(u32, u32)> {
     }
 
     let row = row_str.parse::<u32>().ok()?;
+    // 行号从 1 开始，"A0" 这类非法引用直接丢弃（避免 0 - 1 下溢）
+    if row == 0 {
+        return None;
+    }
+
     // 转为 0-based
     Some((row - 1, col - 1))
 }
@@ -1768,26 +1806,98 @@ mod tests {
         }
     }
 
+    /// 断言范围覆盖了预期坐标、且不覆盖预期之外的坐标
+    fn assert_covers(ranges: &[CellRange], covered: &[(u32, u32)], not_covered: &[(u32, u32)]) {
+        for &(r, c) in covered {
+            assert!(
+                ranges.iter().any(|x| x.contains(r, c)),
+                "范围应覆盖 ({r}, {c})"
+            );
+        }
+        for &(r, c) in not_covered {
+            assert!(
+                !ranges.iter().any(|x| x.contains(r, c)),
+                "范围不应覆盖 ({r}, {c})"
+            );
+        }
+    }
+
     #[test]
     fn test_parse_sqref_single_cell() {
-        let cells = parse_sqref("A1");
-        assert_eq!(cells, vec![(0, 0)]);
+        let ranges = parse_sqref("A1");
+        assert_eq!(
+            ranges,
+            vec![CellRange {
+                first_row: 0,
+                first_col: 0,
+                last_row: 0,
+                last_col: 0,
+            }]
+        );
     }
 
     #[test]
     fn test_parse_sqref_range() {
-        let cells = parse_sqref("E27:G27");
+        let ranges = parse_sqref("E27:G27");
         // E=4, row 27=26(0-based), 范围 E27, F27, G27
-        assert_eq!(cells, vec![(26, 4), (26, 5), (26, 6)]);
+        assert_eq!(
+            ranges,
+            vec![CellRange {
+                first_row: 26,
+                first_col: 4,
+                last_row: 26,
+                last_col: 6,
+            }]
+        );
+        assert_covers(
+            &ranges,
+            &[(26, 4), (26, 5), (26, 6)],
+            &[(26, 3), (26, 7), (25, 4)],
+        );
     }
 
     #[test]
     fn test_parse_sqref_multi_ranges() {
-        let cells = parse_sqref("A1 C3:D4");
-        assert_eq!(cells.len(), 5); // A1 + C3,D3,C4,D4
-        assert!(cells.contains(&(0, 0))); // A1
-        assert!(cells.contains(&(2, 2))); // C3
-        assert!(cells.contains(&(3, 3))); // D4
+        let ranges = parse_sqref("A1 C3:D4");
+        assert_eq!(ranges.len(), 2);
+        assert_covers(
+            &ranges,
+            &[(0, 0), (2, 2), (2, 3), (3, 2), (3, 3)],
+            &[(0, 1), (1, 1), (4, 3)],
+        );
+    }
+
+    #[test]
+    fn test_parse_sqref_whole_sheet_is_constant_memory() {
+        // 整表条件格式：展开成坐标集合会有上百亿个元素，范围表示只占一条
+        let ranges = parse_sqref("A1:XFD1048576");
+        assert_eq!(ranges.len(), 1);
+        assert_covers(
+            &ranges,
+            &[(0, 0), (500_000, 8_000), (1_048_575, 16_383)],
+            &[],
+        );
+    }
+
+    #[test]
+    fn test_parse_sqref_reversed_range() {
+        // 反向书写的范围应被规范化，而不是解析成空范围
+        let ranges = parse_sqref("D4:C3");
+        assert_covers(&ranges, &[(2, 2), (3, 3)], &[(1, 2), (4, 3)]);
+    }
+
+    #[test]
+    fn test_parse_sqref_invalid_refs_are_dropped() {
+        // "A0"（行号 0）曾导致 0 - 1 下溢，超长字母串曾溢出 u32
+        assert!(parse_sqref("A0").is_empty());
+        assert!(parse_sqref("AAAAAAAAAAAA1").is_empty());
+        assert!(parse_sqref("A0:B0").is_empty());
+    }
+
+    #[test]
+    fn test_parse_cell_ref_rejects_row_zero() {
+        assert_eq!(parse_cell_ref("A0"), None);
+        assert_eq!(parse_cell_ref("A1"), Some((0, 0)));
     }
 
     #[test]
@@ -1832,9 +1942,7 @@ mod tests {
         let dims = parse_sheet_xml(xml).unwrap();
         assert_eq!(dims.conditional_formats.len(), 1);
         let entry = &dims.conditional_formats[0];
-        assert_eq!(entry.cells.len(), 2); // E27, F27
-        assert!(entry.cells.contains(&(26, 4))); // E27
-        assert!(entry.cells.contains(&(26, 5))); // F27
+        assert_covers(&entry.ranges, &[(26, 4), (26, 5)], &[(26, 3), (26, 6)]); // E27, F27
         assert_eq!(entry.rules.len(), 1);
         assert_eq!(entry.rules[0].rule_type, "cellIs");
         assert_eq!(entry.rules[0].operator, "lessThan");
