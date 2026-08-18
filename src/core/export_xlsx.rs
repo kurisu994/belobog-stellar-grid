@@ -3,40 +3,61 @@
 /// 提供 Excel XLSX 格式的表格导出功能，支持单元格样式
 use super::style::StyleSheet;
 use super::table_extractor::TableData;
+use crate::resource::trigger_bytes_download;
 use crate::utils::report_progress;
-use crate::validation::{ensure_extension, validate_filename};
-use rust_xlsxwriter::{Format, Workbook};
+use rust_xlsxwriter::{Format, Workbook, Worksheet};
+use std::collections::HashMap;
 use wasm_bindgen::prelude::*;
-use web_sys::{Blob, HtmlAnchorElement, Url};
 
-/// 写入单元格数据，根据样式表决定是否带格式
-///
-/// 统一使用 write_string 防止公式注入
-pub(crate) fn write_cell(
-    worksheet: &mut rust_xlsxwriter::Worksheet,
-    row: u32,
-    col: u16,
-    text: &str,
-    style_sheet: Option<&StyleSheet>,
+/// Excel 最大行号（0-based，共 1048576 行）
+const EXCEL_MAX_ROW: u32 = 1_048_575;
+/// Excel 最大列号（0-based，共 16384 列）
+const EXCEL_MAX_COL: u16 = 16_383;
+
+/// XLSX MIME 类型
+const XLSX_MIME: &str = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+/// 写入阶段进度映射：`progress = start + row_ratio * range`
+struct SheetProgress<'a> {
+    callback: &'a js_sys::Function,
+    strict: bool,
+    start: f64,
+    range: f64,
+    every_n: usize,
+}
+
+/// 计算有效冻结窗格；超出数据区时回退为不冻结
+fn resolve_freeze_pane(
+    freeze_pane: Option<(u32, u16)>,
     header_row_count: usize,
-) -> Result<(), JsValue> {
-    if let Some(ss) = style_sheet
-        && let Some(format) = ss.resolve(row, col, header_row_count)
-    {
-        worksheet
-            .write_string_with_format(row, col, text, &format)
-            .map_err(|e| JsValue::from_str(&format!("写入 Excel 单元格失败: {}", e)))?;
-    } else {
-        worksheet
-            .write_string(row, col, text)
-            .map_err(|e| JsValue::from_str(&format!("写入 Excel 单元格失败: {}", e)))?;
+    total_rows: usize,
+    total_cols: usize,
+) -> Option<(u32, u16)> {
+    let (mut row, mut col) = freeze_pane.unwrap_or({
+        if header_row_count > 0 {
+            (header_row_count as u32, 0)
+        } else {
+            (0, 0)
+        }
+    });
+
+    if total_rows == 0 || row as usize >= total_rows {
+        row = 0;
     }
-    Ok(())
+    if total_cols == 0 || col as usize >= total_cols {
+        col = 0;
+    }
+
+    if row > 0 || col > 0 {
+        Some((row, col))
+    } else {
+        None
+    }
 }
 
 /// 应用列宽配置
-pub(crate) fn apply_column_widths(
-    worksheet: &mut rust_xlsxwriter::Worksheet,
+fn apply_column_widths(
+    worksheet: &mut Worksheet,
     style_sheet: Option<&StyleSheet>,
 ) -> Result<(), JsValue> {
     if let Some(ss) = style_sheet {
@@ -52,8 +73,8 @@ pub(crate) fn apply_column_widths(
 }
 
 /// 应用合并单元格，并保留样式
-pub(crate) fn apply_merge_ranges(
-    worksheet: &mut rust_xlsxwriter::Worksheet,
+fn apply_merge_ranges(
+    worksheet: &mut Worksheet,
     table_data: &TableData,
     style_sheet: Option<&StyleSheet>,
 ) -> Result<(), JsValue> {
@@ -91,6 +112,93 @@ pub(crate) fn apply_merge_ranges(
     Ok(())
 }
 
+/// 将单个工作表的数据/合并/冻结写入 worksheet（供单表与多表复用）
+fn write_sheet(
+    worksheet: &mut Worksheet,
+    table_data: &TableData,
+    freeze_pane: Option<(u32, u16)>,
+    progress: Option<SheetProgress<'_>>,
+) -> Result<(), JsValue> {
+    let style_sheet = table_data.style_sheet.as_ref();
+    apply_column_widths(worksheet, style_sheet)?;
+
+    let total_rows = table_data.rows.len();
+    let mut max_cols = 0usize;
+
+    // 无单元格覆盖时缓存「全局+列级」Format，避免逐格 clone/merge/to_format
+    let mut header_fmt_cache: HashMap<u16, Option<Format>> = HashMap::new();
+    let mut data_fmt_cache: HashMap<u16, Option<Format>> = HashMap::new();
+
+    for (i, row_data) in table_data.rows.iter().enumerate() {
+        // 在 usize 下比较，避免先 as u32 造成截断后漏检
+        if i > EXCEL_MAX_ROW as usize {
+            return Err(JsValue::from_str("行数超过 Excel 限制 (1048576)"));
+        }
+        max_cols = max_cols.max(row_data.len());
+        let is_header = i < table_data.header_row_count;
+        let row = i as u32;
+
+        for (j, cell_text) in row_data.iter().enumerate() {
+            // 同上：在 usize 下比较，避免 as u16 截断
+            if j > EXCEL_MAX_COL as usize {
+                return Err(JsValue::from_str("列数超过 Excel 限制 (16384)"));
+            }
+            let col = j as u16;
+
+            let format = if let Some(ss) = style_sheet {
+                if ss.cell_overrides.contains_key(&(row, col)) {
+                    ss.resolve(row, col, table_data.header_row_count)
+                } else {
+                    let cache = if is_header {
+                        &mut header_fmt_cache
+                    } else {
+                        &mut data_fmt_cache
+                    };
+                    cache
+                        .entry(col)
+                        .or_insert_with(|| ss.resolve_column(is_header, col))
+                        .clone()
+                }
+            } else {
+                None
+            };
+
+            if let Some(ref fmt) = format {
+                worksheet
+                    .write_string_with_format(row, col, cell_text, fmt)
+                    .map_err(|e| JsValue::from_str(&format!("写入 Excel 单元格失败: {}", e)))?;
+            } else {
+                worksheet
+                    .write_string(row, col, cell_text)
+                    .map_err(|e| JsValue::from_str(&format!("写入 Excel 单元格失败: {}", e)))?;
+            }
+        }
+
+        if let Some(ref p) = progress
+            && total_rows > 0
+            && (i % p.every_n == 0 || i == total_rows - 1)
+        {
+            let ratio = (i + 1) as f64 / total_rows as f64;
+            report_progress(p.callback, p.start + ratio * p.range, p.strict)?;
+        }
+    }
+
+    apply_merge_ranges(worksheet, table_data, style_sheet)?;
+
+    if let Some((fr, fc)) = resolve_freeze_pane(
+        freeze_pane,
+        table_data.header_row_count,
+        total_rows,
+        max_cols,
+    ) {
+        worksheet
+            .set_freeze_panes(fr, fc)
+            .map_err(|e| JsValue::from_str(&format!("设置冻结窗格失败: {}", e)))?;
+    }
+
+    Ok(())
+}
+
 /// 生成 XLSX 文件字节（不触发下载）
 ///
 /// 仅生成 Excel 格式的字节数据，供 Worker 等场景使用。
@@ -110,70 +218,26 @@ pub fn generate_xlsx_bytes(
     strict_progress: bool,
     freeze_pane: Option<(u32, u16)>,
 ) -> Result<Vec<u8>, JsValue> {
-    let total_rows = table_data.rows.len();
-    let style_sheet = table_data.style_sheet.as_ref();
-
-    // 报告初始进度
     if let Some(callback) = progress_callback {
         report_progress(callback, 0.0, strict_progress)?;
     }
 
-    // 创建工作簿与工作表
     let mut workbook = Workbook::new();
     let worksheet = workbook.add_worksheet();
 
-    // 应用列宽
-    apply_column_widths(worksheet, style_sheet)?;
-
-    // 写入所有数据，并报告进度
-    // 安全策略：所有单元格统一使用 write_string，禁用公式自动执行，防止公式注入攻击
-    for (i, row_data) in table_data.rows.iter().enumerate() {
-        for (j, cell_text) in row_data.iter().enumerate() {
-            if j > 16383 {
-                return Err(JsValue::from_str("列数超过 Excel 限制 (16384)"));
-            }
-            write_cell(
-                worksheet,
-                i as u32,
-                j as u16,
-                cell_text,
-                style_sheet,
-                table_data.header_row_count,
-            )?;
-        }
-
-        // 定期报告进度（每10行或最后一行）（数据写入阶段占 0% - 80%）
-        if let Some(callback) = progress_callback
-            && (i % 10 == 0 || i == total_rows - 1)
-        {
-            let progress = ((i + 1) as f64 / total_rows as f64) * 80.0;
-            report_progress(callback, progress, strict_progress)?;
-        }
-    }
-
-    // 应用合并单元格（merge_range 会覆盖首单元格内容，需传入实际文本和样式）
-    apply_merge_ranges(worksheet, table_data, style_sheet)?;
-
-    // 应用冻结窗格：用户配置优先，否则自动根据表头行数冻结
-    let effective_freeze = freeze_pane.unwrap_or({
-        if table_data.header_row_count > 0 {
-            (table_data.header_row_count as u32, 0)
-        } else {
-            (0, 0)
-        }
+    let progress = progress_callback.map(|callback| SheetProgress {
+        callback,
+        strict: strict_progress,
+        start: 0.0,
+        range: 80.0,
+        every_n: 10,
     });
-    if effective_freeze.0 > 0 || effective_freeze.1 > 0 {
-        worksheet
-            .set_freeze_panes(effective_freeze.0, effective_freeze.1)
-            .map_err(|e| JsValue::from_str(&format!("设置冻结窗格失败: {}", e)))?;
-    }
+    write_sheet(worksheet, table_data, freeze_pane, progress)?;
 
-    // 报告合并单元格完成进度
     if let Some(callback) = progress_callback {
         report_progress(callback, 90.0, strict_progress)?;
     }
 
-    // 将工作簿写入内存缓冲区
     let xlsx_bytes = workbook
         .save_to_buffer()
         .map_err(|e| JsValue::from_str(&format!("生成 Excel 文件失败: {}", e)))?;
@@ -186,16 +250,6 @@ pub fn generate_xlsx_bytes(
 }
 
 /// 导出为 Excel XLSX 格式（生成文件并触发下载）
-///
-/// # 参数
-/// * `table_data` - 表格数据（包含单元格数据、合并区域和可选样式表）
-/// * `filename` - 可选的导出文件名
-/// * `progress_callback` - 可选的进度回调函数
-/// * `strict_progress` - 是否启用严格进度回调模式
-///
-/// # 返回值
-/// * `Ok(())` - 导出成功
-/// * `Err(JsValue)` - 导出失败，包含错误信息
 pub fn export_as_xlsx(
     table_data: TableData,
     filename: Option<String>,
@@ -209,22 +263,10 @@ pub fn export_as_xlsx(
         strict_progress,
         freeze_pane,
     )?;
-
-    // 创建并下载文件
     create_and_download_xlsx(&xlsx_bytes, filename)
 }
 
 /// 生成多工作表 XLSX 文件字节（不触发下载）
-///
-/// # 参数
-/// * `sheets_data` - 工作表数据列表，每个元素为 (工作表名称, 表格数据)
-/// * `progress_callback` - 可选的进度回调函数
-/// * `strict_progress` - 是否启用严格进度回调模式
-/// * `freeze_pane` - 可选的冻结窗格位置，应用到所有工作表
-///
-/// # 返回值
-/// * `Ok(Vec<u8>)` - 生成的 XLSX 字节
-/// * `Err(JsValue)` - 生成失败
 pub fn generate_xlsx_multi_bytes(
     sheets_data: &[(String, TableData)],
     progress_callback: Option<&js_sys::Function>,
@@ -237,82 +279,36 @@ pub fn generate_xlsx_multi_bytes(
 
     let total_sheets = sheets_data.len();
 
-    // 报告初始进度
     if let Some(callback) = progress_callback {
         report_progress(callback, 0.0, strict_progress)?;
     }
 
-    // 创建工作簿
     let mut workbook = Workbook::new();
 
-    // 逐个工作表写入数据
     for (sheet_idx, (sheet_name, table_data)) in sheets_data.iter().enumerate() {
         let worksheet = workbook.add_worksheet();
-        let style_sheet = table_data.style_sheet.as_ref();
-
-        // 设置工作表名称
         worksheet
             .set_name(sheet_name)
             .map_err(|e| JsValue::from_str(&format!("设置工作表名称失败: {}", e)))?;
 
-        // 应用列宽
-        apply_column_widths(worksheet, style_sheet)?;
-
-        let total_rows = table_data.rows.len();
-
-        // 写入数据
-        for (i, row_data) in table_data.rows.iter().enumerate() {
-            for (j, cell_text) in row_data.iter().enumerate() {
-                if j > 16383 {
-                    return Err(JsValue::from_str("列数超过 Excel 限制 (16384)"));
-                }
-                write_cell(
-                    worksheet,
-                    i as u32,
-                    j as u16,
-                    cell_text,
-                    style_sheet,
-                    table_data.header_row_count,
-                )?;
-            }
-
-            // 报告进度（数据写入阶段占 0% - 80%，按 sheet 均分）
-            if let Some(callback) = progress_callback
-                && total_rows > 0
-                && (i % 10 == 0 || i == total_rows - 1)
-            {
-                let sheet_progress_start = (sheet_idx as f64 / total_sheets as f64) * 80.0;
-                let sheet_progress_range = 80.0 / total_sheets as f64;
-                let row_progress = (i + 1) as f64 / total_rows as f64;
-                let progress = sheet_progress_start + row_progress * sheet_progress_range;
-                report_progress(callback, progress, strict_progress)?;
-            }
-        }
-
-        // 应用合并单元格
-        apply_merge_ranges(worksheet, table_data, style_sheet)?;
-
-        // 应用冻结窗格：用户配置优先，否则自动根据各 sheet 的表头行数冻结
-        let effective_freeze = freeze_pane.unwrap_or({
-            if table_data.header_row_count > 0 {
-                (table_data.header_row_count as u32, 0)
-            } else {
-                (0, 0)
+        let progress = progress_callback.map(|callback| {
+            let start = (sheet_idx as f64 / total_sheets as f64) * 80.0;
+            let range = 80.0 / total_sheets as f64;
+            SheetProgress {
+                callback,
+                strict: strict_progress,
+                start,
+                range,
+                every_n: 10,
             }
         });
-        if effective_freeze.0 > 0 || effective_freeze.1 > 0 {
-            worksheet
-                .set_freeze_panes(effective_freeze.0, effective_freeze.1)
-                .map_err(|e| JsValue::from_str(&format!("设置冻结窗格失败: {}", e)))?;
-        }
+        write_sheet(worksheet, table_data, freeze_pane, progress)?;
     }
 
-    // 报告合并单元格完成进度
     if let Some(callback) = progress_callback {
         report_progress(callback, 90.0, strict_progress)?;
     }
 
-    // 将工作簿写入内存缓冲区
     let xlsx_bytes = workbook
         .save_to_buffer()
         .map_err(|e| JsValue::from_str(&format!("生成 Excel 文件失败: {}", e)))?;
@@ -325,12 +321,6 @@ pub fn generate_xlsx_multi_bytes(
 }
 
 /// 多工作表导出为 Excel XLSX 格式（生成文件并触发下载）
-///
-/// # 参数
-/// * `sheets_data` - 工作表数据列表，每个元素为 (工作表名称, 表格数据)
-/// * `filename` - 可选的导出文件名
-/// * `progress_callback` - 可选的进度回调函数
-/// * `strict_progress` - 是否启用严格进度回调模式
 pub fn export_as_xlsx_multi(
     sheets_data: Vec<(String, TableData)>,
     filename: Option<String>,
@@ -344,61 +334,35 @@ pub fn export_as_xlsx_multi(
         strict_progress,
         freeze_pane,
     )?;
-
-    // 创建并下载文件
     create_and_download_xlsx(&xlsx_bytes, filename)
 }
 
 /// 创建 Excel Blob 并触发下载
-///
-/// # 参数
-/// * `data` - Excel 文件数据字节
-/// * `filename` - 可选的导出文件名
 pub(crate) fn create_and_download_xlsx(
     data: &[u8],
     filename: Option<String>,
 ) -> Result<(), JsValue> {
-    let window = web_sys::window().ok_or_else(|| JsValue::from_str("无法获取 window 对象"))?;
-    let document = window
-        .document()
-        .ok_or_else(|| JsValue::from_str("无法获取 document 对象"))?;
+    trigger_bytes_download(data, XLSX_MIME, filename, "table_export.xlsx", "xlsx")
+}
 
-    // 创建 Excel Blob 对象
-    let blob_property_bag = web_sys::BlobPropertyBag::new();
-    blob_property_bag.set_type("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-
-    let array = js_sys::Array::of1(&js_sys::Uint8Array::from(data));
-    let blob = Blob::new_with_u8_array_sequence_and_options(&array, &blob_property_bag)
-        .map_err(|e| JsValue::from_str(&format!("创建 Blob 对象失败: {:?}", e)))?;
-
-    // 创建下载链接
-    let url = Url::create_object_url_with_blob(&blob)
-        .map_err(|e| JsValue::from_str(&format!("创建下载链接失败: {:?}", e)))?;
-
-    // 设置文件名
-    let final_filename = filename.unwrap_or_else(|| "table_export.xlsx".to_string());
-
-    // 验证文件名安全性
-    if let Err(e) = validate_filename(&final_filename) {
-        return Err(JsValue::from_str(&format!("文件名验证失败: {}", e)));
-    }
-
-    let final_filename = ensure_extension(&final_filename, "xlsx");
-
-    // 创建下载链接元素
-    let anchor = document
-        .create_element("a")
-        .map_err(|e| JsValue::from_str(&format!("创建下载链接元素失败: {:?}", e)))?;
-    let anchor = anchor
-        .dyn_into::<HtmlAnchorElement>()
-        .map_err(|_| JsValue::from_str("创建的元素不是有效的锚点元素"))?;
-
-    anchor.set_href(&url);
-    anchor.set_download(&final_filename);
-    anchor.click();
-
-    // 延迟 10 秒后释放 Blob URL，避免 click 后立即 revoke 导致下载竞态
-    crate::resource::schedule_url_revoke(&window, url);
-
-    Ok(())
+/// 供分批导出使用：在已有 workbook 上写入单表（进度可映射到自定义区间）
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn write_sheet_with_progress(
+    worksheet: &mut Worksheet,
+    table_data: &TableData,
+    freeze_pane: Option<(u32, u16)>,
+    progress_callback: Option<&js_sys::Function>,
+    strict: bool,
+    progress_start: f64,
+    progress_range: f64,
+    every_n: usize,
+) -> Result<(), JsValue> {
+    let progress = progress_callback.map(|callback| SheetProgress {
+        callback,
+        strict,
+        start: progress_start,
+        range: progress_range,
+        every_n,
+    });
+    write_sheet(worksheet, table_data, freeze_pane, progress)
 }

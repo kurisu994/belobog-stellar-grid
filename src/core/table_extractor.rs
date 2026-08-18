@@ -1,11 +1,14 @@
-use crate::utils::is_element_hidden;
+use crate::utils::{ensure_external_tbody, is_element_hidden};
 use std::collections::HashMap;
 use wasm_bindgen::JsCast;
 /// 表格数据提取模块
 ///
 /// 提供从 DOM 中提取表格数据的功能，支持合并单元格（colspan/rowspan）
 use wasm_bindgen::prelude::*;
-use web_sys::{Element, HtmlTableCellElement, HtmlTableElement, HtmlTableRowElement};
+use web_sys::{
+    Element, HtmlCollection, HtmlTableCellElement, HtmlTableElement, HtmlTableRowElement,
+    HtmlTableSectionElement,
+};
 
 /// 根据 ID 查找 table 元素
 ///
@@ -142,6 +145,82 @@ pub fn resolve_table(table_id: &str) -> Result<HtmlTableElement, JsValue> {
         .ok_or_else(|| JsValue::from_str(&format!("找不到 ID 为 '{}' 的元素", table_id)))?;
 
     find_table_element(element, table_id)
+}
+
+/// 表格 + 可选外部 tbody 的行数据源（分批导出共用）
+pub struct TableRowSources {
+    pub table_rows: HtmlCollection,
+    pub table_row_count: usize,
+    pub tbody_rows: Option<HtmlCollection>,
+    pub tbody_row_count: usize,
+    pub header_row_count: usize,
+}
+
+impl TableRowSources {
+    /// 解析 table 与可选外部 tbody
+    pub fn open(table_id: &str, tbody_id: Option<&str>) -> Result<Self, JsValue> {
+        let table = resolve_table(table_id)?;
+        let table_rows = table.rows();
+        let table_row_count = table_rows.length() as usize;
+        let header_row_count = table
+            .t_head()
+            .map(|thead| thead.rows().length() as usize)
+            .unwrap_or(0);
+
+        let mut tbody_rows = None;
+        let mut tbody_row_count = 0;
+
+        if let Some(tid) = tbody_id
+            && !tid.is_empty()
+        {
+            let window =
+                web_sys::window().ok_or_else(|| JsValue::from_str("无法获取 window 对象"))?;
+            let document = window
+                .document()
+                .ok_or_else(|| JsValue::from_str("无法获取 document 对象"))?;
+
+            let tbody_element = document.get_element_by_id(tid).ok_or_else(|| {
+                JsValue::from_str(&format!("找不到 ID 为 '{}' 的 tbody 元素", tid))
+            })?;
+
+            ensure_external_tbody(&table, table_id, &tbody_element, tid)?;
+
+            let tbody = tbody_element
+                .dyn_into::<HtmlTableSectionElement>()
+                .map_err(|_| {
+                    JsValue::from_str(&format!("元素 '{}' 不是有效的 HTML 表格部分(tbody)", tid))
+                })?;
+
+            let rows = tbody.rows();
+            tbody_row_count = rows.length() as usize;
+            tbody_rows = Some(rows);
+        }
+
+        Ok(Self {
+            table_rows,
+            table_row_count,
+            tbody_rows,
+            tbody_row_count,
+            header_row_count,
+        })
+    }
+
+    pub fn total_rows(&self) -> usize {
+        self.table_row_count + self.tbody_row_count
+    }
+
+    pub fn get_row(&self, index: usize) -> Result<HtmlTableRowElement, JsValue> {
+        if index < self.table_row_count {
+            get_table_row(&self.table_rows, index as u32)
+        } else if let Some(ref rows) = self.tbody_rows {
+            get_table_row(rows, (index - self.table_row_count) as u32)
+        } else {
+            Err(JsValue::from_str(&format!(
+                "无法获取第 {} 行数据",
+                index + 1
+            )))
+        }
+    }
 }
 
 /// 从行集合中获取并转换行元素
@@ -450,7 +529,14 @@ fn compute_merge_ranges(
         let visible_rows_covered = count_visible_rows(span.rowspan, row_idx, exclude_hidden, rows);
 
         let last_row = output_row_idx + visible_rows_covered;
-        let last_col = (*col_idx + span.colspan as usize - 1) as u16;
+        let last_col_usize = col_idx
+            .saturating_add(span.colspan as usize)
+            .saturating_sub(1);
+        // 超出 Excel 列上限则钳制，避免 u16 截断
+        if last_col_usize > 16383 {
+            continue;
+        }
+        let last_col = last_col_usize as u16;
 
         // 记录合并区域（仅当范围覆盖多个单元格时）
         if last_row > output_row_idx || last_col as usize > *col_idx {

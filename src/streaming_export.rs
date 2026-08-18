@@ -1,10 +1,13 @@
+use crate::core::export_csv::create_and_download_csv_parts;
 /// 流式 CSV 数据导出模块
 ///
 /// 提供基于分块 Blob 拼接的流式 CSV 导出功能，
-/// 将 CSV 编码过程的内存峰值从「全部数据的 CSV 字节」降低为「一个分块大小」。
+/// 将 Rust 侧 CSV 编码缓冲峰值从「全部输出」降低为「一个分块大小」。
 ///
-/// **注意**：源数据在导出前会完整解析到 Rust 侧内存中，
-/// 分块策略仅降低 CSV 编码缓冲的峰值，总内存占用约为源数据 + 一个分块的编码缓冲。
+/// **注意**：
+/// - 源数据在导出前会完整解析到 Rust 侧内存；
+/// - JS 侧 `blob_parts` 会持有全部分片直至组成最终 Blob，
+///   因此总峰值约为「源数据 + 完整 CSV 输出」，并非仅单块大小。
 ///
 /// **注意**：XLSX 格式受 `rust_xlsxwriter` 库限制无法真正流式化，
 /// 当 `format=Xlsx` 时会自动回退到 `export_data` 的同步逻辑。
@@ -13,11 +16,9 @@ use crate::core::{
     export_data_impl, parse_export_data_options, parse_js_array_data,
 };
 use crate::utils::{report_progress, yield_to_browser};
-use crate::validation::{ensure_extension, validate_filename};
 use csv::Writer;
 use std::io::Cursor;
 use wasm_bindgen::prelude::*;
-use web_sys::{Blob, BlobPropertyBag, HtmlAnchorElement, Url};
 
 /// 默认分块大小（每块行数）
 const DEFAULT_CHUNK_SIZE: usize = 5000;
@@ -159,7 +160,7 @@ pub async fn export_data_streaming(
     }
 
     // 用所有分块片段创建 CSV Blob 并触发下载
-    create_and_download_csv_from_parts(&blob_parts, opts.filename)?;
+    create_and_download_csv_parts(&blob_parts, opts.filename, "streaming_export.csv")?;
 
     Ok(JsValue::UNDEFINED)
 }
@@ -198,53 +199,4 @@ fn build_rows_from_data(
         // 二维数组模式
         parse_js_array_data(&data)
     }
-}
-
-/// 从 Blob 片段数组创建 CSV 文件并触发下载
-fn create_and_download_csv_from_parts(
-    parts: &js_sys::Array,
-    filename: Option<String>,
-) -> Result<(), JsValue> {
-    let window = web_sys::window().ok_or_else(|| JsValue::from_str("无法获取 window 对象"))?;
-    let document = window
-        .document()
-        .ok_or_else(|| JsValue::from_str("无法获取 document 对象"))?;
-
-    // 创建 CSV Blob 对象（从多个 Uint8Array 片段拼接）
-    let blob_property_bag = BlobPropertyBag::new();
-    blob_property_bag.set_type("text/csv;charset=utf-8");
-
-    let blob = Blob::new_with_u8_array_sequence_and_options(parts, &blob_property_bag)
-        .map_err(|e| JsValue::from_str(&format!("创建 Blob 对象失败: {:?}", e)))?;
-
-    // 创建下载链接
-    let url = Url::create_object_url_with_blob(&blob)
-        .map_err(|e| JsValue::from_str(&format!("创建下载链接失败: {:?}", e)))?;
-
-    // 设置文件名
-    let final_filename = filename.unwrap_or_else(|| "streaming_export.csv".to_string());
-
-    // 验证文件名安全性
-    if let Err(e) = validate_filename(&final_filename) {
-        return Err(JsValue::from_str(&format!("文件名验证失败: {}", e)));
-    }
-
-    let final_filename = ensure_extension(&final_filename, "csv");
-
-    // 创建下载链接元素
-    let anchor = document
-        .create_element("a")
-        .map_err(|e| JsValue::from_str(&format!("创建下载链接元素失败: {:?}", e)))?;
-    let anchor = anchor
-        .dyn_into::<HtmlAnchorElement>()
-        .map_err(|_| JsValue::from_str("创建的元素不是有效的锚点元素"))?;
-
-    anchor.set_href(&url);
-    anchor.set_download(&final_filename);
-    anchor.click();
-
-    // 延迟释放 Blob URL
-    crate::resource::schedule_url_revoke(&window, url);
-
-    Ok(())
 }

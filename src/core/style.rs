@@ -176,7 +176,11 @@ impl CellStyle {
             format = format.set_italic();
         }
 
-        if let Some(size) = self.font_size {
+        // Excel 字号合法范围约 1–409；过滤非有限值与越界，避免写入异常 XML
+        if let Some(size) = self.font_size
+            && size.is_finite()
+            && (1.0..=409.0).contains(&size)
+        {
             format = format.set_font_size(size);
         }
 
@@ -279,21 +283,14 @@ impl StyleSheet {
             && self.column_widths.iter().all(|w| w.is_none())
     }
 
-    /// 解析指定位置 (row, col) 的最终合并样式，并转换为 Format
-    ///
-    /// 合并优先级：全局 → 列级 → 单元格级
-    /// 返回 None 表示该位置无任何样式设置
-    pub fn resolve(&self, row: u32, col: u16, header_row_count: usize) -> Option<Format> {
-        let is_header = (row as usize) < header_row_count;
-
-        // 第一级：全局样式
+    /// 仅解析「全局 + 列级」样式（不含单元格覆盖），便于按列缓存 Format
+    pub fn resolve_column(&self, is_header: bool, col: u16) -> Option<Format> {
         let base = if is_header {
             self.header_style.as_ref()
         } else {
             self.data_style.as_ref()
         };
 
-        // 第二级：列级样式
         let col_style = if is_header {
             self.column_header_styles
                 .get(col as usize)
@@ -304,20 +301,51 @@ impl StyleSheet {
                 .and_then(|s| s.as_ref())
         };
 
-        // 第三级：单元格级覆盖
-        let cell_style = self.cell_overrides.get(&(row, col));
+        let merged = match (base, col_style) {
+            (None, None) => return None,
+            (Some(s), None) | (None, Some(s)) => s.clone(),
+            (Some(base), Some(col)) => base.merge(col),
+        };
 
-        // 按优先级合并
-        let merged = match (base, col_style, cell_style) {
-            (None, None, None) => return None,
-            (Some(s), None, None) | (None, Some(s), None) | (None, None, Some(s)) => s.clone(),
-            (Some(base), Some(col), None) => base.merge(col),
-            (Some(base), None, Some(cell)) => base.merge(cell),
-            (None, Some(col), Some(cell)) => col.merge(cell),
-            (Some(base), Some(col), Some(cell)) => {
-                let intermediate = base.merge(col);
-                intermediate.merge(cell)
-            }
+        if merged.is_empty() {
+            return None;
+        }
+        Some(merged.to_format())
+    }
+
+    /// 解析指定位置 (row, col) 的最终合并样式，并转换为 Format
+    ///
+    /// 合并优先级：全局 → 列级 → 单元格级
+    /// 返回 None 表示该位置无任何样式设置
+    pub fn resolve(&self, row: u32, col: u16, header_row_count: usize) -> Option<Format> {
+        let is_header = (row as usize) < header_row_count;
+
+        // 无单元格覆盖时走列级路径（可被 write_sheet 缓存）
+        let Some(cell_style) = self.cell_overrides.get(&(row, col)) else {
+            return self.resolve_column(is_header, col);
+        };
+
+        let base = if is_header {
+            self.header_style.as_ref()
+        } else {
+            self.data_style.as_ref()
+        };
+
+        let col_style = if is_header {
+            self.column_header_styles
+                .get(col as usize)
+                .and_then(|s| s.as_ref())
+        } else {
+            self.column_styles
+                .get(col as usize)
+                .and_then(|s| s.as_ref())
+        };
+
+        let merged = match (base, col_style) {
+            (None, None) => cell_style.clone(),
+            (Some(b), None) => b.merge(cell_style),
+            (None, Some(c)) => c.merge(cell_style),
+            (Some(b), Some(c)) => b.merge(c).merge(cell_style),
         };
 
         if merged.is_empty() {
@@ -331,19 +359,26 @@ impl StyleSheet {
 /// 将 3 位 hex 颜色扩展为 6 位，并确保以 "#" 开头
 ///
 /// 例: "#F00" → "#FF0000", "ABC" → "#AABBCC"
+///
+/// 非法输入（非 hex、非常见长度、多字节字符）原样返回，绝不 panic。
 pub fn normalize_hex_color(color: &str) -> String {
     let trimmed = color.trim().trim_start_matches('#');
+    // 必须按字符数判断：UTF-8 单字符（如 "中"）字节长度为 3，按字节分支会越界 panic
+    let chars: Vec<char> = trimmed.chars().collect();
 
-    match trimmed.len() {
+    if !chars.iter().all(|c| c.is_ascii_hexdigit()) {
+        return color.to_string();
+    }
+
+    match chars.len() {
         3 => {
             // 扩展 3 位 → 6 位
-            let chars: Vec<char> = trimmed.chars().collect();
             format!(
                 "#{}{}{}{}{}{}",
                 chars[0], chars[0], chars[1], chars[1], chars[2], chars[2]
             )
         }
-        6 => format!("#{}", trimmed),
+        6 => format!("#{}", chars.iter().collect::<String>()),
         _ => color.to_string(),
     }
 }
@@ -509,6 +544,17 @@ mod tests {
     fn test_normalize_hex_color_6digit() {
         assert_eq!(normalize_hex_color("#FF0000"), "#FF0000");
         assert_eq!(normalize_hex_color("AABBCC"), "#AABBCC");
+    }
+
+    #[test]
+    fn test_normalize_hex_color_invalid_no_panic() {
+        // 3 字节 UTF-8 单字符：旧实现会按字节长度命中 3 分支后越界 panic
+        assert_eq!(normalize_hex_color("中"), "中");
+        assert_eq!(normalize_hex_color("#色"), "#色");
+        // 非法 hex、非常见长度
+        assert_eq!(normalize_hex_color("GGG"), "GGG");
+        assert_eq!(normalize_hex_color("#12"), "#12");
+        assert_eq!(normalize_hex_color(""), "");
     }
 
     #[test]

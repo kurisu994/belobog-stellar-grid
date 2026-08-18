@@ -8,6 +8,12 @@ use wasm_bindgen::prelude::*;
 /// 最大递归深度限制，防止恶意构造的深层嵌套数据导致栈溢出
 const MAX_DEPTH: usize = 64;
 
+/// 数据区最大单元格数，防止恶意/超大输入一次性分配导致 OOM
+const MAX_DATA_CELLS: usize = 5_000_000;
+
+/// 表头最大单元格数
+const MAX_HEADER_CELLS: usize = 100_000;
+
 /// extract_data_rows 返回类型（数据行, 合并区域, 单元格样式覆盖）
 type ExtractedDataRows = (
     Vec<Vec<String>>,
@@ -86,30 +92,24 @@ fn parse_column_node_with_depth(
     index: u32,
     depth: usize,
 ) -> Result<ColumnNode, JsValue> {
-    let title = js_sys::Reflect::get(item, &JsValue::from_str("title"))
-        .ok()
-        .and_then(|v| v.as_string())
+    let title = get_object_property(item, "title")?
+        .as_string()
         .ok_or_else(|| {
             JsValue::from_str(&format!("第 {} 个表头配置缺少有效的 title", index + 1))
         })?;
 
-    let key = js_sys::Reflect::get(item, &JsValue::from_str("key"))
-        .ok()
-        .and_then(|v| v.as_string());
+    let key = get_object_property(item, "key")?.as_string();
 
-    let children_val = js_sys::Reflect::get(item, &JsValue::from_str("children"))
-        .ok()
-        .filter(|v| !v.is_undefined() && !v.is_null());
-
-    let children = if let Some(cv) = children_val {
-        let arr = js_sys::Array::from(&cv);
+    let children_raw = get_object_property(item, "children")?;
+    let children = if children_raw.is_undefined() || children_raw.is_null() {
+        Vec::new()
+    } else {
+        let arr = js_sys::Array::from(&children_raw);
         if arr.length() > 0 {
-            parse_columns_with_depth(&cv, depth + 1)?
+            parse_columns_with_depth(&children_raw, depth + 1)?
         } else {
             Vec::new()
         }
-    } else {
-        Vec::new()
     };
 
     // 叶子节点必须有 key
@@ -121,19 +121,15 @@ fn parse_column_node_with_depth(
     }
 
     // 解析列宽
-    let width = js_sys::Reflect::get(item, &JsValue::from_str("width"))
-        .ok()
-        .and_then(|v| v.as_f64());
+    let width = get_object_property(item, "width")?.as_f64();
 
     // 解析数据单元格样式
-    let style = js_sys::Reflect::get(item, &JsValue::from_str("style"))
-        .ok()
-        .and_then(|v| super::style::parse_cell_style(&v));
+    let style_val = get_object_property(item, "style")?;
+    let style = super::style::parse_cell_style(&style_val);
 
     // 解析表头单元格样式
-    let header_style = js_sys::Reflect::get(item, &JsValue::from_str("headerStyle"))
-        .ok()
-        .and_then(|v| super::style::parse_cell_style(&v));
+    let header_style_val = get_object_property(item, "headerStyle")?;
+    let header_style = super::style::parse_cell_style(&header_style_val);
 
     Ok(ColumnNode {
         title,
@@ -225,9 +221,14 @@ fn build_header_rows(
     max_depth: usize,
 ) -> Result<(Vec<Vec<String>>, Vec<MergeRange>), JsValue> {
     let total_cols = columns.iter().map(calc_leaf_count).sum::<usize>();
-    // 安全检查：防止分配过大的内存 (防止 OOM)
-    const MAX_HEADER_CELLS: usize = 100_000;
-    if total_cols * max_depth > MAX_HEADER_CELLS {
+    // 安全检查：使用 checked_mul，避免 wasm32 上乘法回绕绕过上限
+    let Some(total_cells) = total_cols.checked_mul(max_depth) else {
+        return Err(JsValue::from_str(&format!(
+            "表头过大（{} x {}），超过最大单元格数限制 ({})",
+            total_cols, max_depth, MAX_HEADER_CELLS
+        )));
+    };
+    if total_cells > MAX_HEADER_CELLS {
         return Err(JsValue::from_str(&format!(
             "表头过大（{} x {}），超过最大单元格数限制 ({})",
             total_cols, max_depth, MAX_HEADER_CELLS
@@ -358,12 +359,12 @@ fn parse_cell_value(val: &JsValue) -> CellInfo {
 
             let col_span = col_span_js
                 .and_then(|v| v.as_f64())
-                .map(|n| n as u32)
+                .map(parse_span_value)
                 .unwrap_or(1);
 
             let row_span = row_span_js
                 .and_then(|v| v.as_f64())
-                .map(|n| n as u32)
+                .map(parse_span_value)
                 .unwrap_or(1);
 
             // 解析单元格级别样式
@@ -410,13 +411,26 @@ fn extract_data_rows(
         return Ok((Vec::new(), Vec::new(), std::collections::HashMap::new()));
     }
 
-    let mut rows = Vec::with_capacity(length as usize);
+    // 数据区总单元格上限（与表头保护对称）
+    let row_count = length as usize;
+    let col_count = keys.len();
+    match row_count.checked_mul(col_count) {
+        Some(total) if total <= MAX_DATA_CELLS => {}
+        _ => {
+            return Err(JsValue::from_str(&format!(
+                "数据过大（{} 行 x {} 列），超过最大单元格数限制 ({})，请改用流式/分批导出",
+                row_count, col_count, MAX_DATA_CELLS
+            )));
+        }
+    }
+
+    let mut rows = Vec::with_capacity(row_count);
     let mut merge_ranges = Vec::new();
     let mut cell_overrides = std::collections::HashMap::new();
 
     for i in 0..length {
         let item = array.get(i);
-        let mut row = Vec::with_capacity(keys.len());
+        let mut row = Vec::with_capacity(col_count);
 
         for (col_idx, key) in keys.iter().enumerate() {
             let val = get_object_property(&item, key)?;
@@ -440,9 +454,11 @@ fn extract_data_rows(
                     let first_row = (i as usize + header_row_count) as u32;
                     let first_col = col_idx as u16;
 
-                    // 限制 span 范围防止溢出（使用 saturating 算术避免 debug panic）
-                    let safe_row_span = cell_info.row_span.min(1_000_000);
-                    let safe_col_span = (cell_info.col_span.min(16_384)) as u16;
+                    // 按真实网格钳制 span，避免生成越界 MergeRange
+                    let remaining_rows = row_count.saturating_sub(i as usize).max(1) as u32;
+                    let remaining_cols = col_count.saturating_sub(col_idx).max(1) as u32;
+                    let safe_row_span = cell_info.row_span.min(remaining_rows).min(1_000_000);
+                    let safe_col_span = cell_info.col_span.min(remaining_cols).min(16_384) as u16;
                     let last_row = first_row.saturating_add(safe_row_span).saturating_sub(1);
                     let last_col = first_col.saturating_add(safe_col_span).saturating_sub(1);
 
@@ -457,6 +473,15 @@ fn extract_data_rows(
     Ok((rows, merge_ranges, cell_overrides))
 }
 
+/// 将 span 数值转为 u32：非有限/负值视为 0，小数截断
+fn parse_span_value(n: f64) -> u32 {
+    if n.is_finite() && n >= 0.0 {
+        n as u32
+    } else {
+        0
+    }
+}
+
 /// 将 JS 值转换为字符串
 pub(crate) fn js_value_to_string(val: &JsValue) -> String {
     if val.is_null() || val.is_undefined() {
@@ -464,12 +489,41 @@ pub(crate) fn js_value_to_string(val: &JsValue) -> String {
     } else if let Some(s) = val.as_string() {
         s
     } else if let Some(n) = val.as_f64() {
-        n.to_string()
+        format_js_number(n)
     } else if let Some(b) = val.as_bool() {
         b.to_string()
     } else {
         // Symbol、BigInt 等其他类型，使用 Debug 格式输出
         format!("{:?}", val)
+    }
+}
+
+/// 稳定的 JS 数字格式化，避免 `0.30000000000000004` 与无意义科学计数
+fn format_js_number(n: f64) -> String {
+    if !n.is_finite() {
+        return String::new();
+    }
+    if n == 0.0 {
+        return "0".to_string();
+    }
+    if n == n.floor() && n.abs() < 1e15 {
+        return format!("{}", n as i64);
+    }
+    // 极小/极大值保留原始精度：固定 10 位小数会把 1e-15 截成 0
+    if n.abs() < 1e-6 || n.abs() >= 1e15 {
+        return n.to_string();
+    }
+    // 限制小数位并去掉尾随 0
+    let s = format!("{n:.10}");
+    if let Some(dot) = s.find('.') {
+        let trimmed = s[dot..].trim_end_matches('0');
+        if trimmed == "." {
+            s[..dot].to_string()
+        } else {
+            format!("{}{}", &s[..dot], trimmed)
+        }
+    } else {
+        s
     }
 }
 
@@ -522,15 +576,30 @@ fn flatten_tree_data(
 
         rows.push(row);
 
-        // 递归处理子节点
-        let children_val = js_sys::Reflect::get(&item, &JsValue::from_str(children_key))
-            .ok()
-            .filter(|v| !v.is_undefined() && !v.is_null());
+        // 树形拍平后的累计单元格数也要受上限约束
+        match rows.len().checked_mul(keys.len()) {
+            Some(total) if total <= MAX_DATA_CELLS => {}
+            _ => {
+                return Err(JsValue::from_str(&format!(
+                    "树形数据过大（已超过最大单元格数限制 {}），请减少数据量或改用流式/分批导出",
+                    MAX_DATA_CELLS
+                )));
+            }
+        }
 
-        if let Some(cv) = children_val {
-            let child_arr = js_sys::Array::from(&cv);
+        // 递归处理子节点
+        let children_raw = get_object_property(&item, children_key)?;
+        if !children_raw.is_undefined() && !children_raw.is_null() {
+            let child_arr = js_sys::Array::from(&children_raw);
             if child_arr.length() > 0 {
-                flatten_tree_data(&cv, keys, indent_key, children_key, depth + 1, rows)?;
+                flatten_tree_data(
+                    &children_raw,
+                    keys,
+                    indent_key,
+                    children_key,
+                    depth + 1,
+                    rows,
+                )?;
             }
         }
     }
@@ -651,20 +720,7 @@ pub fn build_table_data_from_array(
 
 /// 从叶子列样式构建 StyleSheet（不含单元格级覆盖）
 fn build_column_style_sheet(leaf_styles: &[LeafColumnStyle]) -> Option<super::style::StyleSheet> {
-    let has_any = leaf_styles
-        .iter()
-        .any(|s| s.width.is_some() || s.style.is_some() || s.header_style.is_some());
-
-    if !has_any {
-        return None;
-    }
-
-    Some(super::style::StyleSheet {
-        column_widths: leaf_styles.iter().map(|s| s.width).collect(),
-        column_styles: leaf_styles.iter().map(|s| s.style.clone()).collect(),
-        column_header_styles: leaf_styles.iter().map(|s| s.header_style.clone()).collect(),
-        ..Default::default()
-    })
+    build_column_style_sheet_with_overrides(leaf_styles, std::collections::HashMap::new())
 }
 
 /// 从叶子列样式和单元格级覆盖构建 StyleSheet
@@ -693,6 +749,28 @@ fn build_column_style_sheet_with_overrides(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_format_js_number_precision() {
+        // 修复浮点噪声
+        assert_eq!(format_js_number(0.1 + 0.2), "0.3");
+        assert_eq!(format_js_number(12.3456), "12.3456");
+        // 整数不走科学计数
+        assert_eq!(format_js_number(1234567890.0), "1234567890");
+        assert_eq!(format_js_number(0.0), "0");
+        // 极小值不能被截成 0
+        assert_ne!(format_js_number(1e-15), "0");
+        assert_ne!(format_js_number(2.5e-9), "0");
+    }
+
+    #[test]
+    fn test_parse_span_value_edge_cases() {
+        assert_eq!(parse_span_value(2.0), 2);
+        assert_eq!(parse_span_value(2.5), 2);
+        assert_eq!(parse_span_value(-1.0), 0);
+        assert_eq!(parse_span_value(f64::NAN), 0);
+        assert_eq!(parse_span_value(f64::INFINITY), 0);
+    }
 
     /// 测试列树深度计算
     #[test]

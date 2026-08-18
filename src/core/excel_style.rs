@@ -142,18 +142,18 @@ impl ExcelStyleSheet {
     }
 
     /// 从 xlsx zip 文件中解析样式信息
-    pub fn from_xlsx_zip<R: Read + Seek>(reader: R) -> Result<Self, String> {
-        let mut archive =
-            zip::ZipArchive::new(reader).map_err(|e| format!("无法读取 zip 文件: {e}"))?;
-
-        let theme_colors = Self::parse_theme(&mut archive).unwrap_or_else(|_| {
+    /// 从已打开的 ZipArchive 解析样式表（便于与 sheet 维度解析复用同一 archive）
+    pub fn from_zip_archive<R: Read + Seek>(
+        archive: &mut zip::ZipArchive<R>,
+    ) -> Result<Self, String> {
+        let theme_colors = Self::parse_theme(archive).unwrap_or_else(|_| {
             DEFAULT_THEME_COLORS
                 .iter()
                 .map(|s| (*s).to_string())
                 .collect()
         });
 
-        let styles_xml = Self::read_zip_entry(&mut archive, "xl/styles.xml")?;
+        let styles_xml = Self::read_zip_entry(archive, "xl/styles.xml")?;
         let mut sheet = Self::parse_styles_xml(&styles_xml)?;
         sheet.theme_colors = theme_colors;
         Ok(sheet)
@@ -741,6 +741,12 @@ struct DxfParseState {
     bold: bool,
     italic: bool,
     bg_color: Option<ColorRef>,
+    /// patternFill 的 patternType
+    ///
+    /// 注意：dxf 与 cellXfs 语义不同。Excel 写条件格式时常省略 patternType
+    /// （如 `<patternFill><bgColor rgb="FFFFC7CE"/></patternFill>`），此时仍应上色。
+    /// 因此仅在显式为 "none" 时才不应用填充色。
+    pattern_type: Option<String>,
     in_font: bool,
     in_fill: bool,
 }
@@ -748,11 +754,17 @@ struct DxfParseState {
 impl DxfParseState {
     /// 将解析状态转为最终样式（颜色需要后续解析为 RGB）
     fn into_style(self) -> ExcelCellStyle {
+        // 缺省视为 solid；仅 "none" 不上色
+        let is_solid = !matches!(self.pattern_type.as_deref(), Some("none"));
         ExcelCellStyle {
             font_color: self.font_color.and_then(|c| resolve_color_standalone(&c)),
             bold: self.bold,
             italic: self.italic,
-            bg_color: self.bg_color.and_then(|c| resolve_color_standalone(&c)),
+            bg_color: if is_solid {
+                self.bg_color.and_then(|c| resolve_color_standalone(&c))
+            } else {
+                None
+            },
             ..Default::default()
         }
     }
@@ -786,6 +798,11 @@ fn handle_dxf_start(
         "fill" if state.is_some() => {
             if let Some(s) = state.as_mut() {
                 s.in_fill = true;
+            }
+        }
+        "patternFill" if state.as_ref().is_some_and(|s| s.in_fill) => {
+            if let Some(s) = state.as_mut() {
+                s.pattern_type = get_attr(e, "patternType");
             }
         }
         "b" if state.as_ref().is_some_and(|s| s.in_font) => {
@@ -997,11 +1014,17 @@ fn sanitize_hex_color(color: &str) -> &str {
 
 fn sanitize_css_value(value: &str) -> String {
     let lower = value.to_lowercase();
+    // 拦截脚本向量，以及可逃逸 style 属性的声明分隔符
     if lower.contains("expression")
         || lower.contains("url(")
         || lower.contains("javascript:")
         || lower.contains("import")
-        || lower.contains("\\")
+        || lower.contains('\\')
+        || value.contains(';')
+        || value.contains('{')
+        || value.contains('}')
+        || value.contains('<')
+        || value.contains('>')
     {
         return "sans-serif".to_string();
     }
@@ -1038,6 +1061,11 @@ fn local_name(full_name: &[u8]) -> &str {
 
 /// 格式化数字值（动态解析格式字符串）
 pub fn format_number(value: f64, format_str: &str) -> String {
+    // NaN/Inf 不输出字面量，避免污染预览
+    if !value.is_finite() {
+        return String::new();
+    }
+
     let fmt = format_str.trim();
 
     // General / 空格式
@@ -1075,10 +1103,20 @@ pub fn format_number(value: f64, format_str: &str) -> String {
         return format!("{value:.prec$E}", prec = decimals);
     }
 
-    // 带千位分隔符
+    // 处理逗号：可能是千分位，也可能是缩放（末尾逗号表示 ÷1000）
     if clean.contains(',') {
-        let decimals = count_decimal_places(&clean);
-        return format_with_thousands(value, decimals);
+        let (scaled_fmt, scaled_value) = apply_comma_scaling(&clean, value);
+        let decimals = count_decimal_places(&scaled_fmt);
+        if scaled_fmt.contains(',') {
+            return format_with_thousands(scaled_value, decimals);
+        }
+        if scaled_fmt.contains('.') {
+            return format!("{scaled_value:.prec$}", prec = decimals);
+        }
+        if scaled_value.abs() < 1e18 {
+            return format!("{}", scaled_value.round() as i64);
+        }
+        return format_general(scaled_value);
     }
 
     // 固定小数位格式（如 "0", "0.00", "0.0", "0.000", "#.##" 等）
@@ -1100,8 +1138,36 @@ pub fn format_number(value: f64, format_str: &str) -> String {
     format_general(value)
 }
 
+/// 处理数字格式中的缩放逗号（如 `"0,"` → ÷1000，`"0,,"` → ÷1_000_000）
+///
+/// 返回 (去掉缩放逗号后的格式, 缩放后的值)。千分位逗号（位于数字占位符之间）会保留。
+fn apply_comma_scaling(fmt: &str, value: f64) -> (String, f64) {
+    // 仅处理小数点前、由格式末尾连续逗号构成的缩放；中间的 `#,##0` 千分位不动
+    let (int_part, frac_part) = match fmt.split_once('.') {
+        Some((i, f)) => (i, Some(f)),
+        None => (fmt, None),
+    };
+
+    let trimmed_int = int_part.trim_end_matches(',');
+    let scale = (int_part.len() - trimmed_int.len()) as i32;
+    if scale == 0 {
+        return (fmt.to_string(), value);
+    }
+
+    let mut new_fmt = trimmed_int.to_string();
+    if let Some(frac) = frac_part {
+        new_fmt.push('.');
+        new_fmt.push_str(frac);
+    }
+    let scaled = value / 1000f64.powi(scale);
+    (new_fmt, scaled)
+}
+
 /// General 格式的智能格式化（限制精度，去除浮点噪声）
 fn format_general(value: f64) -> String {
+    if !value.is_finite() {
+        return String::new();
+    }
     if value == 0.0 {
         return "0".to_string();
     }
@@ -1317,6 +1383,50 @@ mod tests {
         assert_eq!(sanitize_css_value("Arial"), "Arial");
         assert_eq!(sanitize_css_value("expression(evil)"), "sans-serif");
         assert_eq!(sanitize_css_value("url(http://evil)"), "sans-serif");
+        assert_eq!(sanitize_css_value("x;color:red"), "sans-serif");
+        assert_eq!(sanitize_css_value("a{background:red}"), "sans-serif");
+    }
+
+    #[test]
+    fn test_format_number_non_finite() {
+        assert_eq!(format_number(f64::NAN, "0.00"), "");
+        assert_eq!(format_number(f64::INFINITY, "General"), "");
+    }
+
+    #[test]
+    fn test_dxf_fill_pattern_type_semantics() {
+        // Excel 条件格式常省略 patternType，此时仍应上色；仅 none 不上色
+        let xml = r#"<?xml version="1.0"?>
+<styleSheet>
+  <dxfs count="2">
+    <dxf>
+      <fill><patternFill><bgColor rgb="FFFFC7CE"/></patternFill></fill>
+    </dxf>
+    <dxf>
+      <fill><patternFill patternType="none"><bgColor rgb="FFC6EFCE"/></patternFill></fill>
+    </dxf>
+  </dxfs>
+</styleSheet>"#;
+        let ss = ExcelStyleSheet::parse_styles_xml(xml).unwrap();
+        let no_attr = ss.get_dxf_style(0).expect("dxf[0] 应存在");
+        assert_eq!(
+            no_attr.bg_color.as_deref(),
+            Some("#FFC7CE"),
+            "缺省 patternType 应视为 solid 并上色"
+        );
+        let explicit_none = ss.get_dxf_style(1).expect("dxf[1] 应存在");
+        assert!(
+            explicit_none.bg_color.is_none(),
+            "patternType=none 不应上色"
+        );
+    }
+
+    #[test]
+    fn test_format_number_comma_scaling() {
+        // "0," 表示显示值 ÷1000
+        assert_eq!(format_number(12345.0, "0,"), "12");
+        // 千分位仍可用
+        assert_eq!(format_number(1234.0, "#,##0"), "1,234");
     }
 
     #[test]
@@ -1368,7 +1478,8 @@ mod tests {
         let data = std::fs::read("demo.xlsx");
         if let Ok(data) = data {
             let cursor = std::io::Cursor::new(&data);
-            let ss = ExcelStyleSheet::from_xlsx_zip(cursor).unwrap();
+            let mut archive = zip::ZipArchive::new(cursor).unwrap();
+            let ss = ExcelStyleSheet::from_zip_archive(&mut archive).unwrap();
             assert_eq!(ss.xf_count(), 337, "demo.xlsx 应有 337 个 cellXfs");
 
             // 验证关键样式索引的数字格式正确

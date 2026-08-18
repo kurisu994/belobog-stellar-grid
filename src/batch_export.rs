@@ -4,13 +4,11 @@
 /// 采用分块 Blob 片段策略：每个批次生成独立的 CSV 字节片段，
 /// 最后拼接成单个 Blob 下载，降低内存峰值。
 /// 支持合并单元格（colspan/rowspan）
-use crate::core::{RowSpanTracker, get_table_row, process_row_cells, resolve_table};
-use crate::utils::{ensure_external_tbody, is_element_hidden, report_progress, yield_to_browser};
+use crate::core::{RowSpanTracker, TableRowSources, process_row_cells};
+use crate::utils::{is_element_hidden, report_progress, yield_to_browser};
 use csv::Writer;
 use std::io::Cursor;
-use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::*;
-use web_sys::HtmlTableSectionElement;
 
 /// 分批异步导出 HTML 表格到 CSV 文件
 ///
@@ -75,43 +73,8 @@ pub async fn export_table_to_csv_batch(
         return Err(JsValue::from_str("批次大小必须大于 0"));
     }
 
-    // 1. 获取主表格（支持直接的 table 或包含 table 的容器）
-    let table = resolve_table(&table_id)?;
-    let table_rows = table.rows();
-    let table_row_count = table_rows.length() as usize;
-
-    // 2. 获取数据表格体（如果有）
-    let mut tbody_rows_collection = None;
-    let mut tbody_row_count = 0;
-
-    if let Some(tid) = tbody_id
-        && !tid.is_empty()
-    {
-        let window = web_sys::window().ok_or_else(|| JsValue::from_str("无法获取 window 对象"))?;
-        let document = window
-            .document()
-            .ok_or_else(|| JsValue::from_str("无法获取 document 对象"))?;
-
-        let tbody_element = document
-            .get_element_by_id(&tid)
-            .ok_or_else(|| JsValue::from_str(&format!("找不到 ID 为 '{}' 的 tbody 元素", tid)))?;
-
-        // 运行时校验 tbody 不在目标 table 内部，防止数据重复导出
-        ensure_external_tbody(&table, &table_id, &tbody_element, &tid)?;
-
-        // 尝试转换为 HtmlTableSectionElement (tbody)
-        let tbody = tbody_element
-            .dyn_into::<HtmlTableSectionElement>()
-            .map_err(|_| {
-                JsValue::from_str(&format!("元素 '{}' 不是有效的 HTML 表格部分(tbody)", tid))
-            })?;
-
-        let rows = tbody.rows();
-        tbody_row_count = rows.length() as usize;
-        tbody_rows_collection = Some(rows);
-    }
-
-    let total_rows = table_row_count + tbody_row_count;
+    let sources = TableRowSources::open(&table_id, tbody_id.as_deref())?;
+    let total_rows = sources.total_rows();
 
     if total_rows == 0 {
         return Err(JsValue::from_str("表格为空，没有数据可导出"));
@@ -144,13 +107,7 @@ pub async fn export_table_to_csv_batch(
 
         // 处理当前批次
         for i in current_row..batch_end {
-            let row = if i < table_row_count {
-                get_table_row(&table_rows, i as u32)?
-            } else if let Some(ref rows) = tbody_rows_collection {
-                get_table_row(rows, (i - table_row_count) as u32)?
-            } else {
-                return Err(JsValue::from_str(&format!("无法获取第 {} 行数据", i + 1)));
-            };
+            let row = sources.get_row(i)?;
 
             // 如果需要排除隐藏行
             if exclude_hidden && is_element_hidden(&row) {
@@ -202,56 +159,11 @@ pub async fn export_table_to_csv_batch(
     }
 
     // 用所有 Blob 片段创建 CSV 文件并触发下载
-    create_and_download_csv_blob_parts(&blob_parts, filename)?;
+    crate::core::export_csv::create_and_download_csv_parts(
+        &blob_parts,
+        filename,
+        "table_export.csv",
+    )?;
 
     Ok(JsValue::UNDEFINED)
-}
-
-/// 从 Blob 片段数组创建 CSV 文件并触发下载（分批导出专用）
-fn create_and_download_csv_blob_parts(
-    parts: &js_sys::Array,
-    filename: Option<String>,
-) -> Result<(), JsValue> {
-    let window = web_sys::window().ok_or_else(|| JsValue::from_str("无法获取 window 对象"))?;
-    let document = window
-        .document()
-        .ok_or_else(|| JsValue::from_str("无法获取 document 对象"))?;
-
-    // 创建 CSV Blob 对象（从多个 Uint8Array 片段拼接）
-    let blob_property_bag = web_sys::BlobPropertyBag::new();
-    blob_property_bag.set_type("text/csv;charset=utf-8");
-
-    let blob = web_sys::Blob::new_with_u8_array_sequence_and_options(parts, &blob_property_bag)
-        .map_err(|e| JsValue::from_str(&format!("创建 Blob 对象失败: {:?}", e)))?;
-
-    // 创建下载链接
-    let url = web_sys::Url::create_object_url_with_blob(&blob)
-        .map_err(|e| JsValue::from_str(&format!("创建下载链接失败: {:?}", e)))?;
-
-    // 设置文件名
-    let final_filename = filename.unwrap_or_else(|| "table_export.csv".to_string());
-
-    // 验证文件名安全性
-    if let Err(e) = crate::validation::validate_filename(&final_filename) {
-        return Err(JsValue::from_str(&format!("文件名验证失败: {}", e)));
-    }
-
-    let final_filename = crate::validation::ensure_extension(&final_filename, "csv");
-
-    // 创建下载链接元素
-    let anchor = document
-        .create_element("a")
-        .map_err(|e| JsValue::from_str(&format!("创建下载链接元素失败: {:?}", e)))?;
-    let anchor = anchor
-        .dyn_into::<web_sys::HtmlAnchorElement>()
-        .map_err(|_| JsValue::from_str("创建的元素不是有效的锚点元素"))?;
-
-    anchor.set_href(&url);
-    anchor.set_download(&final_filename);
-    anchor.click();
-
-    // 延迟释放 Blob URL
-    crate::resource::schedule_url_revoke(&window, url);
-
-    Ok(())
 }

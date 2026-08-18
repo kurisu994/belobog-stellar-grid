@@ -87,6 +87,19 @@ pub fn ensure_extension(filename: &str, extension: &str) -> String {
     }
 }
 
+/// 解析并校验下载文件名（先校验再补扩展名）
+///
+/// 应在创建 Blob URL 之前调用，避免非法文件名导致已创建 URL 泄漏。
+pub fn prepare_download_filename(
+    filename: Option<String>,
+    default_name: &str,
+    extension: &str,
+) -> Result<String, String> {
+    let name = filename.unwrap_or_else(|| default_name.to_string());
+    validate_filename(&name)?;
+    Ok(ensure_extension(&name, extension))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -107,5 +120,17 @@ mod tests {
         assert!(long_unicode.chars().count() == 86); // Only 86 chars
         assert!(long_unicode.len() == 258); // 258 bytes
         assert!(validate_filename(&long_unicode).is_err());
+    }
+
+    #[test]
+    fn test_prepare_download_filename() {
+        let ok = prepare_download_filename(Some("report".into()), "default.csv", "csv").unwrap();
+        assert_eq!(ok, "report.csv");
+
+        let defaulted = prepare_download_filename(None, "table_export.csv", "csv").unwrap();
+        assert_eq!(defaulted, "table_export.csv");
+
+        let bad = prepare_download_filename(Some("../x".into()), "default.csv", "csv");
+        assert!(bad.is_err());
     }
 }

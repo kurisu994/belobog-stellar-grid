@@ -1,12 +1,11 @@
 /// CSV 导出模块
 ///
 /// 提供 CSV 格式的表格导出功能
+use crate::resource::{trigger_blob_download, trigger_bytes_download};
 use crate::utils::report_progress;
-use crate::validation::{ensure_extension, validate_filename};
 use csv::Writer;
 use std::io::Cursor;
 use wasm_bindgen::prelude::*;
-use web_sys::{Blob, HtmlAnchorElement, Url};
 
 /// 生成 CSV 内容字节（不触发下载）
 ///
@@ -120,48 +119,26 @@ pub(crate) fn create_and_download_csv(
     data: &[u8],
     filename: Option<String>,
 ) -> Result<(), JsValue> {
-    let window = web_sys::window().ok_or_else(|| JsValue::from_str("无法获取 window 对象"))?;
-    let document = window
-        .document()
-        .ok_or_else(|| JsValue::from_str("无法获取 document 对象"))?;
+    trigger_bytes_download(
+        data,
+        "text/csv;charset=utf-8",
+        filename,
+        "table_export.csv",
+        "csv",
+    )
+}
 
-    // 创建 CSV Blob 对象
-    let blob_property_bag = web_sys::BlobPropertyBag::new();
-    blob_property_bag.set_type("text/csv;charset=utf-8");
-
-    let array = js_sys::Array::of1(&js_sys::Uint8Array::from(data));
-
-    let blob = Blob::new_with_u8_array_sequence_and_options(&array, &blob_property_bag)
-        .map_err(|e| JsValue::from_str(&format!("创建 Blob 对象失败: {:?}", e)))?;
-
-    // 创建下载链接
-    let url = Url::create_object_url_with_blob(&blob)
-        .map_err(|e| JsValue::from_str(&format!("创建下载链接失败: {:?}", e)))?;
-
-    // 设置文件名
-    let final_filename = filename.unwrap_or_else(|| "table_export.csv".to_string());
-
-    // 验证文件名安全性
-    if let Err(e) = validate_filename(&final_filename) {
-        return Err(JsValue::from_str(&format!("文件名验证失败: {}", e)));
-    }
-
-    let final_filename = ensure_extension(&final_filename, "csv");
-
-    // 创建下载链接元素
-    let anchor = document
-        .create_element("a")
-        .map_err(|e| JsValue::from_str(&format!("创建下载链接元素失败: {:?}", e)))?;
-    let anchor = anchor
-        .dyn_into::<HtmlAnchorElement>()
-        .map_err(|_| JsValue::from_str("创建的元素不是有效的锚点元素"))?;
-
-    anchor.set_href(&url);
-    anchor.set_download(&final_filename);
-    anchor.click();
-
-    // 延迟 10 秒后释放 Blob URL，避免 click 后立即 revoke 导致下载竞态
-    crate::resource::schedule_url_revoke(&window, url);
-
-    Ok(())
+/// 从多个 Blob 片段拼接 CSV 并触发下载
+pub(crate) fn create_and_download_csv_parts(
+    parts: &js_sys::Array,
+    filename: Option<String>,
+    default_name: &str,
+) -> Result<(), JsValue> {
+    trigger_blob_download(
+        parts,
+        "text/csv;charset=utf-8",
+        filename,
+        default_name,
+        "csv",
+    )
 }

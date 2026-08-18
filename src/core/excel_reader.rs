@@ -2,7 +2,7 @@
 ///
 /// 使用 calamine 提取单元格数据和合并区域，
 /// 使用 zip + quick-xml 提取样式索引、行高和列宽信息。
-use calamine::{Data, Reader, SheetVisible, Sheets, Xlsx, open_workbook_auto_from_rs};
+use calamine::{Data, Reader, SheetVisible, Sheets, open_workbook_auto_from_rs};
 use serde::Serialize;
 use std::io::{Cursor, Read, Seek};
 
@@ -251,24 +251,23 @@ pub fn parse_excel(data: &[u8], options: &PreviewOptions) -> Result<ParsedWorkbo
         std::collections::HashSet::new()
     };
 
-    // 解析 OOXML 样式表（仅 XLSX 支持）
-    let style_sheet = if options.include_styles && xlsx {
-        let style_cursor = Cursor::new(data);
-        ExcelStyleSheet::from_xlsx_zip(style_cursor).ok()
-    } else {
-        None
-    };
-
     // 确定要渲染的 Sheet
     let target_index = resolve_sheet_index(&sheet_names, &hidden_set, options)?;
     let target_name = &sheet_names[target_index];
 
-    // 解析 sheet 维度信息（仅 XLSX 支持行高/列宽/样式索引）
-    let dimensions = if options.include_styles && xlsx {
-        let dim_cursor = Cursor::new(data);
-        parse_sheet_dimensions(dim_cursor, target_index).unwrap_or_default()
+    // XLSX 辅助信息：同一 ZipArchive 解析 styles + sheet 维度，避免重复解压
+    let (style_sheet, dimensions) = if xlsx && options.include_styles {
+        match zip::ZipArchive::new(Cursor::new(data)) {
+            Ok(mut archive) => {
+                let styles = ExcelStyleSheet::from_zip_archive(&mut archive).ok();
+                let dims = parse_sheet_dimensions_from_archive(&mut archive, target_index)
+                    .unwrap_or_default();
+                (styles, dims)
+            }
+            Err(_) => (None, SheetDimensions::default()),
+        }
     } else {
-        SheetDimensions::default()
+        (None, SheetDimensions::default())
     };
 
     // 读取数据
@@ -276,9 +275,9 @@ pub fn parse_excel(data: &[u8], options: &PreviewOptions) -> Result<ParsedWorkbo
         .worksheet_range(target_name)
         .map_err(|e| format!("读取工作表 '{target_name}' 失败: {e}"))?;
 
-    // 获取合并区域（仅 XLSX 支持）
+    // 合并区域复用已打开的 calamine workbook，不再单独 Xlsx::new
     let merge_regions = if xlsx {
-        get_merge_regions_xlsx(data, target_name)
+        get_merge_regions_from_workbook(&mut workbook, target_name)
     } else {
         Vec::new()
     };
@@ -344,25 +343,28 @@ fn build_hidden_set<RS: Read + Seek>(workbook: &Sheets<RS>) -> std::collections:
         .collect()
 }
 
-/// 获取 XLSX 文件中指定 Sheet 的合并区域
-fn get_merge_regions_xlsx(data: &[u8], sheet_name: &str) -> Vec<MergeRegion> {
-    let cursor = Cursor::new(data);
-    let mut xlsx: Xlsx<_> = match Xlsx::new(cursor) {
-        Ok(wb) => wb,
-        Err(_) => return Vec::new(),
-    };
-    if xlsx.load_merged_regions().is_err() {
-        return Vec::new();
+/// 从已打开的 workbook 读取指定 Sheet 的合并区域（仅 XLSX）
+fn get_merge_regions_from_workbook<RS: Read + Seek>(
+    workbook: &mut Sheets<RS>,
+    sheet_name: &str,
+) -> Vec<MergeRegion> {
+    match workbook {
+        Sheets::Xlsx(xlsx) => {
+            if xlsx.load_merged_regions().is_err() {
+                return Vec::new();
+            }
+            xlsx.merged_regions_by_sheet(sheet_name)
+                .iter()
+                .map(|(_, _, dim)| MergeRegion {
+                    start_row: dim.start.0,
+                    start_col: dim.start.1,
+                    end_row: dim.end.0,
+                    end_col: dim.end.1,
+                })
+                .collect()
+        }
+        _ => Vec::new(),
     }
-    xlsx.merged_regions_by_sheet(sheet_name)
-        .iter()
-        .map(|(_, _, dim)| MergeRegion {
-            start_row: dim.start.0,
-            start_col: dim.start.1,
-            end_row: dim.end.0,
-            end_col: dim.end.1,
-        })
-        .collect()
 }
 
 /// 构建 ParsedSheet
@@ -401,7 +403,7 @@ fn build_parsed_sheet(
             .unwrap_or(MAX_COLS_LIMIT);
         let actual_rows = rows.min(max_rows);
         let actual_cols = cols.min(max_cols);
-        let truncated = actual_rows < rows;
+        let truncated = actual_rows < rows || actual_cols < cols;
         (actual_rows, actual_cols, truncated)
     } else {
         let max_rows = options
@@ -412,7 +414,7 @@ fn build_parsed_sheet(
             .max_cols
             .map(|m| m.min(MAX_COLS_LIMIT))
             .unwrap_or(total_cols.min(MAX_COLS_LIMIT));
-        let truncated = max_rows < total_rows;
+        let truncated = max_rows < total_rows || max_cols < total_cols;
         (max_rows, max_cols, truncated)
     };
 
@@ -426,12 +428,15 @@ fn build_parsed_sheet(
         .cloned()
         .collect();
 
-    // 构建合并单元格查找表：(row, col) → (rowSpan, colSpan)
-    let merge_map = build_merge_map(&visible_merges, data_rows as u32, data_cols as u32);
-    // 被合并占用的单元格集合
-    let skip_set = build_skip_set(&visible_merges, data_rows as u32, data_cols as u32);
-
+    // merge 坐标为工作表绝对坐标，边界也必须用绝对上限
     let start = range.start().unwrap_or((0, 0));
+    let abs_max_row = (data_rows as u32).saturating_add(start.0);
+    let abs_max_col = (data_cols as u32).saturating_add(start.1);
+
+    // 构建合并单元格查找表：(row, col) → (rowSpan, colSpan)
+    let merge_map = build_merge_map(&visible_merges, abs_max_row, abs_max_col);
+    // 被合并占用的单元格集合
+    let skip_set = build_skip_set(&visible_merges, abs_max_row, abs_max_col);
 
     // 构建可见列索引映射：原始列号 → 是否可见
     let visible_cols: Vec<u32> = (0..data_cols as u32)
@@ -588,6 +593,9 @@ fn build_merge_map(
     map
 }
 
+/// 单条合并区域展开的最大单元格数，防止超大 merge 双重循环 DoS
+const MAX_MERGE_EXPAND_CELLS: u64 = 1_000_000;
+
 /// 构建被合并占用的单元格集合（不含主单元格）
 fn build_skip_set(
     regions: &[MergeRegion],
@@ -596,8 +604,21 @@ fn build_skip_set(
 ) -> std::collections::HashSet<(u32, u32)> {
     let mut set = std::collections::HashSet::new();
     for m in regions {
-        for r in m.start_row..=m.end_row.min(max_row.saturating_sub(1)) {
-            for c in m.start_col..=m.end_col.min(max_col.saturating_sub(1)) {
+        let end_r = m.end_row.min(max_row.saturating_sub(1));
+        let end_c = m.end_col.min(max_col.saturating_sub(1));
+        if m.start_row > end_r || m.start_col > end_c {
+            continue;
+        }
+
+        let rows = (end_r - m.start_row + 1) as u64;
+        let cols = (end_c - m.start_col + 1) as u64;
+        // 超大合并不展开，避免数亿次 HashSet 插入；主单元格仍由 merge_map 处理
+        if rows.saturating_mul(cols) > MAX_MERGE_EXPAND_CELLS {
+            continue;
+        }
+
+        for r in m.start_row..=end_r {
+            for c in m.start_col..=end_c {
                 if r != m.start_row || c != m.start_col {
                     set.insert((r, c));
                 }
@@ -724,7 +745,21 @@ fn cell_value_to_string(
             // 无样式表时使用 General 格式
             format_number(*f, "General")
         }
-        Some(Data::Int(i)) => format!("{i}"),
+        Some(Data::Int(i)) => {
+            // 与 Float 一致：若有数字格式则套用（百分比等）
+            if let Some(ss) = style_sheet {
+                let style_idx = dimensions
+                    .cell_styles
+                    .get(&(row, col))
+                    .copied()
+                    .unwrap_or(0);
+                let cell_style = ss.get_cell_style(style_idx);
+                if let Some(ref fmt) = cell_style.number_format {
+                    return format_number(*i as f64, fmt);
+                }
+            }
+            format!("{i}")
+        }
         Some(Data::Bool(b)) => {
             if *b {
                 "TRUE".to_string()
@@ -739,15 +774,12 @@ fn cell_value_to_string(
     }
 }
 
-/// 从 xlsx zip 中解析 sheet 的行高/列宽/样式索引
-fn parse_sheet_dimensions<R: Read + Seek>(
-    reader: R,
+/// 从已打开的 ZipArchive 解析 sheet 维度（与样式表共享同一 archive）
+fn parse_sheet_dimensions_from_archive<R: Read + Seek>(
+    archive: &mut zip::ZipArchive<R>,
     sheet_index: usize,
 ) -> Result<SheetDimensions, String> {
-    let mut archive = zip::ZipArchive::new(reader).map_err(|e| format!("无法读取 zip: {e}"))?;
-
-    // 确定 sheet xml 路径
-    let sheet_path = find_sheet_path(&mut archive, sheet_index)?;
+    let sheet_path = find_sheet_path(archive, sheet_index)?;
 
     let file = archive
         .by_name(&sheet_path)
@@ -842,190 +874,148 @@ fn is_hidden_attr(event: &quick_xml::events::BytesStart) -> bool {
         .is_some_and(|v| v == "1" || v == "true")
 }
 
+/// 条件格式解析中间状态
+#[derive(Default)]
+struct CfParseState {
+    current_sqref: Option<String>,
+    current_rules: Vec<ConditionalFormatRule>,
+    current_rule: Option<ConditionalFormatRule>,
+    in_formula: bool,
+    formula_text: String,
+}
+
+/// 处理 sheet XML 的 Start/Empty 共用逻辑（`is_empty` 区分自闭合）
+fn handle_sheet_start_or_empty(
+    local: &str,
+    e: &quick_xml::events::BytesStart,
+    dims: &mut SheetDimensions,
+    cf: &mut CfParseState,
+    is_empty: bool,
+) {
+    match local {
+        "sheetFormatPr" => {
+            dims.default_row_height =
+                get_rel_attr(e, "defaultRowHeight").and_then(|v| v.parse::<f64>().ok());
+            dims.default_col_width =
+                get_rel_attr(e, "defaultColWidth").and_then(|v| v.parse::<f64>().ok());
+        }
+        "row" if !is_empty => {
+            if let Some(row) = get_rel_attr(e, "r").and_then(|v| v.parse::<u32>().ok())
+                && (row as usize) <= MAX_ROWS_LIMIT
+            {
+                let row_idx = row - 1;
+                if let Some(ht) = get_rel_attr(e, "ht").and_then(|v| v.parse::<f64>().ok()) {
+                    dims.row_heights.insert(row_idx, ht);
+                }
+                if is_hidden_attr(e) {
+                    dims.hidden_rows.insert(row_idx);
+                }
+            }
+        }
+        "col" => {
+            if let (Some(min_s), Some(max_s)) = (get_rel_attr(e, "min"), get_rel_attr(e, "max"))
+                && let (Ok(min), Ok(max)) = (min_s.parse::<u32>(), max_s.parse::<u32>())
+            {
+                let safe_max = max.min(MAX_COLS_LIMIT as u32);
+                let hidden = is_hidden_attr(e);
+                let width = get_rel_attr(e, "width").and_then(|v| v.parse::<f64>().ok());
+                for col in min..=safe_max {
+                    let col_idx = col - 1;
+                    if let Some(w) = width {
+                        dims.col_widths.insert(col_idx, w);
+                    }
+                    if hidden {
+                        dims.hidden_cols.insert(col_idx);
+                    }
+                }
+            }
+        }
+        "c" => {
+            if let Some(r_attr) = get_rel_attr(e, "r")
+                && let Some((row, col)) = parse_cell_ref(&r_attr)
+                && let Some(s) = get_rel_attr(e, "s").and_then(|v| v.parse::<usize>().ok())
+            {
+                dims.cell_styles.insert((row, col), s);
+            }
+        }
+        "conditionalFormatting" if !is_empty => {
+            cf.current_sqref = get_rel_attr(e, "sqref");
+            cf.current_rules.clear();
+        }
+        "cfRule" if cf.current_sqref.is_some() => {
+            let rule = ConditionalFormatRule {
+                rule_type: get_rel_attr(e, "type").unwrap_or_default(),
+                operator: get_rel_attr(e, "operator").unwrap_or_default(),
+                dxf_id: get_rel_attr(e, "dxfId")
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(0),
+                formulas: Vec::new(),
+            };
+            if is_empty {
+                // 自闭合 cfRule（无 formula 子元素）
+                cf.current_rules.push(rule);
+            } else {
+                cf.current_rule = Some(rule);
+            }
+        }
+        "formula" if !is_empty && cf.current_rule.is_some() => {
+            cf.in_formula = true;
+            cf.formula_text.clear();
+        }
+        _ => {}
+    }
+}
+
 /// 解析 sheet xml 获取行高/列宽/样式索引/条件格式
 fn parse_sheet_xml(xml: &str) -> Result<SheetDimensions, String> {
     let mut reader = quick_xml::Reader::from_str(xml);
     let mut buf = Vec::new();
     let mut dims = SheetDimensions::default();
-
-    // 条件格式解析状态
-    let mut current_cf_sqref: Option<String> = None;
-    let mut current_cf_rules: Vec<ConditionalFormatRule> = Vec::new();
-    let mut current_cf_rule: Option<ConditionalFormatRule> = None;
-    let mut in_cf_formula = false;
-    let mut formula_text = String::new();
+    let mut cf = CfParseState::default();
 
     loop {
         match reader.read_event_into(&mut buf) {
             Ok(quick_xml::events::Event::Start(ref e)) => {
                 let name_bytes = e.name().as_ref().to_vec();
                 let local = local_name_str(&name_bytes);
-                match local {
-                    "sheetFormatPr" => {
-                        dims.default_row_height =
-                            get_rel_attr(e, "defaultRowHeight").and_then(|v| v.parse::<f64>().ok());
-                        dims.default_col_width =
-                            get_rel_attr(e, "defaultColWidth").and_then(|v| v.parse::<f64>().ok());
-                    }
-                    "row" => {
-                        let row = get_rel_attr(e, "r").and_then(|v| v.parse::<u32>().ok());
-                        if let Some(row) = row {
-                            if (row as usize) <= MAX_ROWS_LIMIT {
-                                let row_idx = row - 1;
-                                if let Some(ht) =
-                                    get_rel_attr(e, "ht").and_then(|v| v.parse::<f64>().ok())
-                                {
-                                    dims.row_heights.insert(row_idx, ht);
-                                }
-                                if is_hidden_attr(e) {
-                                    dims.hidden_rows.insert(row_idx);
-                                }
-                            }
-                        }
-                    }
-                    "col" => {
-                        if let (Some(min_s), Some(max_s)) =
-                            (get_rel_attr(e, "min"), get_rel_attr(e, "max"))
-                        {
-                            if let (Ok(min), Ok(max)) = (min_s.parse::<u32>(), max_s.parse::<u32>())
-                            {
-                                let safe_max = max.min(MAX_COLS_LIMIT as u32);
-                                let hidden = is_hidden_attr(e);
-                                let width =
-                                    get_rel_attr(e, "width").and_then(|v| v.parse::<f64>().ok());
-                                for col in min..=safe_max {
-                                    let col_idx = col - 1;
-                                    if let Some(w) = width {
-                                        dims.col_widths.insert(col_idx, w);
-                                    }
-                                    if hidden {
-                                        dims.hidden_cols.insert(col_idx);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    "c" => {
-                        if let Some(r_attr) = get_rel_attr(e, "r") {
-                            if let Some((row, col)) = parse_cell_ref(&r_attr) {
-                                if let Some(s) =
-                                    get_rel_attr(e, "s").and_then(|v| v.parse::<usize>().ok())
-                                {
-                                    dims.cell_styles.insert((row, col), s);
-                                }
-                            }
-                        }
-                    }
-                    "conditionalFormatting" => {
-                        current_cf_sqref = get_rel_attr(e, "sqref");
-                        current_cf_rules.clear();
-                    }
-                    "cfRule" if current_cf_sqref.is_some() => {
-                        current_cf_rule = Some(ConditionalFormatRule {
-                            rule_type: get_rel_attr(e, "type").unwrap_or_default(),
-                            operator: get_rel_attr(e, "operator").unwrap_or_default(),
-                            dxf_id: get_rel_attr(e, "dxfId")
-                                .and_then(|v| v.parse().ok())
-                                .unwrap_or(0),
-                            formulas: Vec::new(),
-                        });
-                    }
-                    "formula" if current_cf_rule.is_some() => {
-                        in_cf_formula = true;
-                        formula_text.clear();
-                    }
-                    _ => {}
-                }
+                handle_sheet_start_or_empty(local, e, &mut dims, &mut cf, false);
             }
             Ok(quick_xml::events::Event::Empty(ref e)) => {
                 let name_bytes = e.name().as_ref().to_vec();
                 let local = local_name_str(&name_bytes);
-                match local {
-                    "sheetFormatPr" => {
-                        dims.default_row_height =
-                            get_rel_attr(e, "defaultRowHeight").and_then(|v| v.parse::<f64>().ok());
-                        dims.default_col_width =
-                            get_rel_attr(e, "defaultColWidth").and_then(|v| v.parse::<f64>().ok());
-                    }
-                    "col" => {
-                        if let (Some(min_s), Some(max_s)) =
-                            (get_rel_attr(e, "min"), get_rel_attr(e, "max"))
-                        {
-                            if let (Ok(min), Ok(max)) = (min_s.parse::<u32>(), max_s.parse::<u32>())
-                            {
-                                let safe_max = max.min(MAX_COLS_LIMIT as u32);
-                                let hidden = is_hidden_attr(e);
-                                let width =
-                                    get_rel_attr(e, "width").and_then(|v| v.parse::<f64>().ok());
-                                for col in min..=safe_max {
-                                    let col_idx = col - 1;
-                                    if let Some(w) = width {
-                                        dims.col_widths.insert(col_idx, w);
-                                    }
-                                    if hidden {
-                                        dims.hidden_cols.insert(col_idx);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    "c" => {
-                        if let Some(r_attr) = get_rel_attr(e, "r") {
-                            if let Some((row, col)) = parse_cell_ref(&r_attr) {
-                                if let Some(s) =
-                                    get_rel_attr(e, "s").and_then(|v| v.parse::<usize>().ok())
-                                {
-                                    dims.cell_styles.insert((row, col), s);
-                                }
-                            }
-                        }
-                    }
-                    // cfRule 自闭合（无 formula 子元素）
-                    "cfRule" if current_cf_sqref.is_some() => {
-                        let rule = ConditionalFormatRule {
-                            rule_type: get_rel_attr(e, "type").unwrap_or_default(),
-                            operator: get_rel_attr(e, "operator").unwrap_or_default(),
-                            dxf_id: get_rel_attr(e, "dxfId")
-                                .and_then(|v| v.parse().ok())
-                                .unwrap_or(0),
-                            formulas: Vec::new(),
-                        };
-                        current_cf_rules.push(rule);
-                    }
-                    _ => {}
-                }
+                handle_sheet_start_or_empty(local, e, &mut dims, &mut cf, true);
             }
-            Ok(quick_xml::events::Event::Text(ref t)) if in_cf_formula => {
+            Ok(quick_xml::events::Event::Text(ref t)) if cf.in_formula => {
                 if let Ok(text) = t.unescape() {
-                    formula_text.push_str(&text);
+                    cf.formula_text.push_str(&text);
                 }
             }
             Ok(quick_xml::events::Event::End(ref e)) => {
                 let name_bytes = e.name().as_ref().to_vec();
                 let local = local_name_str(&name_bytes);
                 match local {
-                    "formula" if current_cf_rule.is_some() => {
-                        in_cf_formula = false;
-                        if let Some(rule) = &mut current_cf_rule {
-                            rule.formulas.push(formula_text.clone());
+                    "formula" if cf.current_rule.is_some() => {
+                        cf.in_formula = false;
+                        if let Some(rule) = &mut cf.current_rule {
+                            rule.formulas.push(cf.formula_text.clone());
                         }
-                        formula_text.clear();
+                        cf.formula_text.clear();
                     }
                     "cfRule" => {
-                        if let Some(rule) = current_cf_rule.take() {
-                            current_cf_rules.push(rule);
+                        if let Some(rule) = cf.current_rule.take() {
+                            cf.current_rules.push(rule);
                         }
                     }
                     "conditionalFormatting" => {
-                        if let Some(sqref) = current_cf_sqref.take() {
+                        if let Some(sqref) = cf.current_sqref.take() {
                             let ranges = parse_sqref(&sqref);
-                            if !ranges.is_empty() && !current_cf_rules.is_empty() {
+                            if !ranges.is_empty() && !cf.current_rules.is_empty() {
                                 dims.conditional_formats.push(ConditionalFormatEntry {
                                     ranges,
-                                    rules: current_cf_rules.clone(),
+                                    rules: std::mem::take(&mut cf.current_rules),
                                 });
                             }
-                            current_cf_rules.clear();
+                            cf.current_rules.clear();
                         }
                     }
                     _ => {}
@@ -1147,6 +1137,24 @@ mod tests {
     }
 
     #[test]
+    fn test_build_merge_map_absolute_bounds() {
+        // 模拟 range.start = (10, 5)、相对 data 尺寸 20x10 → 绝对边界 (30, 15)
+        // 合并原点落在相对窗口后半段（绝对行 25）
+        let regions = vec![MergeRegion {
+            start_row: 25,
+            start_col: 8,
+            end_row: 26,
+            end_col: 9,
+        }];
+        let map = build_merge_map(&regions, 30, 15);
+        assert_eq!(map.get(&(25, 8)), Some(&(2, 2)));
+
+        // 若误传相对尺寸 20，会被错误丢弃
+        let map_relative_only = build_merge_map(&regions, 20, 10);
+        assert!(!map_relative_only.contains_key(&(25, 8)));
+    }
+
+    #[test]
     fn test_build_skip_set() {
         let regions = vec![MergeRegion {
             start_row: 0,
@@ -1159,6 +1167,19 @@ mod tests {
         assert!(set.contains(&(0, 1))); // 被占用
         assert!(set.contains(&(1, 0))); // 被占用
         assert!(set.contains(&(1, 1))); // 被占用
+    }
+
+    #[test]
+    fn test_build_skip_set_oversized_merge_skipped() {
+        // 超大合并不应展开，避免 DoS
+        let regions = vec![MergeRegion {
+            start_row: 0,
+            start_col: 0,
+            end_row: 100_000,
+            end_col: 16_383,
+        }];
+        let set = build_skip_set(&regions, 100_000, 16_384);
+        assert!(set.is_empty());
     }
 
     #[test]

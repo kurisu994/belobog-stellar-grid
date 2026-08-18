@@ -1,18 +1,16 @@
-use crate::core::export_xlsx::{apply_column_widths, apply_merge_ranges, write_cell};
+use crate::core::export_xlsx::write_sheet_with_progress;
 use crate::core::style::{StyleSheet, parse_cell_style};
 /// XLSX 分批异步导出功能模块
 ///
 /// 提供大数据量表格的分批处理功能，避免阻塞主线程
 /// 采用两阶段策略：分批读取 DOM 数据 + 同步生成 XLSX
 use crate::core::{
-    MergeRange, RowSpanTracker, TableData, create_and_download_xlsx, get_table_row,
-    process_row_cells, resolve_table,
+    MergeRange, RowSpanTracker, TableData, TableRowSources, create_and_download_xlsx,
+    process_row_cells,
 };
-use crate::utils::{ensure_external_tbody, is_element_hidden, report_progress, yield_to_browser};
+use crate::utils::{is_element_hidden, report_progress, yield_to_browser};
 use rust_xlsxwriter::Workbook;
-use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::*;
-use web_sys::HtmlTableSectionElement;
 
 /// 分批异步导出 HTML 表格到 XLSX 文件
 ///
@@ -80,12 +78,13 @@ pub async fn export_table_to_xlsx_batch(
     }
 
     // 阶段一：分批读取 DOM 数据（0% - 80% 进度）
-    let mut table_data = extract_table_data_batch(
+    let progress_info = progress_callback.as_ref().map(|cb| (cb.clone(), 0.0, 80.0));
+    let mut table_data = extract_table_data_batch_with_offset(
         &table_id,
         tbody_id.as_deref(),
         batch_size,
         exclude_hidden,
-        &progress_callback,
+        &progress_info,
         strict,
     )
     .await?;
@@ -99,32 +98,6 @@ pub async fn export_table_to_xlsx_batch(
     Ok(JsValue::UNDEFINED)
 }
 
-/// 分批异步提取表格数据
-///
-/// 从 DOM 中分批读取数据，每批之间让出控制权给浏览器
-async fn extract_table_data_batch(
-    table_id: &str,
-    tbody_id: Option<&str>,
-    batch_size: usize,
-    exclude_hidden: bool,
-    progress_callback: &Option<js_sys::Function>,
-    strict: bool,
-) -> Result<TableData, JsValue> {
-    // 复用 extract_table_data_batch_with_offset
-    // 默认进度范围为 0.0 - 80.0 (DOM 读取阶段)
-    let progress_info = progress_callback.as_ref().map(|cb| (cb.clone(), 0.0, 80.0));
-
-    extract_table_data_batch_with_offset(
-        table_id,
-        tbody_id,
-        batch_size,
-        exclude_hidden,
-        &progress_info,
-        strict,
-    )
-    .await
-}
-
 /// 同步生成 XLSX 文件并触发下载
 ///
 /// 内存中的数据写入 XLSX 非常快，通常 < 500ms
@@ -134,57 +107,20 @@ fn generate_and_download_xlsx(
     progress_callback: &Option<js_sys::Function>,
     strict: bool,
 ) -> Result<(), JsValue> {
-    let total_rows = table_data.rows.len();
-    let style_sheet = table_data.style_sheet.as_ref();
-
-    // 创建工作簿与工作表
     let mut workbook = Workbook::new();
     let worksheet = workbook.add_worksheet();
 
-    // 应用列宽
-    apply_column_widths(worksheet, style_sheet)?;
+    write_sheet_with_progress(
+        worksheet,
+        &table_data,
+        None,
+        progress_callback.as_ref(),
+        strict,
+        80.0,
+        15.0,
+        100,
+    )?;
 
-    // 写入所有数据
-    for (i, row_data) in table_data.rows.iter().enumerate() {
-        for (j, cell_text) in row_data.iter().enumerate() {
-            if j > 16383 {
-                return Err(JsValue::from_str("列数超过 Excel 限制 (16384)"));
-            }
-            write_cell(
-                worksheet,
-                i as u32,
-                j as u16,
-                cell_text,
-                style_sheet,
-                table_data.header_row_count,
-            )?;
-        }
-
-        // 定期报告进度（XLSX 生成阶段占 80% - 95%）
-        if let Some(callback) = progress_callback
-            && (i % 100 == 0 || i == total_rows - 1)
-        {
-            let progress = 80.0 + ((i + 1) as f64 / total_rows as f64) * 15.0;
-            report_progress(callback, progress, strict)?;
-        }
-    }
-
-    // 应用合并单元格
-    apply_merge_ranges(worksheet, &table_data, style_sheet)?;
-
-    // 应用冻结窗格：自动根据表头行数冻结
-    if table_data.header_row_count > 0 {
-        worksheet
-            .set_freeze_panes(table_data.header_row_count as u32, 0)
-            .map_err(|e| JsValue::from_str(&format!("设置冻结窗格失败: {}", e)))?;
-    }
-
-    // 报告合并单元格完成进度
-    if let Some(callback) = progress_callback {
-        report_progress(callback, 98.0, strict)?;
-    }
-
-    // 将工作簿写入内存缓冲区
     let xlsx_bytes = workbook
         .save_to_buffer()
         .map_err(|e| JsValue::from_str(&format!("生成 Excel 文件失败: {}", e)))?;
@@ -193,7 +129,10 @@ fn generate_and_download_xlsx(
         return Err(JsValue::from_str("没有可导出的数据"));
     }
 
-    // 创建并下载文件
+    if let Some(callback) = progress_callback {
+        report_progress(callback, 100.0, strict)?;
+    }
+
     create_and_download_xlsx(&xlsx_bytes, filename)
 }
 
@@ -375,55 +314,14 @@ async fn extract_table_data_batch_with_offset(
     progress_info: &Option<(js_sys::Function, f64, f64)>,
     strict: bool,
 ) -> Result<TableData, JsValue> {
-    // 获取主表格（支持直接的 table 或包含 table 的容器）
-    let table = resolve_table(table_id)?;
-    let table_rows = table.rows();
-    let table_row_count = table_rows.length() as usize;
-
-    // 计算表头行数（来自 <thead> 的行），用于样式区分和冻结窗格
-    let header_row_count = table
-        .t_head()
-        .map(|thead| thead.rows().length() as usize)
-        .unwrap_or(0);
-
-    // 获取数据表格体（如果有）
-    let mut tbody_rows_collection = None;
-    let mut tbody_row_count = 0;
-
-    if let Some(tid) = tbody_id
-        && !tid.is_empty()
-    {
-        let window = web_sys::window().ok_or_else(|| JsValue::from_str("无法获取 window 对象"))?;
-        let document = window
-            .document()
-            .ok_or_else(|| JsValue::from_str("无法获取 document 对象"))?;
-
-        let tbody_element = document
-            .get_element_by_id(tid)
-            .ok_or_else(|| JsValue::from_str(&format!("找不到 ID 为 '{}' 的 tbody 元素", tid)))?;
-
-        // 运行时校验 tbody 不在目标 table 内部，防止数据重复导出
-        ensure_external_tbody(&table, table_id, &tbody_element, tid)?;
-
-        let tbody = tbody_element
-            .dyn_into::<HtmlTableSectionElement>()
-            .map_err(|_| {
-                JsValue::from_str(&format!("元素 '{}' 不是有效的 HTML 表格部分(tbody)", tid))
-            })?;
-
-        let rows = tbody.rows();
-        tbody_row_count = rows.length() as usize;
-        tbody_rows_collection = Some(rows);
-    }
-
-    let total_rows = table_row_count + tbody_row_count;
-
+    let sources = TableRowSources::open(table_id, tbody_id)?;
+    let total_rows = sources.total_rows();
     if total_rows == 0 {
         return Err(JsValue::from_str("表格为空，没有数据可导出"));
     }
 
     let mut table_data = TableData::with_capacity(total_rows);
-    table_data.header_row_count = header_row_count;
+    table_data.header_row_count = sources.header_row_count;
     let mut tracker = RowSpanTracker::new();
     let mut output_row_idx: u32 = 0;
 
@@ -432,13 +330,7 @@ async fn extract_table_data_batch_with_offset(
         let batch_end = std::cmp::min(current_row + batch_size, total_rows);
 
         for i in current_row..batch_end {
-            let row = if i < table_row_count {
-                get_table_row(&table_rows, i as u32)?
-            } else if let Some(ref rows) = tbody_rows_collection {
-                get_table_row(rows, (i - table_row_count) as u32)?
-            } else {
-                return Err(JsValue::from_str(&format!("无法获取第 {} 行数据", i + 1)));
-            };
+            let row = sources.get_row(i)?;
 
             if exclude_hidden && is_element_hidden(&row) {
                 continue;
@@ -446,25 +338,25 @@ async fn extract_table_data_batch_with_offset(
 
             let proc_result = process_row_cells(&row, i as u32, &mut tracker, exclude_hidden)?;
 
-            // 根据 cell_spans 计算合并区域，使用跨源行集合检查可见性
             for (col_idx, span) in &proc_result.cell_spans {
-                // 计算实际覆盖的可见行数（需要跨表格和 tbody 检查）
                 let visible_rows_covered = count_visible_rows_cross_source(
                     span.rowspan,
                     i,
-                    table_row_count,
+                    sources.table_row_count,
                     exclude_hidden,
-                    &table_rows,
-                    &tbody_rows_collection,
+                    &sources.table_rows,
+                    &sources.tbody_rows,
                 );
 
                 let last_row = output_row_idx + visible_rows_covered;
-                let last_col = (*col_idx + span.colspan as usize - 1) as u16;
-                if last_col > 16383 {
+                let last_col_usize = col_idx
+                    .saturating_add(span.colspan as usize)
+                    .saturating_sub(1);
+                if last_col_usize > 16383 {
                     return Err(JsValue::from_str("列数超过 Excel 限制 (16384)"));
                 }
+                let last_col = last_col_usize as u16;
 
-                // 记录合并区域（仅当范围覆盖多个单元格时）
                 if last_row > output_row_idx || last_col as usize > *col_idx {
                     table_data.merge_ranges.push(MergeRange::new(
                         output_row_idx,
@@ -481,7 +373,6 @@ async fn extract_table_data_batch_with_offset(
 
         current_row = batch_end;
 
-        // 报告进度（使用偏移映射）
         if let Some((callback, start, range)) = progress_info {
             let local_progress = current_row as f64 / total_rows as f64;
             let progress = start + local_progress * range;
@@ -544,65 +435,26 @@ fn generate_and_download_xlsx_multi(
     }
 
     let total_sheets = all_sheets_data.len();
-
     let mut workbook = Workbook::new();
 
     for (sheet_idx, (sheet_name, table_data)) in all_sheets_data.iter().enumerate() {
         let worksheet = workbook.add_worksheet();
-        let style_sheet = table_data.style_sheet.as_ref();
-
         worksheet
             .set_name(sheet_name)
             .map_err(|e| JsValue::from_str(&format!("设置工作表名称失败: {}", e)))?;
 
-        // 应用列宽
-        apply_column_widths(worksheet, style_sheet)?;
-
-        let total_rows = table_data.rows.len();
-
-        // 写入数据
-        for (i, row_data) in table_data.rows.iter().enumerate() {
-            for (j, cell_text) in row_data.iter().enumerate() {
-                if j > 16383 {
-                    return Err(JsValue::from_str("列数超过 Excel 限制 (16384)"));
-                }
-                write_cell(
-                    worksheet,
-                    i as u32,
-                    j as u16,
-                    cell_text,
-                    style_sheet,
-                    table_data.header_row_count,
-                )?;
-            }
-
-            // 报告进度（XLSX 生成阶段占 80% - 95%，按 sheet 均分）
-            if let Some(callback) = progress_callback
-                && total_rows > 0
-                && (i % 100 == 0 || i == total_rows - 1)
-            {
-                let sheet_progress_start = 80.0 + (sheet_idx as f64 / total_sheets as f64) * 15.0;
-                let sheet_progress_range = 15.0 / total_sheets as f64;
-                let row_progress = (i + 1) as f64 / total_rows as f64;
-                let progress = sheet_progress_start + row_progress * sheet_progress_range;
-                report_progress(callback, progress, strict)?;
-            }
-        }
-
-        // 应用合并单元格
-        apply_merge_ranges(worksheet, table_data, style_sheet)?;
-
-        // 应用冻结窗格：自动根据各 sheet 的表头行数冻结
-        if table_data.header_row_count > 0 {
-            worksheet
-                .set_freeze_panes(table_data.header_row_count as u32, 0)
-                .map_err(|e| JsValue::from_str(&format!("设置冻结窗格失败: {}", e)))?;
-        }
-    }
-
-    // 报告完成进度
-    if let Some(callback) = progress_callback {
-        report_progress(callback, 98.0, strict)?;
+        let start = 80.0 + (sheet_idx as f64 / total_sheets as f64) * 15.0;
+        let range = 15.0 / total_sheets as f64;
+        write_sheet_with_progress(
+            worksheet,
+            table_data,
+            None,
+            progress_callback.as_ref(),
+            strict,
+            start,
+            range,
+            100,
+        )?;
     }
 
     let xlsx_bytes = workbook
@@ -611,6 +463,10 @@ fn generate_and_download_xlsx_multi(
 
     if xlsx_bytes.is_empty() {
         return Err(JsValue::from_str("没有可导出的数据"));
+    }
+
+    if let Some(callback) = progress_callback {
+        report_progress(callback, 100.0, strict)?;
     }
 
     create_and_download_xlsx(&xlsx_bytes, filename)

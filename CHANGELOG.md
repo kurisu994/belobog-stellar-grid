@@ -9,6 +9,30 @@
 
 ## [Unreleased]
 
+### 修复 (Fixed)
+
+- 🐛 修复 `normalize_hex_color` 按字节长度分支导致的 UTF-8 越界 panic（如颜色值 `"中"`）
+- 🐛 修复 Excel 预览合并区域在 `range.start() != (0,0)` 时相对/绝对坐标混用，导致后半段合并丢失
+- 🐛 修复下载路径先创建 Blob URL 再校验文件名：非法文件名提前返回时 URL 未释放
+- 🐛 为数据导出补充总单元格上限，避免超大输入无保护分配；表头上限检查改用 `checked_mul`
+- 🐛 数据区 `colSpan`/`rowSpan` 按真实行列网格钳制，避免生成越界合并区域
+- 🐛 列配置解析统一走 `get_object_property`，不再静默吞掉 getter/Proxy 异常
+- 🐛 超大合并区域不再全量展开到 `HashSet`，降低预览 DoS 风险
+- 🐛 Excel 预览 styles/dimensions 复用同一 `ZipArchive`，合并区域改从已打开的 calamine workbook 读取，去掉重复解压
+- 🐛 冻结窗格超出数据区时回退为不冻结；分批 XLSX 进度回调补齐到 100%
+- 🐛 CSV 注入防护剥离前导 BOM；预览 CSS 字体名过滤 `;{}<>`；`format_number` 处理 NaN/Inf 与 `"0,"` 缩放
+- 🐛 `Data::Int` 套用数字格式；dxf 填充在 `patternType="none"` 时不再错误上色（缺省仍视为 solid，符合 Excel 条件格式写法）
+- 🐛 导出预检 Excel 行上限 1048576；字号限制在 1–409
+
+### 优化 (Changed)
+
+- 📝 澄清流式 CSV 导出的内存语义：JS 侧仍会持有全部分片直至组成最终 Blob
+- 🔧 预览 `truncated` 同时反映行/列截断
+- ♻️ 抽取统一 Blob 下载助手、`write_sheet` 写入路径、`TableRowSources` 行源，消除 CSV/XLSX 下载与分批导出重复代码
+- ♻️ `StyleSheet::resolve_column` + 列级 Format 缓存，降低大数据量逐格样式重建开销
+- ♻️ 合并 `parse_sheet_xml` Start/Empty 分支与 `build_column_style_sheet*` 实现
+- 🔧 JS 数字导出改用稳定格式化；span 非有限/负值显式归零；合并列越界钳制
+
 ---
 
 ## [1.1.9] - 2026-08-14

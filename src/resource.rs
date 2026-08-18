@@ -82,3 +82,62 @@ pub(crate) fn schedule_url_revoke(window: &web_sys::Window, url: String) {
 pub(crate) fn schedule_url_revoke(_window: &web_sys::Window, _url: String) {
     // 测试环境：无需释放 URL
 }
+
+/// 从 Blob 片段数组创建文件并触发浏览器下载
+///
+/// 统一 CSV/XLSX/分片下载路径：先校验文件名，再创建 Object URL，成功后延迟 revoke。
+pub(crate) fn trigger_blob_download(
+    blob_parts: &js_sys::Array,
+    mime_type: &str,
+    filename: Option<String>,
+    default_name: &str,
+    extension: &str,
+) -> Result<(), wasm_bindgen::JsValue> {
+    use crate::validation::prepare_download_filename;
+    use wasm_bindgen::JsCast;
+    use web_sys::{Blob, BlobPropertyBag, HtmlAnchorElement, Url};
+
+    let window =
+        web_sys::window().ok_or_else(|| wasm_bindgen::JsValue::from_str("无法获取 window 对象"))?;
+    let document = window
+        .document()
+        .ok_or_else(|| wasm_bindgen::JsValue::from_str("无法获取 document 对象"))?;
+
+    // 先校验文件名，避免非法路径泄漏已创建的 URL
+    let final_filename = prepare_download_filename(filename, default_name, extension)
+        .map_err(|e| wasm_bindgen::JsValue::from_str(&format!("文件名验证失败: {}", e)))?;
+
+    let bag = BlobPropertyBag::new();
+    bag.set_type(mime_type);
+    let blob = Blob::new_with_u8_array_sequence_and_options(blob_parts, &bag)
+        .map_err(|e| wasm_bindgen::JsValue::from_str(&format!("创建 Blob 对象失败: {:?}", e)))?;
+
+    let url = Url::create_object_url_with_blob(&blob)
+        .map_err(|e| wasm_bindgen::JsValue::from_str(&format!("创建下载链接失败: {:?}", e)))?;
+
+    let anchor = document
+        .create_element("a")
+        .map_err(|e| wasm_bindgen::JsValue::from_str(&format!("创建下载链接元素失败: {:?}", e)))?;
+    let anchor = anchor
+        .dyn_into::<HtmlAnchorElement>()
+        .map_err(|_| wasm_bindgen::JsValue::from_str("创建的元素不是有效的锚点元素"))?;
+
+    anchor.set_href(&url);
+    anchor.set_download(&final_filename);
+    anchor.click();
+
+    schedule_url_revoke(&window, url);
+    Ok(())
+}
+
+/// 从完整字节缓冲触发下载（单段 Blob）
+pub(crate) fn trigger_bytes_download(
+    data: &[u8],
+    mime_type: &str,
+    filename: Option<String>,
+    default_name: &str,
+    extension: &str,
+) -> Result<(), wasm_bindgen::JsValue> {
+    let parts = js_sys::Array::of1(&js_sys::Uint8Array::from(data));
+    trigger_blob_download(&parts, mime_type, filename, default_name, extension)
+}

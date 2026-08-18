@@ -12,10 +12,14 @@ pub fn set_panic_hook() {
 
 /// 防止 CSV 注入攻击
 ///
-/// 如果字段以 `=`, `+`, `-`, `@`, `\t`, `\r` 开头，则在前面添加单引号 `'`
+/// 如果字段以 `=`, `+`, `-`, `@`, `\t`, `\r` 开头，则在前面添加单引号 `'`。
+/// 会先剥离前导 BOM（`\u{FEFF}`），避免 Excel 去 BOM 后仍触发公式注入。
 pub fn escape_csv_injection(text: &str) -> std::borrow::Cow<'_, str> {
-    if text.starts_with(['=', '+', '-', '@', '\t', '\r']) {
-        format!("'{}", text).into()
+    let stripped = text.trim_start_matches('\u{FEFF}');
+    if stripped.starts_with(['=', '+', '-', '@', '\t', '\r']) {
+        format!("'{}", stripped).into()
+    } else if stripped.len() != text.len() {
+        stripped.to_string().into()
     } else {
         text.into()
     }
@@ -116,5 +120,11 @@ mod tests {
         assert_eq!(escape_csv_injection("-cmd"), "'-cmd");
         assert_eq!(escape_csv_injection("@cmd"), "'@cmd");
         assert_eq!(escape_csv_injection("safe"), "safe");
+    }
+
+    #[test]
+    fn test_escape_csv_injection_bom_prefix() {
+        assert_eq!(escape_csv_injection("\u{FEFF}=cmd"), "'=cmd");
+        assert_eq!(escape_csv_injection("\u{FEFF}safe"), "safe");
     }
 }
