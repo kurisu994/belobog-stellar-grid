@@ -33,6 +33,10 @@
 - ♻️ 合并 `parse_sheet_xml` Start/Empty 分支与 `build_column_style_sheet*` 实现
 - 🔧 JS 数字导出改用稳定格式化；span 非有限/负值显式归零；合并列越界钳制
 
+### 文档 (Documentation)
+
+- 📝 CDN 引入示例与 README 的 unpkg 版本号从 1.0.8 更新到 1.1.9
+
 ---
 
 ## [1.1.9] - 2026-08-14

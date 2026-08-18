@@ -159,7 +159,7 @@ pnpm add -D @bsg-export/types
 ```html
 <script type="module">
   // 引入后，模块会自动从同一 CDN 路径拉取 .wasm 文件
-  import init, { export_table } from "https://unpkg.com/belobog-stellar-grid@1.0.8/pkg/belobog_stellar_grid.js";
+  import init, { export_table } from "https://unpkg.com/belobog-stellar-grid@1.1.9/pkg/belobog_stellar_grid.js";
 
   await init();
   export_table("my-table", "导出数据.csv");

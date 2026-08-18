@@ -248,7 +248,7 @@
       <pre><code><span class="code-comment">&lt;!-- 需要设置 type="module" 支持 ES Modules --&gt;</span>
 &lt;script <span class="code-keyword">type</span>="module"&gt;
   <span class="code-comment">// 从 unpkg 引入 JS 包装器。它会自动解析相对路径加载 WASM</span>
-  <span class="code-keyword">import</span> init, { export_table, ExportFormat } <span class="code-keyword">from</span> <span class="code-string">"https://unpkg.com/belobog-stellar-grid@1.0.8/pkg/belobog_stellar_grid.js"</span>;
+  <span class="code-keyword">import</span> init, { export_table, ExportFormat } <span class="code-keyword">from</span> <span class="code-string">"https://unpkg.com/belobog-stellar-grid@1.1.9/pkg/belobog_stellar_grid.js"</span>;
   
   <span class="code-comment">// 初始化 WebAssembly 模块（会自动从 CDN 拉取 .wasm 文件）</span>
   <span class="code-keyword">await</span> <span class="code-function">init</span>();
@@ -272,7 +272,7 @@
       const isGitHubPages = location.hostname.endsWith("github.io");
       const wasmModuleUrl = isGitHubPages
         ? "../pkg/belobog_stellar_grid.js"
-        : "https://unpkg.com/belobog-stellar-grid@1.0.8/pkg/belobog_stellar_grid.js";
+        : "https://unpkg.com/belobog-stellar-grid@1.1.9/pkg/belobog_stellar_grid.js";
       const { default: init, export_table, ExportFormat } = await import(wasmModuleUrl);
 
       const btnCsv = document.getElementById("btn-csv");
