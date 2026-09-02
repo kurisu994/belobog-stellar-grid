@@ -4,7 +4,8 @@
 
 ## 当前状态
 
-- **最新提交**：`32c5361`（全量代码审查修复，解决 panic、合并坐标、Blob URL 泄漏、OOM 上限与重复代码重构）
+- **当前 HEAD**：`c77cf71`（更新 CDN 示例版本号到 1.1.9）
+- **最近代码验证基线**：`32c5361`（全量代码审查修复，解决 panic、合并坐标、Blob URL 泄漏、OOM 上限与重复代码重构）
 - **版本状态**：`1.1.9`（`CHANGELOG.md` 中 `[Unreleased]` 已记录本次审查修复）
 - **测试现状**：218 个 Rust 单元/集成测试全部通过；WASM 目标（`wasm32-unknown-unknown`）编译通过；Clippy 检查通过
 - **记忆银行**：已完成标准化 6 文件初始化（`projectbrief.md`、`productContext.md`、`systemPatterns.md`、`techContext.md`、`progress.md`、`activeContext.md`）
@@ -48,6 +49,12 @@ CHANGELOG.md                # 记录 [Unreleased] 修复项
 1. **版本发布准备**：如需发版，可执行 `just check` 全面检查并推进版本号（1.1.10 / 1.2.0）
 2. **E2E 验证**：在具备 Node 环境下运行 `just e2e` 验证浏览器端端到端行为
 3. **框架子包构建**：运行 `just build-packages` 确认各前端框架产物正常构建
+
+## 待推进事项（未排期）
+
+- [ ] 评估是否将 XLSX 分批与流式导出的公共 DOM 迭代再收窄
+- [ ] 评估 `packages/` 自动化测试与发布工作流联动
+- [ ] 针对大数据量导出补充端到端基准追踪
 
 ## 当前阻塞 / 注意事项
 

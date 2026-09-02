@@ -141,9 +141,6 @@ resource::trigger_blob_download(parts, mime, filename, default_name, ext)
 
 ## 编码约定
 
-- Rust 2024，`rustfmt` 默认配置
-- 标识符英文 `snake_case`；注释、文档、错误消息中文
-- 公开类型与函数需中文文档注释
-- 测试文件 `test_<领域>.rs`，测试函数 `test_<模块>_<函数>_<场景>`
-- 仅 wasm32 安全的 `JsValue` 测试要加 `#[cfg(target_arch = "wasm32")]`
-- 新功能需覆盖：正常输入、边界值、Unicode、恶意输入
+- Rust 2024 + `rustfmt` 默认配置；标识符英文 `snake_case`，注释/文档/错误消息中文
+- 测试文件 `test_<领域>.rs`，测试函数 `test_<模块>_<函数>_<场景>`；仅 wasm32 安全的 `JsValue` 测试加 `#[cfg(target_arch = "wasm32")]`，新功能覆盖正常输入、边界值、Unicode、恶意输入
+- 完整协作与提交规范见仓库根 `AGENTS.md`（此处不重复）

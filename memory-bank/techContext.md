@@ -12,7 +12,8 @@
 | 构建工具 | `wasm-pack`（`--target web`） | `Justfile` |
 | 可选优化 | `wasm-opt -Oz`（binaryen） | `Justfile optimize` |
 | 本地服务器 | `basic-http-server` | `Justfile dev` |
-| E2E | Playwright + Node（CI 用 Node 18） | `e2e/`, `.github/workflows/ci.yml` |
+| E2E | Playwright（本地，Node 22+ / pnpm） | `Justfile e2e`, `e2e/` |
+| CI 浏览器冒烟 | Node 18 + puppeteer + http-server | `.github/workflows/ci.yml` |
 
 ## Rust 依赖
 
@@ -100,7 +101,7 @@ codegen-units = 1
 来自 `core/mod.rs::ExportDataOptions`：
 
 `columns` / `filename` / `format` / `progressCallback` / `indentColumn` / `childrenKey` /
-`withBom` / `strictProgress` / `freezeRows` / `freezeCols` / `headerStyle` / `cellStyle`
+`withBom` / `strictProgressCallback` / `freezeRows` / `freezeCols` / `headerStyle` / `cellStyle`
 
 流式额外支持 `chunkSize`（默认 5000，最小 1）。
 
@@ -117,30 +118,13 @@ codegen-units = 1
 | `@bsg-export/solid` | Solid.js 封装 |
 | `@bsg-export/worker` | Web Worker 封装 |
 
-## 测试现状
+## 测试
 
-最近一次 `cargo test` 实测：
-
-| 目标 | 通过数 |
-| ---- | ------ |
-| lib 单元测试 | 98 |
-| `tests/lib_tests.rs` | 41 |
-| `tests/test_data_export.rs` | 34 |
-| `tests/test_excel_preview.rs` | 4 |
-| `tests/test_resource.rs` | 8 |
-| `tests/test_security.rs` | 3 |
-| `tests/test_streaming_export.rs` | 26 |
-| `tests/test_unified_api.rs` | 4 |
-| **合计** | **218** |
-
-E2E：`e2e/tests/` 8 个 spec 文件，约 47 个用例（array / basic / benchmark / container / multi-sheet / style / tree / wasm-init）。
-
-> ⚠️ 已知偏差：`cargo clippy --all-targets -- -D warnings` 在**测试与基准代码**中有 10 个历史遗留告警
-> （近似 PI 常量、`useless_vec`、`needless_borrow` 等）。项目标准命令是 `cargo clippy -- -D warnings`（仅 lib），该命令通过。
+测试数量与 E2E 用例数属动态状态，见 `memory-bank/activeContext.md` 的「测试现状」。运行方式见上方「常用命令」（`just test` / `just e2e` / `cargo bench`）。
 
 ## CI
 
 `.github/workflows/`：
 
-- `ci.yml` — 标签触发，包含 lint / test / E2E / 子包构建等 job
-- `benchmark.yml` — 标签触发的基准与部署
+- `ci.yml` — 标签触发，含 lint / test / WASM 构建 / Puppeteer 冒烟 / 发布 / Release
+- `benchmark.yml` — 标签触发，含 Criterion 基准、WASM 体积追踪、示例页部署

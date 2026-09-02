@@ -74,7 +74,7 @@ parse_excel_to_html(bytes, options) / parse_excel_to_json(...)
 
 ## 交互逻辑
 
-- **进度回调**：接收 0–100 的百分比。默认宽松模式（回调抛错仅 `console.warn`）；`strictProgress=true` 时回调失败会中断导出
+- **进度回调**：接收 0–100 的百分比。默认宽松模式（回调抛错仅 `console.warn`）；`strictProgressCallback=true` 时回调失败会中断导出
 - **冻结窗格**：默认按表头行数自动冻结；用户可用 `freezeRows` / `freezeCols` 覆盖；**超出数据区则回退为不冻结**
 - **样式优先级**：全局 → 列级 → 单元格级，逐层 merge
 - **BOM**：`withBom=true` 时 CSV 加 UTF-8 BOM，便于 Excel 正确识别中文
