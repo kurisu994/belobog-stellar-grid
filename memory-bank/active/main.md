@@ -1,16 +1,28 @@
-# 活跃上下文 (Active Context)
+# 当前任务 (main)
 
-> 动态工作区：每次会话开始时首选读取，会话结束前主动更新。
+> 分支 `main` 的活跃工作区。会话开始先读，结束前更新。
+> 每条写完留一个空行（多人/多会话协作时便于合并）。
+
+## 目标
+
+- **暂无进行中的代码任务**：主线停在 `1.1.9` 功能完备、尚未发版的状态
+- 本轮收尾目标：完成记忆银行从旧版 6 枢纽到四层结构的迁移
+
+## 验收标准
+
+- 旧的 6 个枢纽文件内容零丢失地落到新结构（`--verify` 通过）
+- `1X-*.md` 每份都带 `paths` 并能被 hook 实测命中
+- `AGENTS.md` 指向新的 `memory-bank/README.md`
 
 ## 当前状态
 
-- **当前 HEAD**：`c77cf71`（更新 CDN 示例版本号到 1.1.9）
+- **当前 HEAD**：`33b1655`（修正记忆银行事实错误与分工）
+- **上一版文档记录点**：`c77cf71`（更新 CDN 示例版本号到 1.1.9）；其后的 `86fad2f`、`33b1655` 均为记忆银行文档改动，无代码变更
 - **最近代码验证基线**：`32c5361`（全量代码审查修复，解决 panic、合并坐标、Blob URL 泄漏、OOM 上限与重复代码重构）
-- **版本状态**：`1.1.9`（`CHANGELOG.md` 中 `[Unreleased]` 已记录本次审查修复）
+- **版本状态**：`1.1.9`（`CHANGELOG.md` 中 `[Unreleased]` 已记录本次审查修复，尚未发版）
 - **测试现状**：218 个 Rust 单元/集成测试全部通过；WASM 目标（`wasm32-unknown-unknown`）编译通过；Clippy 检查通过
-- **记忆银行**：已完成标准化 6 文件初始化（`projectbrief.md`、`productContext.md`、`systemPatterns.md`、`techContext.md`、`progress.md`、`activeContext.md`）
 
-## 最近活跃文件
+## 活跃文件
 
 ```
 src/
@@ -44,7 +56,7 @@ CHANGELOG.md                # 记录 [Unreleased] 修复项
 | dxf `patternType` 缺省视为 solid | 兼容 Excel 条件格式省略 patternType 的标准写法 | `src/core/excel_style.rs` |
 | 极值保留原始精度 | 避免固定 10 位小数把 `1e-15` 截为 `"0"` | `src/core/data_export.rs` |
 
-## 下一步建议
+## 下一步
 
 1. **版本发布准备**：如需发版，可执行 `just check` 全面检查并推进版本号（1.1.10 / 1.2.0）
 2. **E2E 验证**：在具备 Node 环境下运行 `just e2e` 验证浏览器端端到端行为
@@ -59,4 +71,5 @@ CHANGELOG.md                # 记录 [Unreleased] 修复项
 ## 当前阻塞 / 注意事项
 
 - **无关键代码阻塞**
-- **注意事项**：`cargo clippy --all-targets` 中有 10 处既有的测试/基准代码告警（如近似 PI 常量），不影响生产代码 `cargo clippy -- -D warnings`；日常校验以 `just lint` / `cargo clippy -- -D warnings` 为准
+- **注意事项**：`cargo clippy --all-targets` 中有 10 处既有的测试/基准代码告警（如近似 PI 常量），
+  不影响生产代码 `cargo clippy -- -D warnings`；日常校验以 `just lint` / `cargo clippy -- -D warnings` 为准

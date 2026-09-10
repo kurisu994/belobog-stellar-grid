@@ -30,4 +30,11 @@ PR 应说明问题、方案、影响范围与风险，关联 Issue，并列出�
 
 ## AI 会话收尾与记忆银行
 
-每次最终回复前，AI 必须检查本轮是否产生代码变更、重要决策、阻塞或下一步计划；如有，先更新 `memory-bank/activeContext.md`，记录当前状态、活跃文件、已做决策、下一步和阻塞。涉及里程碑或架构调整时同步 `memory-bank/progress.md`；架构约定或负向约束有变时同步 `systemPatterns.md`；依赖、命令、测试现状有变时同步 `techContext.md`。
+项目长期记忆在 `memory-bank/`，四层结构（共识 / 任务 / 个人 / 归档）与各层的写入规则见 `memory-bank/README.md`；开工前先读 `memory-bank/00-project.md`，后续按 README 的路径映射表定位对应规范。
+
+每次最终回复前，AI 必须检查本轮是否产生代码变更、重要决策、阻塞或下一步计划；如有：
+
+- 任务进展、活跃文件、下一步与阻塞 → 更新当前分支的 `memory-bank/active/<branch>.md`
+- 会话流水与踩过的坑 → 追加到 `memory-bank/journal/<dev>.md`（**只追加、禁改历史、每段留空行**）
+- 里程碑或架构演进 → 写入 `memory-bank/archive/YYYY-MM/`
+- 共识层（`00-project.md` / `1X-*.md`）仅在项目约定确实变化时改动，且需走 PR review

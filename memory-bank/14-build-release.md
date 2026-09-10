@@ -1,6 +1,17 @@
-# 技术上下文 (Tech Context)
+---
+name: 14-build-release
+description: 工具链、依赖版本、编译配置、构建发布命令与 CI 流程
+paths:
+  - "Justfile"
+  - "Cargo.toml"
+  - ".cargo/config.toml"
+  - ".github/workflows/**"
+  - "packages/**"
+---
 
-> 纯事实参考，均取自仓库实际文件。
+# 构建与发布 (Build & Release)
+
+> 改依赖、`Justfile`、子包或 CI 前先读这里。以下均为仓库实际文件的事实快照。
 
 ## 工具链
 
@@ -52,9 +63,9 @@ opt-level = "z"
 codegen-units = 1
 ```
 
-> 注意：release 未开启 `overflow-checks`，因此上限判断必须用 `checked_mul` 等显式检查。
+> 注意：release **未开启** `overflow-checks`，因此上限判断必须用 `checked_mul` 等显式检查。
 
-## 常用命令
+## Justfile 命令
 
 | 命令 | 作用 |
 | ---- | ---- |
@@ -69,45 +80,9 @@ codegen-units = 1
 | `cargo bench --bench export_benchmarks` | Criterion 基准 |
 | `cargo check --target wasm32-unknown-unknown` | 验证 wasm 目标可编译 |
 
-## 公开 API（`src/lib.rs`）
-
-**导出**
-
-- `ExportFormat`（`Csv` 默认 / `Xlsx`）
-- `export_table` — DOM 表格导出
-- `export_tables_xlsx` — 多表 → 多 Sheet
-- `export_data` — JS 数组 / 对象 / 树形数据导出
-- `generate_data_bytes` — 仅生成字节（Worker 场景）
-- `export_table_to_csv_batch` — CSV 分批异步
-- `export_table_to_xlsx_batch` / `export_tables_to_xlsx_batch` — XLSX 分批异步
-- `export_data_streaming` — 流式 CSV
-
-**Excel 预览**
-
-- `get_excel_sheet_list`
-- `parse_excel_to_html`
-- `parse_excel_to_json`
-
-**工具**
-
-- `UrlGuard`、`validate_filename`、`ensure_extension`、`escape_csv_injection`、`set_panic_hook`
-
-**内部（`#[doc(hidden)] bench_exports`）**
-
-- `generate_csv_bytes`、`generate_xlsx_bytes`、`generate_xlsx_multi_bytes`、`MergeRange`、`TableData`
-
-## `export_data` 选项字段
-
-来自 `core/mod.rs::ExportDataOptions`：
-
-`columns` / `filename` / `format` / `progressCallback` / `indentColumn` / `childrenKey` /
-`withBom` / `strictProgressCallback` / `freezeRows` / `freezeCols` / `headerStyle` / `cellStyle`
-
-流式额外支持 `chunkSize`（默认 5000，最小 1）。
-
 ## TypeScript 子包
 
-全部位于 `packages/`，版本与主库一致（`1.1.9`）：
+全部位于 `packages/`，版本与主库保持一致（当前 `1.1.9`）：
 
 | 包名 | 说明 |
 | ---- | ---- |
@@ -118,9 +93,13 @@ codegen-units = 1
 | `@bsg-export/solid` | Solid.js 封装 |
 | `@bsg-export/worker` | Web Worker 封装 |
 
-## 测试
+发版流程由 `Justfile` 的 `bump-core` 统一驱动，它会同步：
 
-测试数量与 E2E 用例数属动态状态，见 `memory-bank/activeContext.md` 的「测试现状」。运行方式见上方「常用命令」（`just test` / `just e2e` / `cargo bench`）。
+1. `Cargo.toml` 版本（`cargo set-version --bump`）
+2. `README.md` 中的 `version-` 标记
+3. 六个 `packages/*/package.json` 的 `version`
+4. 子包内 `@bsg-export/types` 依赖的 `^` 版本
+5. `CHANGELOG.md`：`## [Unreleased]` 下插入 `## [新版本] - 日期`
 
 ## CI
 
@@ -128,3 +107,5 @@ codegen-units = 1
 
 - `ci.yml` — 标签触发，含 lint / test / WASM 构建 / Puppeteer 冒烟 / 发布 / Release
 - `benchmark.yml` — 标签触发，含 Criterion 基准、WASM 体积追踪、示例页部署
+
+> 测试分层与本地测试命令见 `13-testing.md`；依赖升级与安全审计规范见 `~/develop/Agent/rules/dependencies.md`。
