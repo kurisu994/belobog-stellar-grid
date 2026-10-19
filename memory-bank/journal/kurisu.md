@@ -78,3 +78,10 @@
 - 06:57:42 UTC 主包 PUT 返回 E403：`You may not perform that action with these credentials`。没有发布任何新包，主包 `1.1.10` 查询仍为 404。
 - 新 Token 不代表已有包写权限：下一步应核对 Packages and scopes 是否允许直接 publish、是否包含主包，再看账号 / IP / 包安全策略；不要把这次 E403 又简单归为 Token 过期。检查截图只需权限与包列表，不索要 Token 值。
 
+## 2026-10-19 npm 补发被受理，Vue 等待处理
+
+- 用户再次更新 Secret 后，重跑 `39210664212 --failed` 的 attempt 3 全绿，发布 job `117932763345`；七个包都出现成功提交日志。
+- 已从公开 registry 校验主包、types、react、svelte、solid、worker 的 `1.1.10` 及 latest，types 引用已转换为 registry 版本；主包 tarball 内 WASM 哈希与 Release / Pages 一致。
+- npm 发布返回成功并不保证立即公开：日志明确 `Your package is being processed and may take a few minutes to become available.`；Vue 两分钟有界轮询仍未公开，其余包已可查。此时应标记「已提交、处理中」，不是又让用户换 Token，也不应立刻重复 publish。
+- 已移除 GitHub Release 说明里过时的 npm 未同步警告，标签和附件保持不变；后续只需确认 Vue 元数据及 latest。
+

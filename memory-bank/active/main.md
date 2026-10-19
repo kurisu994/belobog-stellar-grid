@@ -3,7 +3,7 @@
 ## 目标与结果
 
 - 发布补丁版 `1.1.10`，并核查 gh-pages 是否需要同步。
-- **GitHub Release 与 Pages 已完成，npm 尚未发布**；不要把版本标签或 Release 成功理解为 npm 成功。
+- **GitHub Release 与 Pages 已完成；npm 主包与六子包均已成功提交发布**。公开 registry 已确认主包、types、react、svelte、solid、worker 的 `1.1.10` 且 latest 同步；Vue 在 npm 处理队列，暂未公开，不能把提交成功当成全部可安装。
 
 ## 当前状态
 
@@ -26,7 +26,11 @@
 - 补发入口的本地校验覆盖默认不发、标签 / 版本校验、Unicode / 注入 / 换行拒绝、固定 SHA、发布门禁、已存在版本跳过、部分补发、registry 异常和实际发布失败停止；3 段 Node 脚本语法通过，独立只读审查后补上 Release 仅限标签 push 的条件。
 - **补发流程 `39210664212`**（工作流提交 `e88df5a`，输入 `v1.1.10`）：日志确认源码 `7e69cbfaf5830c7ec617c7e4e94324f86dab8b59`、版本 `1.1.10`、`publish=true`。代码、MSRV、WASM/DOM、E2E、子包回归和全部发布包准备均通过。
 - 该流程 npm job **实际执行后失败，而非 skipped**：`2026-10-19T06:41:08Z`，发布 `belobog-stellar-grid@1.1.10` 的 `PUT https://registry.npmjs.org/belobog-stellar-grid` 返回 `E404 Not found`，流程在主包停止，六子包尚未尝试。
-- 用户随后更新 `NPM_TOKEN`（Secret 元数据时间 `2026-10-19T06:56:54Z`），已执行 `gh run rerun 39210664212 --failed`。**attempt 2 / job `117930137643`** 于 `06:57:42Z` 真实发布返回 **E403：`You may not perform that action with these credentials`**；仍在主包停止，版本查询依旧 HTTP 404。不能声称已发布，待核对 Token 的包写入范围、账号权限或包安全策略。
+- 用户随后更新 `NPM_TOKEN`（Secret 元数据时间 `2026-10-19T06:56:54Z`），已执行 `gh run rerun 39210664212 --failed`。**attempt 2 / job `117930137643`** 于 `06:57:42Z` 真实发布返回 **E403：`You may not perform that action with these credentials`**，当时仍在主包停止。
+- 用户再次更新 Secret（元数据时间 `2026-10-19T07:04:44Z`）后，**attempt 3 / 发布 job `117932763345` 成功，整个流程 conclusion=success**。日志分别出现主包和六子包的 `+ <name>@1.1.10`；旧 E404 / E403 不再是当前阻塞。
+- 公开 registry 的完整包元数据已确认主包、types、react、svelte、solid、worker 的版本与 latest 均为 `1.1.10`，子包 types 依赖为 `^1.1.10`，没有残留 file/link/workspace 本地依赖。
+- **Vue 提交成功但 npm 尚在处理**：发布日志明确 `Your package is being processed and may take a few minutes to become available.`；随后约两分钟的有界轮询仍查到 latest `1.1.8`、`1.1.10` 元数据 / tarball 404。不要误报再次鉴权失败或立即重复 publish。
+- npm 主包实际 tarball 已下载并校验 WASM SHA-256，与 GitHub Release / Pages 完全一致。Release 说明中已删除过时的「npm 包尚未同步」提示，附件和标签不变。
 
 ## gh-pages
 
@@ -35,14 +39,13 @@
 - 线上地址：<https://kurisu994.github.io/belobog-stellar-grid/>。
 - 线上 `pkg/package.json` 已确认版本 `1.1.10`，示例目录与标签完全一致，`dev/bench/` 历史数据保留。
 - Release / 绿色 CI / 线上 Pages 的 WASM SHA-256 均为 `1ef8fbe3a8ccfafded30839652231e35828f2446ce2741fb25ba16617875c82e`。
-- Aside 真实浏览器验证：导航可访问，CDN 演示页在 Pages 使用本地 pkg 完成 WASM 初始化，成功下载 `CDN_示例数据.csv`（202 字节）。这不代表 npm/unpkg 已有 `1.1.10`。
+- Aside 真实浏览器验证：导航可访问，CDN 演示页在 Pages 使用本地 pkg 完成 WASM 初始化，成功下载 `CDN_示例数据.csv`（202 字节）。npm 主包已另行校验，不以 Pages 本地 pkg 成功替代 npm 发布证据。
 
 ## 当前阻塞与下一步
 
-1. **发布触发问题已解决，当前阻塞是更新凭证后的真实 npm PUT 返回 E403**。流程 `39210664212` 已引用 `secrets.NPM_TOKEN` 并继承给 pnpm，包名与 registry 正确；无根目录 / pkg 的 npmrc 覆盖。新 Secret 已更新并重试，但 npm 仍明确拒绝当前凭证执行发布；尚不能区分 Token 包授权范围、账号权限、IP 限制或包安全策略，不能直接断言仅是过期。下一步优先请用户提供不含 Token 值的 Packages and scopes 权限 / 包列表截图，确认 `Read and write (publish and stage)` 且包含主包。
-2. 主包 npm latest 仍为 `1.1.8`，查询 `1.1.10` 返回 HTTP 404。公开 registry 元数据中的主包维护者为 `kurisu_m`（这是 npm 包归属，不是个人日志身份映射）。需用户核查 / 更新仓库 `NPM_TOKEN`：使用具有发布权限的 npm 账号，Token 的包权限允许直接 publish，覆盖主包及六个 `@bsg-export/*` 子包，并满足有效期、IP 与包的 2FA 策略。不要把 token 写入仓库、日志或聊天。
-3. 用户完成凭证配置后，优先 `gh run rerun 39210664212 --failed` 重跑失败发布 job，复用同次已通过验证的产物；也可 `gh workflow run ci.yml --ref main -f release_tag=v1.1.10` 重新执行完整补发流程。不移动原标签，不将普通 main 手动检查变成发布；发布副本仍由 `packages/scripts/prepare-publish.mjs` 生成。
-4. 共识层 `00-project.md` / `14-build-release.md` 等仍是旧版本事实快照，本次未直接改动这些需 PR review 的文件。
+1. **npm 凭证与发布流程已打通**，不再要求用户更换 Token。剩余仅需确认 npm 处理队列中的 `@bsg-export/vue@1.1.10` 最终公开且 latest 同步；若长时间未公开，再核查 npm 处理状态，不要因公开查询 404 就反复重发已受理版本。
+2. Vue 可用后将本文件的待处理状态更新为全部可安装。发布入口仍为 `gh workflow run ci.yml --ref main -f release_tag=v1.1.10`，仅在确需补发缺失包时使用；不移动原标签。
+3. 不记录或索要 Secret 值。共识层 `00-project.md` / `14-build-release.md` 等仍是旧版本事实快照，本次未直接改动这些需 PR review 的文件。
 
 ## 未排期事项
 
