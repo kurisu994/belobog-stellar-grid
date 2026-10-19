@@ -12,7 +12,8 @@
 - Release 收录此前全量审查的预览、导出、资源安全、框架生命周期和示例修复；详见 `CHANGELOG.md` 的 `1.1.10`。
 - README 与 CDN 示例版本同步到 `1.1.10`，README 去掉错误的 `/pkg/` CDN 路径；E2E 从构建产物读取版本，不再写死 CDN 拦截版本。
 - 发布后两个 CI 修复提交：`9301983` 补 `--chrome`；`72aca6a` 用 WebDriver capabilities 显式绑定 setup-chrome 安装的浏览器路径，避免驱动 158 自动选中 runner 自带的 Chrome 155。
-- `main` 与发布标签的差异仅为上述 CI 修复（另有本次记忆记录）；业务源码、依赖锁、示例、测试与版本内容没有改动，标签未被强制移动。
+- `e88df5a` 增加 `workflow_dispatch.release_tag` 补发入口，所有门禁与构建统一固定到标签提交，已存在的 npm 版本跳过，同一标签串行发布；默认留空不发布，手动补发不覆盖 Release / Pages。README 已记录用法，CHANGELOG 记在 Unreleased。
+- `main` 相比发布标签仅增加 CI / 发布流程、发布文档和记忆记录；业务源码、依赖锁、示例、测试与版本内容没有改动，标签未被强制移动。
 
 ## 发布验证
 
@@ -22,6 +23,9 @@
 - 标签原始 CI `39207476941` 因漏 `--chrome` 失败；首次 main 重跑 `39207849570` 因浏览器 / 驱动不匹配失败，均未进入 npm 发布。
 - 修复后的 main CI **`39208315802` 全部验证门禁通过**，包含真实 DOM、WASM、MSRV、框架和浏览器测试；main 的 Release / npm jobs 按标签条件跳过。
 - GitHub Release 手动上传该次绿色 CI 的 `wasm-package` 产物；发布前已核对其版本、源码与标签一致性。
+- 补发入口的本地校验覆盖默认不发、标签 / 版本校验、Unicode / 注入 / 换行拒绝、固定 SHA、发布门禁、已存在版本跳过、部分补发、registry 异常和实际发布失败停止；3 段 Node 脚本语法通过，独立只读审查后补上 Release 仅限标签 push 的条件。
+- **补发流程 `39210664212`**（工作流提交 `e88df5a`，输入 `v1.1.10`）：日志确认源码 `7e69cbfaf5830c7ec617c7e4e94324f86dab8b59`、版本 `1.1.10`、`publish=true`。代码、MSRV、WASM/DOM、E2E、子包回归和全部发布包准备均通过。
+- 该流程 npm job **实际执行后失败，而非 skipped**：`2026-10-19T06:41:08Z`，发布 `belobog-stellar-grid@1.1.10` 的 `PUT https://registry.npmjs.org/belobog-stellar-grid` 返回 `E404 Not found`，流程在主包停止，六子包尚未尝试。
 
 ## gh-pages
 
@@ -34,9 +38,9 @@
 
 ## 当前阻塞与下一步
 
-1. **已确认的直接原因是 npm 发布 job 未执行，而非本次发布报鉴权错误**：标签 CI 在 WASM/DOM 门禁失败，发布 job 被跳过；修复后的 main 手动 CI 虽全绿，但 `publish-npm.if` 仅允许 `refs/tags/v*`，因此仍跳过。仓库已配置 `NPM_TOKEN`。
-2. 主包 npm latest 核查仍为 `1.1.8`；`1.1.10` 尚未同步。应补齐显式的已有标签补发路径，保留版本、产物来源和测试门禁，再用现有 CI Secret 实际执行发布。不能因本机 `pnpm whoami` 返回 401 就要求用户先更换 CI Token：本机登录与 Actions Secret 是独立认证环境；`1.1.9` 的 E404 也只属历史证据，当前 Secret 有效性尚未验证。
-3. 原标签绑定旧 CI 文件，直接重跑原标签 CI 仍会遇到旧脚本问题；不要盲目重跑或强制移动标签，也不要把 main 的所有手动检查都改成自动发布。新增补发入口时需明确发布版本与对应产物；子包继续由 `packages/scripts/prepare-publish.mjs` 生成发布副本。不要把 token 写入仓库、日志或聊天。
+1. **发布触发问题已解决，当前阻塞是 CI 现有凭证下的真实 npm PUT 被拒绝**。流程 `39210664212` 已引用 `secrets.NPM_TOKEN` 并继承给 pnpm，包名与 registry 正确；无根目录 / pkg 的 npmrc 覆盖。不能仅凭 E404 区分 Token 失效、账号错误或包写入权限不足，也不能用本机 401 替代 CI 证据。
+2. 主包 npm latest 仍为 `1.1.8`，查询 `1.1.10` 返回 HTTP 404。公开 registry 元数据中的主包维护者为 `kurisu_m`（这是 npm 包归属，不是个人日志身份映射）。需用户核查 / 更新仓库 `NPM_TOKEN`：使用具有发布权限的 npm 账号，Token 的包权限允许直接 publish，覆盖主包及六个 `@bsg-export/*` 子包，并满足有效期、IP 与包的 2FA 策略。不要把 token 写入仓库、日志或聊天。
+3. 用户完成凭证配置后，优先 `gh run rerun 39210664212 --failed` 重跑失败发布 job，复用同次已通过验证的产物；也可 `gh workflow run ci.yml --ref main -f release_tag=v1.1.10` 重新执行完整补发流程。不移动原标签，不将普通 main 手动检查变成发布；发布副本仍由 `packages/scripts/prepare-publish.mjs` 生成。
 4. 共识层 `00-project.md` / `14-build-release.md` 等仍是旧版本事实快照，本次未直接改动这些需 PR review 的文件。
 
 ## 未排期事项
