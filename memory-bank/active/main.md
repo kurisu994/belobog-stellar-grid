@@ -1,107 +1,46 @@
 # 当前任务 (main)
 
-> 分支 `main` 的活跃工作区。会话开始先读，结束前更新。
-> 每条写完留一个空行（多人/多会话协作时便于合并）。
+## 目标与结果
 
-## 目标
-
-- 全量审查发现的预览、导出、示例、CI 和框架子包问题已纳入当前代码提交，尚未发版
-- 记忆银行四层迁移已在 `abc4cdf` 完成并提交；本文件前半仍保留 2026-09-10 的校准记录
-
-## 验收标准
-
-- 旧的 6 个枢纽内容零丢失地落到新结构（`--verify` 通过）✅
-- `1X-*.md` 每份都带 `paths` 并能被 hook 实测命中 ✅（`src/core/export_*.rs` →
-  `10-export-core`、`src/core/html_builder.rs` → `11-excel-preview`、`packages/**` →
-  `14-build-release`、`benches/**` → `13-testing` 均实测命中）
-- `AGENTS.md` 指向新的 `memory-bank/README.md` ✅
-- README 含写入门槛与个人日志归属，且不与全局规范冲突 ✅
+- 发布补丁版 `1.1.10`，并核查 gh-pages 是否需要同步。
+- **GitHub Release 与 Pages 已完成，npm 尚未发布**；不要把版本标签或 Release 成功理解为 npm 成功。
 
 ## 当前状态
 
-- **当前 HEAD**：审查修复已提交到 `main`，尚未发版；不要再按工作区未提交理解
-- **上一个代码提交**：`32c5361`（全量代码审查修复：panic、合并坐标、Blob URL 泄漏、
-  OOM 上限与重复代码重构）；其后所有提交均为文档/记忆银行改动，无代码变更
-- **版本状态**：`1.1.9`，六个 `packages/*` 子包版本一致；`CHANGELOG.md` 的 `[Unreleased]`
-  已记录审查修复，尚未发版
-- **事实复核结果**：常量（`MAX_DATA_CELLS=5_000_000`、`MAX_HEADER_CELLS=100_000`、
-  `MAX_DEPTH=64`、`DEFAULT_CHUNK_SIZE=5000`、`EXCEL_MAX_ROW/COL=1_048_575/16_383`、
-  预览侧 `100_000/16_384/1_000_000/50MB`）、分批默认 1000 行、15 个 HTML 示例、
-  8 个 E2E 用例、6 个子包版本，与 `memory-bank/` 记载全部一致
-- **测试基线**：218 个 Rust 单元/集成测试通过；wasm32 目标编译通过；`cargo clippy -- -D warnings` 通过
-- **注入机制**：`.claude/` 已装 hook（PostToolUse + SessionStart），`.gitattributes` 已配
-  `memory-bank/journal/*.md merge=union`；项目内无 `.codex/` / `.opencode/` 目录，故未装
+- 发布提交：`7e69cbf`，标签 `v1.1.10`；主库与六个 `packages/*` 子包版本均为 `1.1.10`。
+- GitHub Release：<https://github.com/kurisu994/belobog-stellar-grid/releases/tag/v1.1.10>，已公开、非预发布、标为 Latest，附带 WASM / JS / `.d.ts` 三个产物。
+- Release 收录此前全量审查的预览、导出、资源安全、框架生命周期和示例修复；详见 `CHANGELOG.md` 的 `1.1.10`。
+- README 与 CDN 示例版本同步到 `1.1.10`，README 去掉错误的 `/pkg/` CDN 路径；E2E 从构建产物读取版本，不再写死 CDN 拦截版本。
+- 发布后两个 CI 修复提交：`9301983` 补 `--chrome`；`72aca6a` 用 WebDriver capabilities 显式绑定 setup-chrome 安装的浏览器路径，避免驱动 158 自动选中 runner 自带的 Chrome 155。
+- `main` 与发布标签的差异仅为上述 CI 修复（另有本次记忆记录）；业务源码、依赖锁、示例、测试与版本内容没有改动，标签未被强制移动。
 
-## 活跃文件
+## 发布验证
 
-```
-src/
-├── core/
-│   ├── data_export.rs      # MAX_DATA_CELLS 上限、checked_mul、format_js_number
-│   ├── excel_reader.rs     # 合并绝对坐标、共享 ZipArchive、parse_sheet_xml 合并
-│   ├── excel_style.rs      # dxf patternType solid 缺省语义、数字格式缩放
-│   ├── export_csv.rs       # 接入 trigger_bytes_download、create_and_download_csv_parts
-│   ├── export_xlsx.rs      # write_sheet 统一写入路径、resolve_freeze_pane
-│   ├── style.rs            # normalize_hex_color 字符级分支、resolve_column
-│   └── table_extractor.rs  # TableRowSources 统一抽象、span 越界保护
-├── batch_export.rs         # 接入 TableRowSources 与统一下载
-├── batch_export_xlsx.rs    # 接入 TableRowSources 与 write_sheet_with_progress
-├── streaming_export.rs     # 接入统一下载、澄清内存语义注释
-├── resource.rs             # trigger_blob_download / trigger_bytes_download
-├── utils.rs                # escape_csv_injection 剥离 BOM
-└── validation.rs           # prepare_download_filename 预检
-CHANGELOG.md                # 记录 [Unreleased] 修复项
-memory-bank/                # 本轮唯一改动区域（README / active / journal）
-```
+- 本地通过：`cargo fmt -- --check`、`cargo clippy --locked --all-targets -- -D warnings`、245 个原生测试、wasm32 测试编译。
+- 本地通过：Rust 1.85 原生 / wasm32 `cargo check --locked --lib`、release WASM 构建、33 个 Node/WASM 回归测试。
+- 本地通过：六子包构建、56 个框架 / 发布回归测试、65 个 Chromium E2E。
+- 标签原始 CI `39207476941` 因漏 `--chrome` 失败；首次 main 重跑 `39207849570` 因浏览器 / 驱动不匹配失败，均未进入 npm 发布。
+- 修复后的 main CI **`39208315802` 全部验证门禁通过**，包含真实 DOM、WASM、MSRV、框架和浏览器测试；main 的 Release / npm jobs 按标签条件跳过。
+- GitHub Release 手动上传该次绿色 CI 的 `wasm-package` 产物；发布前已核对其版本、源码与标签一致性。
 
-## 最近已做决策
+## gh-pages
 
-| 决策 | 理由 | 影响范围 |
-| ---- | ---- | -------- |
-| `normalize_hex_color` 走 `chars.len()` | 避免 3 字节 UTF-8 单字符（如 `"中"`）误入 3 长度分支导致 panic | `src/core/style.rs` |
-| 预览合并边界加 `start` 偏移 | `range.start() != (0,0)` 时绝对坐标必须与绝对上限比较 | `src/core/excel_reader.rs` |
-| 下载前执行文件名校验 | 杜绝非法文件名路径创建但未释放 Blob URL 的隐患 | `src/resource.rs`, 各导出模块 |
-| 数据区总单元格上限 5,000,000 | 与表头 `MAX_HEADER_CELLS` 对称，拦截恶意/超大输入 | `src/core/data_export.rs` |
-| `write_sheet` 单点写入抽象 | 消除单表 / 多表 / 分批 XLSX 三处写入与冻结重复逻辑 | `src/core/export_xlsx.rs` |
-| 共享 `ZipArchive` 读取预览信息 | 样式表与 sheet XML 共用解包流，合并区域复用 workbook | `src/core/excel_reader.rs` |
-| dxf `patternType` 缺省视为 solid | 兼容 Excel 条件格式省略 patternType 的标准写法 | `src/core/excel_style.rs` |
-| 极值保留原始精度 | 避免固定 10 位小数把 `1e-15` 截为 `"0"` | `src/core/data_export.rs` |
-| README 的写入门槛/日志归属从全局规范回填 | 项目文档不得用「每轮追加流水」或「按日志文件名猜用户」覆盖底线 | `memory-bank/README.md` |
+- 标签触发的 Benchmark 流程 **`39207476954` 成功**，自动更新示例、WASM 与基准数据，无须手工修改 gh-pages。
+- gh-pages 部署提交：`6b28ff4`，明确对应发布提交 `7e69cbf`；Pages 部署流程 **`39207907174` 成功**。
+- 线上地址：<https://kurisu994.github.io/belobog-stellar-grid/>。
+- 线上 `pkg/package.json` 已确认版本 `1.1.10`，示例目录与标签完全一致，`dev/bench/` 历史数据保留。
+- Release / 绿色 CI / 线上 Pages 的 WASM SHA-256 均为 `1ef8fbe3a8ccfafded30839652231e35828f2446ce2741fb25ba16617875c82e`。
+- Aside 真实浏览器验证：导航可访问，CDN 演示页在 Pages 使用本地 pkg 完成 WASM 初始化，成功下载 `CDN_示例数据.csv`（202 字节）。这不代表 npm/unpkg 已有 `1.1.10`。
 
-## 下一步
+## 当前阻塞与下一步
 
-1. **版本发布准备**：如需发版，可执行 `just check` 全面检查并推进版本号（1.1.10 / 1.2.0）
-2. **E2E 验证**：在具备 Node 环境下运行 `just e2e` 验证浏览器端端到端行为
-3. **框架子包构建**：运行 `just build-packages` 确认各前端框架产物正常构建
+1. **npm 凭证待恢复**：本机 `pnpm whoami --registry https://registry.npmjs.org/` 返回 401；仓库 `NPM_TOKEN` 最近更新时间为 2026-02-26，上次 `1.1.9` CI 的 npm PUT 返回 E404。只能确认鉴权 / 发布权限有问题，不能断言具体过期原因。
+2. 主包 npm latest 核查仍为 `1.1.8`；`1.1.10` 尚未同步。恢复有发布权限的 npm 登录 / 凭证后，再补发本版本主包与六子包；不要把 token 写入仓库、日志或聊天。
+3. 原标签绑定旧 CI 文件，直接重跑原标签 CI 仍会遇到旧脚本问题；不要盲目重跑或强制移动标签。可在恢复本机认证后使用已验证产物发布主包，子包先构建并由 `packages/scripts/prepare-publish.mjs` 生成发布副本。
+4. 共识层 `00-project.md` / `14-build-release.md` 等仍是旧版本事实快照，本次未直接改动这些需 PR review 的文件。
 
-## 待推进事项（未排期）
+## 未排期事项
 
-- [ ] 评估是否将 XLSX 分批与流式导出的公共 DOM 迭代再收窄
-- [ ] 评估 `packages/` 自动化测试与发布工作流联动
-- [ ] 针对大数据量导出补充端到端基准追踪
-- [ ] 如后续接入 Codex / OpenCode，为其补装对应 hook（当前项目只有 `.claude/`）
-
-## 当前阻塞 / 注意事项
-
-- **无关键代码阻塞**
-- **注意事项**：`cargo clippy --all-targets` 中有 10 处既有的测试/基准代码告警（如近似 PI 常量），
-  不影响生产代码 `cargo clippy -- -D warnings`；日常校验以 `just lint` / `cargo clippy -- -D warnings` 为准
-- **注意事项**：hook 对同一份规范每会话只注入一次，一次验证多份规范时要换 `session_id`，
-  否则会误判为「paths 没命中」
-
-## 0e29f63 复核发现的修复（已完成，未提交）
-
-- 预检改为在 `<v>`/`<f>`/`<is>` 正文内维护嵌套深度，内部标签不再改动行列；`<f><row/></f>` 这类绕过已被回归测试锁住
-- `sheet_paths` 改为返回 `Option`：缺 `xl/workbook.xml` 时降级为「只限体积」，ODS/XLSB 重新可预览
-- 扫描前按路径去重，重复 `<sheet r:id>` 不再放大预检耗时
-- 数字导出保留可往返的完整精度，改的是 CHANGELOG 措辞而不是行为
-
-## 全量审查修复（2026-10-19，已提交未发版）
-
-> 原审查项已落地。预检的后续复核又补了三处行为对齐，别再按「未修复」理解。
-
-- XLSX 在 calamine 打开前预检输入、解压量和真实非空矩形；自闭合 `<row/>` 推进隐式行号，`uniqueCount` 超过 100 万直接拒绝
-- 纯样式空单元格不占矩形；`hh:mm dd/mm/yyyy` 的月份不再渲染成分钟
-- `.xls` 仍只有 50 MiB 原始大小上限，不能说稀疏 BIFF 已被坐标预检拦住
-- 示例、DOM rowspan、CSV 等宽、数据导出、四框架预览和 CI/MSRV 门禁已按审查项修改
-- 五个框架 `tsconfig.paths` 指向 `pkg/belobog_stellar_grid.d.ts` 和 `packages/types/dist`
+- 评估进一步收窄 XLSX 分批与流式导出的公共 DOM 迭代。
+- 补充大数据量端到端基准追踪。
+- 如接入 Codex / OpenCode，再按平台规范补装记忆银行注入 hook。

@@ -51,3 +51,11 @@
 - 重复 `<sheet r:id>` 会按路径重复扫描同一份 XML，去重后总工作量才受总解压体积约束。
 - 数字导出保留完整精度是可辩护的选择，错的只是 CHANGELOG 的措辞；不要为了文案去改行为。
 
+## 2026-10-19 发布 1.1.10 的流程注意事项
+
+- `wasm-pack test --chromedriver <path>` 不等于选了 Chrome，仍必须传 `--chrome`；补参数后才能真正进入 DOM 回归。
+- setup-chrome 安装了配套驱动，也不代表测试会自动用配套浏览器：本次驱动 158 选中了 runner 自带的 Chrome 155。通过 `WASM_BINDGEN_TEST_WEBDRIVER_JSON` 指向临时 capabilities，并在 `goog:chromeOptions.binary` 写入 action 的 `chrome-path` 后通过。
+- 已推送标签不强制移动；本次在 main 修 CI、跑通全部门禁，核对业务源码与原标签无差异后，用绿色 CI 产物完成 Release。WASM 哈希与标签自动部署的 Pages 完全一致。
+- 版本升级还要同步 CDN 示例和测试拦截地址；测试现从 `pkg/package.json` 读取版本，避免发版后请求未发布 CDN 而误失败。
+- GitHub Release、Pages、npm 是三个独立结果。本次前两项已完成；本机 npm 身份查询 401，上次标签发布 404，npm 主包 latest 仍是 1.1.8，须恢复发布权限后补发，不能仅凭标签存在宣布 npm 成功。
+
