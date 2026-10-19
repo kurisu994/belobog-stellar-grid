@@ -3,7 +3,7 @@
 ## 目标与结果
 
 - 发布补丁版 `1.1.10`，并核查 gh-pages 是否需要同步。
-- **GitHub Release 与 Pages 已完成；npm 主包与六子包均已成功提交发布**。公开 registry 已确认主包、types、react、svelte、solid、worker 的 `1.1.10` 且 latest 同步；Vue 在 npm 处理队列，暂未公开，不能把提交成功当成全部可安装。
+- **GitHub Release、Pages 与 npm 发布全部完成**。公开 registry 已逐一确认主包与六子包的 `1.1.10`，七包 latest 均已同步，实际 tarball 全部可下载且包名 / 版本正确。
 
 ## 当前状态
 
@@ -28,8 +28,8 @@
 - 该流程 npm job **实际执行后失败，而非 skipped**：`2026-10-19T06:41:08Z`，发布 `belobog-stellar-grid@1.1.10` 的 `PUT https://registry.npmjs.org/belobog-stellar-grid` 返回 `E404 Not found`，流程在主包停止，六子包尚未尝试。
 - 用户随后更新 `NPM_TOKEN`（Secret 元数据时间 `2026-10-19T06:56:54Z`），已执行 `gh run rerun 39210664212 --failed`。**attempt 2 / job `117930137643`** 于 `06:57:42Z` 真实发布返回 **E403：`You may not perform that action with these credentials`**，当时仍在主包停止。
 - 用户再次更新 Secret（元数据时间 `2026-10-19T07:04:44Z`）后，**attempt 3 / 发布 job `117932763345` 成功，整个流程 conclusion=success**。日志分别出现主包和六子包的 `+ <name>@1.1.10`；旧 E404 / E403 不再是当前阻塞。
-- 公开 registry 的完整包元数据已确认主包、types、react、svelte、solid、worker 的版本与 latest 均为 `1.1.10`，子包 types 依赖为 `^1.1.10`，没有残留 file/link/workspace 本地依赖。
-- **Vue 提交成功但 npm 尚在处理**：发布日志明确 `Your package is being processed and may take a few minutes to become available.`；随后约两分钟的有界轮询仍查到 latest `1.1.8`、`1.1.10` 元数据 / tarball 404。不要误报再次鉴权失败或立即重复 publish。
+- 公开 registry 的完整包元数据及实际 tarball 已逐一确认七包版本与 latest 均为 `1.1.10`，子包 types 依赖为 `^1.1.10`，没有残留 file/link/workspace 本地依赖。
+- **Vue 等待已结束**：`@bsg-export/vue@1.1.10` 的 npm `published_at` 为 `2026-10-19T07:14:15.469Z`，公开元数据与实际 tarball 均通过校验。先前返回 404 是 npm 受理后的处理阶段，不应因此再次换 Token 或重复发布。
 - npm 主包实际 tarball 已下载并校验 WASM SHA-256，与 GitHub Release / Pages 完全一致。Release 说明中已删除过时的「npm 包尚未同步」提示，附件和标签不变。
 
 ## gh-pages
@@ -43,8 +43,8 @@
 
 ## 当前阻塞与下一步
 
-1. **npm 凭证与发布流程已打通**，不再要求用户更换 Token。剩余仅需确认 npm 处理队列中的 `@bsg-export/vue@1.1.10` 最终公开且 latest 同步；若长时间未公开，再核查 npm 处理状态，不要因公开查询 404 就反复重发已受理版本。
-2. Vue 可用后将本文件的待处理状态更新为全部可安装。发布入口仍为 `gh workflow run ci.yml --ref main -f release_tag=v1.1.10`，仅在确需补发缺失包时使用；不移动原标签。
+1. **本次版本发布无剩余阻塞**，七个 npm 包全部可安装，不需要再补发或调整 Token。
+2. 后续已有标签确需补发时使用 `gh workflow run ci.yml --ref main -f release_tag=<版本标签>`；输入留空只检查，不移动标签，不因 npm 处理延迟重复 publish。
 3. 不记录或索要 Secret 值。共识层 `00-project.md` / `14-build-release.md` 等仍是旧版本事实快照，本次未直接改动这些需 PR review 的文件。
 
 ## 未排期事项

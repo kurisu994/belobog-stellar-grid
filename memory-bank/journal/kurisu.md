@@ -85,3 +85,8 @@
 - npm 发布返回成功并不保证立即公开：日志明确 `Your package is being processed and may take a few minutes to become available.`；Vue 两分钟有界轮询仍未公开，其余包已可查。此时应标记「已提交、处理中」，不是又让用户换 Token，也不应立刻重复 publish。
 - 已移除 GitHub Release 说明里过时的 npm 未同步警告，标签和附件保持不变；后续只需确认 Vue 元数据及 latest。
 
+## 2026-10-19 确认七个 npm 包全部可安装
+
+- 用户再次查询后，逐包核验公开 registry：主包与 types/react/vue/svelte/solid/worker 均有 `1.1.10`，latest 全部同步；七份实际 tarball 可下载，包名和版本正确，无本地依赖残留。
+- Vue 于 `07:14:15.469 UTC` 完成 npm 处理，先前 404 已消失；此次发版无剩余阻塞。npm 主包 tarball 内 WASM 哈希再次确认与 Release / Pages 相同。
+
