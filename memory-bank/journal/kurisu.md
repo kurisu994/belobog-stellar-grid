@@ -72,3 +72,9 @@
 - 补发 CI `39210664212` 全部测试和发布包准备通过，源码固定 `v1.1.10` 的 `7e69cbf`；实际 pnpm 发布主包于 06:41:08 UTC 收到 registry PUT E404。六子包未尝试，npm 主包 latest 仍 1.1.8。
 - 这次 E404 是使用 CI Secret 的实际结果，可以确认当前凭证配置无法完成发布，但仍不能区分过期、账号或包写入范围问题。公开包维护者为 `kurisu_m`；待用户核查凭证后，可用 `gh run rerun 39210664212 --failed` 复用既有门禁和产物重试，不再重打标签。
 
+## 2026-10-19 更新 Token 后的补发重试
+
+- 用户确认已更新 Secret，元数据时间为 06:56:54 UTC；重跑 `39210664212 --failed`，attempt 2 的发布 job 为 `117930137643`。
+- 06:57:42 UTC 主包 PUT 返回 E403：`You may not perform that action with these credentials`。没有发布任何新包，主包 `1.1.10` 查询仍为 404。
+- 新 Token 不代表已有包写权限：下一步应核对 Packages and scopes 是否允许直接 publish、是否包含主包，再看账号 / IP / 包安全策略；不要把这次 E403 又简单归为 Token 过期。检查截图只需权限与包列表，不索要 Token 值。
+
