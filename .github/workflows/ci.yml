@@ -77,7 +77,18 @@ jobs:
           install-chromedriver: true
 
       - name: 执行真实 DOM 回归测试
-        run: wasm-pack test --headless --chrome --chromedriver "${{ steps.chrome.outputs.chromedriver-path }}" . --locked --test test_dom_regressions
+        env:
+          CHROME_BINARY: ${{ steps.chrome.outputs.chrome-path }}
+          WASM_BINDGEN_TEST_WEBDRIVER_JSON: ${{ runner.temp }}/webdriver.json
+        run: |
+          # 显式绑定配套浏览器，避免 ChromeDriver 自动选中 runner 自带的旧版 Chrome。
+          node --input-type=module <<'NODE'
+          import { writeFileSync } from 'node:fs';
+          writeFileSync(process.env.WASM_BINDGEN_TEST_WEBDRIVER_JSON, JSON.stringify({
+            'goog:chromeOptions': { binary: process.env.CHROME_BINARY },
+          }));
+          NODE
+          wasm-pack test --headless --chrome --chromedriver "${{ steps.chrome.outputs.chromedriver-path }}" . --locked --test test_dom_regressions
 
       - name: 构建 WebAssembly 包
         run: wasm-pack build --target web --release
