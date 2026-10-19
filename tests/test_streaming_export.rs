@@ -216,7 +216,7 @@ use std::io::Cursor;
 #[test]
 fn test_chunked_csv_write_basic() {
     // 模拟分块 CSV 写入：每块独立生成 CSV 字节
-    let data = vec![
+    let data = [
         vec!["姓名", "年龄", "城市"],
         vec!["张三", "28", "北京"],
         vec!["李四", "35", "上海"],
@@ -262,7 +262,7 @@ fn test_chunked_csv_write_basic() {
 #[test]
 fn test_chunked_csv_write_single_chunk() {
     // 数据量小于分块大小，只产生一个分块
-    let data = vec![vec!["a", "b"], vec!["c", "d"]];
+    let data = [vec!["a", "b"], vec!["c", "d"]];
 
     let chunk_size = 100;
     let mut all_parts: Vec<Vec<u8>> = Vec::new();

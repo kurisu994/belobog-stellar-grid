@@ -11,6 +11,17 @@
 
 ### 修复 (Fixed)
 
+- 🐛 Excel 预览在解码前预检 XLSX：限制 50 MiB 输入、单项/总解压体积，并按真实非空单元格的外接矩形拒绝超过 100 万格的工作表；`maxRows` 和工作表列表都不能绕过
+- 🐛 补上两类仍可绕过预检的输入：自闭合 `<row/>` 现在会推进隐式行号；`sharedStrings/@uniqueCount` 超过 100 万时直接拒绝，避免底层库按声明值预分配
+- 🐛 只有样式、没有值的单元格不再计入已用矩形，避免误拒合法工作簿；反向 dimension/合并范围仍会拒绝
+- 🐛 日期格式在时间出现在日期前面时不再把月份渲染成分钟（如 `hh:mm dd/mm/yyyy`）
+- 🐛 `includeStyles: false` 仍保留隐藏行列、行高和列宽；条件格式按全局 `priority` 合成，并遵守 `stopIfTrue`
+- 🐛 `.xls` 仅能在打开前限制原始文件大小。底层库会在打开时整体解码，稀疏 BIFF 坐标仍可能放大内存
+- 🐛 修复 DOM `rowspan=0`、跨行组占位和按 `rowspan × colspan` 展开导致的内存放大；隐藏祖先下的表头不再导出，整表隐藏会明确报错
+- 🐛 同步、分批和流式 CSV 都拒绝不等宽记录，分批边界不再放行 ragged 数据
+- 🐛 修复数据导出的数字尾随小数、树形包装单元格、单格合并和配置 getter 异常被吞掉的问题
+- 🐛 修复示例页工作表名 XSS、虚拟滚动只导出可见行、错误的导出 API、过期冻结参数和 CDN 路径
+- 🐛 修复四框架预览的 `sheetName` 残留、隐藏表标签和异步代际串扰；Vue 构建补齐预览产物，Worker 失败时不再留下 pending
 - 🐛 修复 `normalize_hex_color` 按字节长度分支导致的 UTF-8 越界 panic（如颜色值 `"中"`）
 - 🐛 修复 Excel 预览合并区域在 `range.start() != (0,0)` 时相对/绝对坐标混用，导致后半段合并丢失
 - 🐛 修复下载路径先创建 Blob URL 再校验文件名：非法文件名提前返回时 URL 未释放
@@ -26,6 +37,8 @@
 
 ### 优化 (Changed)
 
+- 🔧 CI 增加 MSRV 1.85、WASM/DOM 测试、Playwright 和子包类型检查；源码去掉 let-chains，与声明的 1.85 对齐
+- 🔧 框架包的 TypeScript `paths` 指向仓库内的 WASM 声明和 `@bsg-export/types` 构建产物，避免解析到旧的已发布类型
 - 📝 澄清流式 CSV 导出的内存语义：JS 侧仍会持有全部分片直至组成最终 Blob
 - 🔧 预览 `truncated` 同时反映行/列截断
 - ♻️ 抽取统一 Blob 下载助手、`write_sheet` 写入路径、`TableRowSources` 行源，消除 CSV/XLSX 下载与分批导出重复代码

@@ -16,6 +16,10 @@
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
+    "paths": {
+      "belobog-stellar-grid": ["../../pkg/belobog_stellar_grid.d.ts"],
+      "@bsg-export/types": ["../types/dist/index.d.ts"]
+    },
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "isolatedModules": true

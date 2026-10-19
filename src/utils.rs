@@ -4,7 +4,7 @@
 /// 可以在浏览器控制台看到更友好的错误信息。
 ///
 /// 建议在初始化时调用一次。
-#[allow(dead_code)]
+#[wasm_bindgen::prelude::wasm_bindgen]
 pub fn set_panic_hook() {
     #[cfg(feature = "console_error_panic_hook")]
     console_error_panic_hook::set_once();
@@ -32,12 +32,55 @@ pub fn is_element_hidden(element: &web_sys::Element) -> bool {
         None => return false,
     };
 
-    if let Ok(Some(style)) = window.get_computed_style(element)
-        && let Ok(display) = style.get_property_value("display")
-    {
-        return display == "none";
+    // 子元素的 computed display 不反映祖先 display:none，必须沿祖先检查。
+    let mut current = Some(element.clone());
+    while let Some(node) = current {
+        if let Ok(Some(style)) = window.get_computed_style(&node) {
+            if let Ok(display) = style.get_property_value("display") {
+                if display == "none" {
+                    return true;
+                }
+            }
+        }
+        current = node.parent_element();
     }
     false
+}
+
+/// 读取 JavaScript 属性，保留 getter 抛错而不是静默回退为缺省值。
+pub(crate) fn get_js_property(
+    object: &wasm_bindgen::JsValue,
+    name: &str,
+) -> Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue> {
+    js_sys::Reflect::get(object, &wasm_bindgen::JsValue::from_str(name)).map_err(|error| {
+        wasm_bindgen::JsValue::from_str(&format!("读取属性 {name} 失败: {error:?}"))
+    })
+}
+
+/// 读取有界非负整数选项，在窄化转换之前校验小数、无穷值和越界值。
+pub(crate) fn get_optional_integer(
+    object: &wasm_bindgen::JsValue,
+    name: &str,
+    min: u32,
+    max: u32,
+) -> Result<Option<u32>, wasm_bindgen::JsValue> {
+    let value = get_js_property(object, name)?;
+    if value.is_null() || value.is_undefined() {
+        return Ok(None);
+    }
+    match value.as_f64() {
+        Some(number)
+            if number.is_finite()
+                && number.fract() == 0.0
+                && number >= min as f64
+                && number <= max as f64 =>
+        {
+            Ok(Some(number as u32))
+        }
+        _ => Err(wasm_bindgen::JsValue::from_str(&format!(
+            "{name} 必须是 {min} 到 {max} 之间的整数"
+        ))),
+    }
 }
 
 /// 统一的进度回调上报函数
@@ -73,8 +116,12 @@ pub(crate) async fn yield_to_browser() -> Result<(), wasm_bindgen::JsValue> {
     let window =
         web_sys::window().ok_or_else(|| wasm_bindgen::JsValue::from_str("无法获取 window 对象"))?;
 
-    let promise = js_sys::Promise::new(&mut |resolve, _reject| {
-        let _ = window.set_timeout_with_callback_and_timeout_and_arguments_0(&resolve, 0);
+    let promise = js_sys::Promise::new(&mut |resolve, reject| {
+        if let Err(error) =
+            window.set_timeout_with_callback_and_timeout_and_arguments_0(&resolve, 0)
+        {
+            let _ = reject.call1(&wasm_bindgen::JsValue::NULL, &error);
+        }
     });
 
     wasm_bindgen_futures::JsFuture::from(promise).await?;

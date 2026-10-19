@@ -61,6 +61,7 @@ interface PendingRequest {
   resolve: (value: ArrayBuffer) => void;
   reject: (reason: Error) => void;
   onProgress?: ProgressCallback;
+  strictProgressCallback?: boolean;
 }
 
 /**
@@ -128,7 +129,12 @@ export class ExportWorker {
       });
 
       const request: WorkerRequest = { type: 'init', id };
-      this.worker.postMessage(request);
+      try {
+        this.worker.postMessage(request);
+      } catch (err) {
+        this.pending.delete(id);
+        reject(err instanceof Error ? err : new Error(String(err)));
+      }
     });
   }
 
@@ -189,18 +195,24 @@ export class ExportWorker {
         resolve,
         reject,
         onProgress: workerOptions?.onProgress,
+        strictProgressCallback: options?.strictProgressCallback,
       });
 
-      // Worker 中不传 progressCallback（它不可序列化），
-      // Worker 会自动注入 postMessage 版的进度回调
-      const { ...safeOptions } = options ?? {};
-      const request: WorkerRequest = {
-        type: 'generate',
-        id,
-        data,
-        options: safeOptions as Record<string, unknown>,
-      };
-      this.worker.postMessage(request);
+      try {
+        // 防止 JS 调用者绕过类型传入不可克隆的回调。
+        const safeOptions = { ...options } as ExportDataOptions;
+        delete safeOptions.progressCallback;
+        const request: WorkerRequest = {
+          type: 'generate',
+          id,
+          data,
+          options: safeOptions as Record<string, unknown>,
+        };
+        this.worker.postMessage(request);
+      } catch (err) {
+        this.pending.delete(id);
+        reject(err instanceof Error ? err : new Error(String(err)));
+      }
     });
 
     return new Uint8Array(buffer);
@@ -251,7 +263,17 @@ export class ExportWorker {
       case 'progress':
         // 进度报告
         if (pending.onProgress && progress !== undefined) {
-          pending.onProgress(progress);
+          try {
+            pending.onProgress(progress);
+          } catch (err) {
+            if (pending.strictProgressCallback) {
+              // Worker 计算无法同步取消；拒绝并移除请求，忽略后续结果且不下载。
+              this.pending.delete(id);
+              pending.reject(err instanceof Error ? err : new Error(String(err)));
+            } else {
+              console.warn('进度回调执行失败，已忽略:', err);
+            }
+          }
         }
         break;
     }

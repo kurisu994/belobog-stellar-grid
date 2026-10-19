@@ -1,4 +1,5 @@
 import { test, expect, type Page, type Download } from '@playwright/test';
+import { readDownload, readXlsxEntry } from './helpers/download';
 
 /**
  * 基础导出测试 (basic-export.html)
@@ -31,11 +32,8 @@ async function setupPage(page: Page) {
 
   await page.goto('/examples/basic-export.html', { waitUntil: 'networkidle' });
 
-  // 等待 WASM 初始化
-  await page.waitForFunction(() => {
-    return document.querySelector('#employees-table') !== null;
-  });
-  await page.waitForTimeout(1000);
+  // 静态表格不能证明初始化完成，等待 await init() 后输出的成功日志。
+  await expect.poll(() => consoleLogs.some((log) => log.includes('WebAssembly 已初始化'))).toBe(true);
 }
 
 test.describe('基础导出 - export_table()', () => {
@@ -133,6 +131,16 @@ test.describe('基础导出 - export_table()', () => {
     const download: Download = await downloadPromise;
 
     expect(download.suggestedFilename()).toBe('员工信息表(冻结).xlsx');
+    const archive = await readDownload(download);
+    const worksheet = readXlsxEntry(archive, 'xl/worksheets/sheet1.xml');
+    expect(worksheet).toMatch(/<pane\b[^>]*xSplit="1"/);
+    expect(worksheet).toMatch(/<pane\b[^>]*ySplit="2"/);
+    expect(worksheet).toMatch(/<pane\b[^>]*topLeftCell="B3"/);
+    expect(worksheet).toMatch(/<pane\b[^>]*state="frozen"/);
+    expect(worksheet.match(/<row\b/g)).toHaveLength(6);
+    const sharedStrings = readXlsxEntry(archive, 'xl/sharedStrings.xml');
+    expect(sharedStrings).toContain('张三');
+    expect(sharedStrings).toContain('孙七');
     expect(pageErrors).toHaveLength(0);
     expect(consoleLogs.some((log) => log.includes('导出为 Excel (带冻结配置) 完成'))).toBeTruthy();
   });

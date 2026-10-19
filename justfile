@@ -52,7 +52,7 @@ fmt:
 # 代码质量检查
 lint:
     @echo "🔍 运行 Clippy 代码质量检查..."
-    cargo clippy -- -D warnings
+    cargo clippy --locked --all-targets -- -D warnings
 
 # 全面检查 (格式化 + Lint)
 check: fmt lint
@@ -61,17 +61,25 @@ check: fmt lint
 # 运行测试
 test:
     @echo "🧪 运行测试..."
-    cargo test
+    cargo test --locked
+
+# 执行真实 JavaScript 数据与选项回归测试
+test-wasm:
+    wasm-pack test --node . --locked --lib --test test_data_regressions --test test_options_regressions
+
+# 执行真实浏览器 DOM 回归测试（需要 Chrome / chromedriver）
+test-dom:
+    wasm-pack test --headless --chrome . --locked --test test_dom_regressions
 
 # 运行 E2E 测试 (Playwright)
 e2e: build
     @echo "🌐 运行 E2E 测试..."
-    cd e2e && npx playwright test
+    cd e2e && pnpm exec playwright test
 
 # 运行 E2E 测试 (带浏览器界面)
 e2e-headed: build
     @echo "🌐 运行 E2E 测试 (headed)..."
-    cd e2e && npx playwright test --headed
+    cd e2e && pnpm exec playwright test --headed
 
 # -----------------------------------------------------------------------------
 # 发布流程
@@ -193,7 +201,7 @@ build-packages:
     for pkg in packages/types packages/react packages/vue packages/svelte packages/solid packages/worker; do
         if [ -d "$pkg" ]; then
             echo "📦 构建 $pkg..."
-            cd "$pkg" && pnpm install && pnpm run build && cd ../.. 
+            cd "$pkg" && pnpm install --frozen-lockfile && pnpm run build && cd ../..
             echo "✅ $pkg 构建完成"
         fi
     done
@@ -203,12 +211,11 @@ publish-packages tag="latest":
     #!/bin/bash
     set -e
     tag="{{tag}}"
-    for pkg in packages/types packages/react packages/vue packages/svelte packages/solid packages/worker; do
-        if [ -d "$pkg" ]; then
-            echo "📤 发布 $pkg (tag: $tag)..."
-            cd "$pkg" && npm publish --access public --tag "$tag" && cd ../.. 
-            echo "✅ $pkg 发布完成"
-        fi
+    staging="$(mktemp -d)"
+    trap 'rm -rf "$staging"' EXIT
+    node packages/scripts/prepare-publish.mjs "$staging"
+    for package in types react vue svelte solid worker; do
+        pnpm --dir "$staging/$package" publish --access public --no-git-checks --tag "$tag"
     done
 
 # -----------------------------------------------------------------------------

@@ -1,10 +1,12 @@
 import { test, expect, type Page, type Download } from '@playwright/test';
+import { readDownload, readXlsxEntry } from './helpers/download';
 
 /**
  * 多工作表导出测试 (multi-sheet-export.html)
  *
  * 测试 export_tables_xlsx() 的多表合并导出：
  * - 同步多表导出（含隐藏行排除）
+ * - 内部 tbody 的异步分批导出
  */
 
 let pageErrors: string[];
@@ -23,7 +25,7 @@ async function setupPage(page: Page) {
   });
 
   await page.goto('/examples/multi-sheet-export.html', { waitUntil: 'networkidle' });
-  await page.waitForTimeout(1000);
+  await page.waitForFunction(() => typeof Reflect.get(window, 'exportSync') === 'function');
 }
 
 test.describe('多工作表导出 - export_tables_xlsx()', () => {
@@ -52,6 +54,26 @@ test.describe('多工作表导出 - export_tables_xlsx()', () => {
     // 验证日志区域显示导出成功
     const logArea = page.locator('#log');
     await expect(logArea).toContainText('导出成功');
+  });
+
+  test('异步分批导出完整内部 tbody，不重复或丢失数据', async ({ page }) => {
+    await setupPage(page);
+    await page.locator('#btn-generate-data').click();
+    await expect(page.locator('#btn-async-export')).toBeEnabled();
+
+    const downloadPromise = page.waitForEvent('download');
+    await page.locator('#btn-async-export').click();
+    const download = await downloadPromise;
+    expect(download.suggestedFilename()).toBe('大数据多表导出.xlsx');
+    const archive = await readDownload(download);
+    for (const sheet of ['sheet1.xml', 'sheet2.xml']) {
+      const worksheet = readXlsxEntry(archive, `xl/worksheets/${sheet}`);
+      // 每个工作表应有 1 行表头 + 5000 行数据。
+      expect(worksheet.match(/<row\b/g)).toHaveLength(5001);
+      expect(worksheet).toContain('ref="A1:D5001"');
+    }
+    await expect(page.locator('#log')).toContainText('异步导出完成');
+    expect(pageErrors).toHaveLength(0);
   });
 
   test('订单表格包含隐藏行', async ({ page }) => {

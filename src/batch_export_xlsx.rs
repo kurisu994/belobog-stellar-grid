@@ -25,6 +25,7 @@ use wasm_bindgen::prelude::*;
 /// * `batch_size` - 每批处理的行数（默认 1000）
 /// * `exclude_hidden` - 可选，是否排除隐藏的行和列（默认为 false）
 /// * `progress_callback` - 进度回调函数，接收进度百分比 (0-100)
+/// * `strict_progress_callback` - 回调失败时是否中断导出（默认 false，仅记录警告）；不改变回调频率。
 ///
 /// # 返回值
 /// * `Promise<void>` - 异步操作的 Promise
@@ -70,7 +71,7 @@ pub async fn export_table_to_xlsx_batch(
     }
 
     // 解析样式配置
-    let style_sheet = build_global_style_sheet(header_style.as_ref(), cell_style.as_ref());
+    let style_sheet = build_global_style_sheet(header_style.as_ref(), cell_style.as_ref())?;
 
     // 报告初始进度
     if let Some(ref callback) = progress_callback {
@@ -168,9 +169,8 @@ fn parse_batch_sheet_configs(sheets: &JsValue) -> Result<Vec<BatchSheetConfig>, 
         let item = array.get(i);
 
         // 提取 tableId（必填）
-        let table_id = js_sys::Reflect::get(&item, &JsValue::from_str("tableId"))
-            .ok()
-            .and_then(|v| v.as_string())
+        let table_id = crate::utils::get_js_property(&item, "tableId")?
+            .as_string()
             .unwrap_or_default();
 
         if table_id.is_empty() {
@@ -181,19 +181,14 @@ fn parse_batch_sheet_configs(sheets: &JsValue) -> Result<Vec<BatchSheetConfig>, 
         }
 
         // 提取 tbodyId（可选）
-        let tbody_id = js_sys::Reflect::get(&item, &JsValue::from_str("tbodyId"))
-            .ok()
-            .and_then(|v| v.as_string());
+        let tbody_id = crate::utils::get_js_property(&item, "tbodyId")?.as_string();
 
         // 提取 sheetName（可选）
-        let sheet_name = js_sys::Reflect::get(&item, &JsValue::from_str("sheetName"))
-            .ok()
-            .and_then(|v| v.as_string());
+        let sheet_name = crate::utils::get_js_property(&item, "sheetName")?.as_string();
 
         // 提取 excludeHidden（可选，默认 false）
-        let exclude_hidden = js_sys::Reflect::get(&item, &JsValue::from_str("excludeHidden"))
-            .ok()
-            .and_then(|v| v.as_bool())
+        let exclude_hidden = crate::utils::get_js_property(&item, "excludeHidden")?
+            .as_bool()
             .unwrap_or(false);
 
         configs.push(BatchSheetConfig {
@@ -216,6 +211,7 @@ fn parse_batch_sheet_configs(sheets: &JsValue) -> Result<Vec<BatchSheetConfig>, 
 /// * `filename` - 可选的导出文件名（默认为 "table_export.xlsx"）
 /// * `batch_size` - 每批处理的行数（默认 1000）
 /// * `progress_callback` - 进度回调函数，接收进度百分比 (0-100)
+/// * `strict_progress_callback` - 回调失败时是否中断导出（默认 false，仅记录警告）；不改变回调频率。
 ///
 /// # 返回值
 /// * `Promise<void>` - 异步操作的 Promise
@@ -254,7 +250,7 @@ pub async fn export_tables_to_xlsx_batch(
     }
 
     // 解析样式配置
-    let style_sheet = build_global_style_sheet(header_style.as_ref(), cell_style.as_ref());
+    let style_sheet = build_global_style_sheet(header_style.as_ref(), cell_style.as_ref())?;
 
     let total_sheets = configs.len();
 
@@ -321,13 +317,12 @@ async fn extract_table_data_batch_with_offset(
     }
 
     let mut table_data = TableData::with_capacity(total_rows);
-    table_data.header_row_count = sources.header_row_count;
     let mut tracker = RowSpanTracker::new();
     let mut output_row_idx: u32 = 0;
 
     let mut current_row = 0;
     while current_row < total_rows {
-        let batch_end = std::cmp::min(current_row + batch_size, total_rows);
+        let batch_end = current_row.saturating_add(batch_size).min(total_rows);
 
         for i in current_row..batch_end {
             let row = sources.get_row(i)?;
@@ -367,6 +362,10 @@ async fn extract_table_data_batch_with_offset(
                 }
             }
 
+            // 隐藏表头不占输出行，不能把首个数据行误算成表头。
+            if i < sources.header_row_count {
+                table_data.header_row_count += 1;
+            }
             table_data.rows.push(proc_result.row_data);
             output_row_idx += 1;
         }
@@ -384,10 +383,13 @@ async fn extract_table_data_batch_with_offset(
         }
     }
 
+    if table_data.rows.is_empty() {
+        return Err(JsValue::from_str("没有可导出的可见数据"));
+    }
     Ok(table_data)
 }
 
-/// 跨表格和 tbody 源计算 rowspan 覆盖的可见行数
+/// 计算规范化后的 rowspan 覆盖的可见行数；跨度已被限制在当前行组。
 fn count_visible_rows_cross_source(
     rowspan: u32,
     current_row: usize,
@@ -401,8 +403,13 @@ fn count_visible_rows_cross_source(
     }
 
     let mut visible_rows_covered = 0;
-    for r in 1..rowspan as usize {
-        let next_row_idx = current_row + r;
+    let total_rows = table_row_count
+        + tbody_rows
+            .as_ref()
+            .map(|rows| rows.length() as usize)
+            .unwrap_or(0);
+    let end = current_row.saturating_add(rowspan as usize).min(total_rows);
+    for next_row_idx in current_row.saturating_add(1)..end {
         let next_row = if next_row_idx < table_row_count {
             table_rows.get_with_index(next_row_idx as u32)
         } else if let Some(rows) = tbody_rows {
@@ -412,7 +419,6 @@ fn count_visible_rows_cross_source(
         };
 
         if let Some(next_row) = next_row {
-            #[allow(clippy::collapsible_if)]
             if let Ok(next_row_el) = next_row.dyn_into::<web_sys::HtmlTableRowElement>() {
                 if !exclude_hidden || !is_element_hidden(&next_row_el) {
                     visible_rows_covered += 1;
@@ -476,17 +482,46 @@ fn generate_and_download_xlsx_multi(
 fn build_global_style_sheet(
     header_style: Option<&JsValue>,
     cell_style: Option<&JsValue>,
-) -> Option<StyleSheet> {
-    let hs = header_style.and_then(parse_cell_style);
-    let cs = cell_style.and_then(parse_cell_style);
+) -> Result<Option<StyleSheet>, JsValue> {
+    let hs = header_style.map(parse_cell_style).transpose()?.flatten();
+    let cs = cell_style.map(parse_cell_style).transpose()?.flatten();
 
     if hs.is_none() && cs.is_none() {
-        return None;
+        return Ok(None);
     }
 
-    Some(StyleSheet {
+    Ok(Some(StyleSheet {
         header_style: hs,
         data_style: cs,
         ..Default::default()
-    })
+    }))
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod tests {
+    use super::parse_batch_sheet_configs;
+    use wasm_bindgen::JsValue;
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    #[wasm_bindgen_test]
+    fn test_batch_sheet_configs_getter_errors_are_propagated() {
+        let make_sheets = js_sys::Function::new_with_args(
+            "name",
+            "const item = {tableId: 'unused'};\n\
+             Object.defineProperty(item, name, {get() {throw new Error('读取失败🌟')}});\n\
+             return [item];",
+        );
+        for name in ["tableId", "tbodyId", "sheetName", "excludeHidden"] {
+            let sheets = make_sheets
+                .call1(&JsValue::NULL, &JsValue::from_str(name))
+                .unwrap();
+            let error = parse_batch_sheet_configs(&sheets)
+                .err()
+                .unwrap()
+                .as_string()
+                .unwrap();
+            assert!(error.contains(name), "{error}");
+            assert!(error.contains("读取失败🌟"), "{error}");
+        }
+    }
 }

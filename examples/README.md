@@ -89,7 +89,7 @@ await init();
 // 导出 CSV
 await export_table_to_csv_batch(
   "table-id",
-  "tbody-id", // 可选的 tbody ID
+  "tbody-id", // 可选的外置 tbody ID；tbody 在 table 内部时传 undefined
   "文件名.csv",
   1000, // 每批 1000 行
   false, // 不排除隐藏行
@@ -344,7 +344,7 @@ export_tables_xlsx(
 await export_tables_to_xlsx_batch(
   [
     { tableId: 'table1', sheetName: '订单列表' },
-    { tableId: 'table2', tbodyId: 'tbody2', sheetName: '商品列表' },
+    { tableId: 'table2', sheetName: '商品列表' }, // 内部 tbody 无需单独指定
   ],
   'report.xlsx',
   1000,
@@ -591,7 +591,7 @@ async function exportAll() {
 **参数**：
 
 - `table_id` (string): 表格元素的 ID
-- `tbody_id` (string, 可选): 数据 tbody 的 ID，用于分离表头和数据。会在运行时验证该 tbody 是否属于目标 table 内部
+- `tbody_id` (string, 可选): 外置数据 tbody 的 ID，用于分离表头和数据。该 tbody 不得位于目标 table 内部；内部 tbody 会自动提取，无需指定
 - `filename` (string, 可选): 导出文件名
 - `batch_size` (number, 可选): 每批处理的行数，默认 1000
 - `exclude_hidden` (boolean, 可选): 是否排除隐藏行列，默认 false
@@ -609,7 +609,7 @@ async function exportAll() {
 **参数**：
 
 - `table_id` (string): 表格元素的 ID
-- `tbody_id` (string, 可选): 数据 tbody 的 ID
+- `tbody_id` (string, 可选): 外置数据 tbody 的 ID，不得位于目标 table 内部；内部 tbody 无需指定
 - `filename` (string, 可选): 导出文件名，默认 "table_export.xlsx"
 - `batch_size` (number, 可选): 每批处理的行数，默认 1000
 - `exclude_hidden` (boolean, 可选): 是否排除隐藏行列，默认 false

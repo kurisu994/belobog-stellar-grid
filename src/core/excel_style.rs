@@ -137,7 +137,17 @@ impl ExcelStyleSheet {
         m.insert(10, "0.00%".into());
         m.insert(11, "0.00E+00".into());
         m.insert(14, "yyyy-mm-dd".into());
+        m.insert(15, "d-mmm-yy".into());
+        m.insert(16, "d-mmm".into());
+        m.insert(17, "mmm-yy".into());
+        m.insert(18, "h:mm AM/PM".into());
+        m.insert(19, "h:mm:ss AM/PM".into());
+        m.insert(20, "h:mm".into());
+        m.insert(21, "h:mm:ss".into());
         m.insert(22, "yyyy-mm-dd hh:mm".into());
+        m.insert(45, "mm:ss".into());
+        m.insert(46, "[h]:mm:ss".into());
+        m.insert(47, "mm:ss.0".into());
         m
     }
 
@@ -170,9 +180,12 @@ impl ExcelStyleSheet {
             .by_name(name)
             .map_err(|e| format!("无法找到 {name}: {e}"))?;
         let mut content = String::new();
-        file.take(Self::MAX_XML_SIZE)
+        file.take(Self::MAX_XML_SIZE + 1)
             .read_to_string(&mut content)
             .map_err(|e| format!("读取 {name} 失败: {e}"))?;
+        if content.len() as u64 > Self::MAX_XML_SIZE {
+            return Err(format!("{name} 超过 XML 安全大小上限"));
+        }
         Ok(content)
     }
 
@@ -974,6 +987,9 @@ pub fn apply_tint(hex: &str, tint: f64) -> String {
 
 fn parse_hex_rgb(hex: &str) -> Option<(u8, u8, u8)> {
     let hex = hex.trim_start_matches('#');
+    if !hex.is_ascii() {
+        return None;
+    }
     let rgb = if hex.len() == 8 {
         &hex[2..]
     } else if hex.len() == 6 {
@@ -989,6 +1005,9 @@ fn parse_hex_rgb(hex: &str) -> Option<(u8, u8, u8)> {
 
 fn normalize_color(color: &str) -> String {
     let c = color.trim_start_matches('#');
+    if !c.is_ascii() {
+        return "#000000".into();
+    }
     // ARGB 格式：取后 6 位 RGB
     let rgb = if c.len() == 8 { &c[2..] } else { c };
     // 校验是否为合法十六进制颜色，防止 CSS 注入
@@ -1265,6 +1284,187 @@ fn strip_color_markers(fmt: &str) -> String {
     result
 }
 
+/// 跳过引号、转义和颜色标记，取下一个真正的格式代码。
+fn next_format_code(chars: &[char], mut index: usize) -> Option<char> {
+    while index < chars.len() {
+        match chars[index] {
+            '"' => {
+                index += 1;
+                while index < chars.len() && chars[index] != '"' {
+                    index += 1;
+                }
+                index += 1;
+            }
+            '\\' => index += 2,
+            '[' => {
+                let end = chars[index + 1..].iter().position(|ch| *ch == ']')?;
+                let token: String = chars[index + 1..index + 1 + end].iter().collect();
+                index += end + 2;
+                if token.eq_ignore_ascii_case("h") || token.eq_ignore_ascii_case("hh") {
+                    return Some('h');
+                }
+            }
+            ch => {
+                let lower = ch.to_ascii_lowercase();
+                if matches!(lower, 'y' | 'm' | 'd' | 'h' | 's') {
+                    return Some(lower);
+                }
+                index += 1;
+            }
+        }
+    }
+    None
+}
+
+/// 使用 calamine 已解析的纪元和日期分量显示常见 Excel 日期/时间格式。
+/// 不重算日期序列号，因此同时支持 1900/1904 纪元及 Excel 闰日兼容行为。
+pub(crate) fn format_excel_datetime(dt: &calamine::ExcelDateTime, format: Option<&str>) -> String {
+    if !dt.as_f64().is_finite() || dt.as_f64() < 0.0 || dt.as_f64() > 2_958_465.999_999 {
+        return String::new();
+    }
+    let (year, month, day, hour, minute, second, milli) = dt.to_ymd_hms_milli();
+    let fallback = if dt.is_duration() {
+        "[h]:mm:ss"
+    } else if dt.as_f64() < 1.0 && dt.as_f64() != 0.0 {
+        "hh:mm:ss"
+    } else if hour != 0 || minute != 0 || second != 0 || milli != 0 {
+        "yyyy-mm-dd hh:mm:ss"
+    } else {
+        "yyyy-mm-dd"
+    };
+    let fmt = format.filter(|fmt| is_date_format(fmt)).unwrap_or(fallback);
+    let fmt = strip_color_markers(select_format_section(fmt, dt.as_f64()));
+    let chars: Vec<char> = fmt.chars().collect();
+    let lower = fmt.to_ascii_lowercase();
+    let am_pm = lower.contains("am/pm");
+    let mut output = String::new();
+    let mut i = 0;
+    let mut after_hour = false;
+    while i < chars.len() {
+        let ch = chars[i].to_ascii_lowercase();
+        if ch == '"' {
+            i += 1;
+            while i < chars.len() && chars[i] != '"' {
+                output.push(chars[i]);
+                i += 1;
+            }
+            i += usize::from(i < chars.len());
+            continue;
+        }
+        if ch == '\\' {
+            if let Some(next) = chars.get(i + 1) {
+                output.push(*next);
+            }
+            i += 2;
+            continue;
+        }
+        if ch == '[' {
+            let end = (i + 1..chars.len()).find(|&j| chars[j] == ']');
+            if let Some(end) = end {
+                let token: String = chars[i + 1..end].iter().collect();
+                if token.eq_ignore_ascii_case("h") || token.eq_ignore_ascii_case("hh") {
+                    output.push_str(&format!("{}", (dt.as_f64() * 24.0).floor() as u64));
+                    after_hour = true;
+                }
+                i = end + 1;
+                continue;
+            }
+        }
+        if i + 5 <= chars.len()
+            && chars[i..i + 5]
+                .iter()
+                .collect::<String>()
+                .eq_ignore_ascii_case("am/pm")
+        {
+            output.push_str(if hour < 12 { "AM" } else { "PM" });
+            i += 5;
+            continue;
+        }
+        if matches!(ch, 'y' | 'm' | 'd' | 'h' | 's') {
+            let start = i;
+            while i < chars.len() && chars[i].to_ascii_lowercase() == ch {
+                i += 1;
+            }
+            let count = i - start;
+            let next_code = next_format_code(&chars, i);
+            let number = match ch {
+                'y' => {
+                    after_hour = false;
+                    output.push_str(&if count <= 2 {
+                        format!("{:02}", year % 100)
+                    } else {
+                        format!("{year:04}")
+                    });
+                    continue;
+                }
+                // m/mm 只有紧跟小时，或后面紧接秒时才是分钟；日期部分要重置这个上下文。
+                'm' if count < 3 && (after_hour || next_code == Some('s')) => u32::from(minute),
+                'm' if count >= 3 => {
+                    after_hour = false;
+                    const MONTHS: [&str; 12] = [
+                        "January",
+                        "February",
+                        "March",
+                        "April",
+                        "May",
+                        "June",
+                        "July",
+                        "August",
+                        "September",
+                        "October",
+                        "November",
+                        "December",
+                    ];
+                    let name = MONTHS
+                        .get(usize::from(month.saturating_sub(1)))
+                        .unwrap_or(&"");
+                    output.push_str(if count == 3 {
+                        &name[..name.len().min(3)]
+                    } else {
+                        name
+                    });
+                    continue;
+                }
+                'm' => {
+                    after_hour = false;
+                    u32::from(month)
+                }
+                'd' => {
+                    after_hour = false;
+                    u32::from(day)
+                }
+                'h' => {
+                    after_hour = true;
+                    u32::from(if am_pm { (hour + 11) % 12 + 1 } else { hour })
+                }
+                's' => u32::from(second),
+                _ => unreachable!(),
+            };
+            output.push_str(&if count >= 2 {
+                format!("{number:02}")
+            } else {
+                number.to_string()
+            });
+            continue;
+        }
+        // 秒的小数部分按毫秒显示，不把 0 占位符当作字面文本。
+        if ch == '.' && chars.get(i + 1) == Some(&'0') {
+            let start = i + 1;
+            i = start;
+            while chars.get(i) == Some(&'0') {
+                i += 1;
+            }
+            output.push('.');
+            let fraction = format!("{milli:03}");
+            output.push_str(&fraction[..(i - start).min(3)]);
+            continue;
+        }
+        output.push(chars[i]);
+        i += 1;
+    }
+    output
+}
+
 /// 判断是否为日期/时间格式
 fn is_date_format(fmt: &str) -> bool {
     let lower = fmt.to_ascii_lowercase();
@@ -1274,6 +1474,10 @@ fn is_date_format(fmt: &str) -> bool {
         || lower.contains("hh")
         || lower.contains("ss")
         || lower.contains("am/pm")
+        || lower.contains("h:")
+        || lower.contains("m/d")
+        || lower.contains("d/m")
+        || lower.contains("[h]")
 }
 
 fn format_with_thousands(value: f64, decimals: usize) -> String {
@@ -1333,6 +1537,15 @@ mod tests {
     }
 
     #[test]
+    fn test_color_unicode_never_slices_inside_utf8() {
+        for color in ["中00000", "中000", "🌸0000", "a中0000"] {
+            assert_eq!(parse_hex_rgb(color), None);
+            assert_eq!(normalize_color(color), "#000000");
+            let _ = apply_tint(color, 0.5);
+        }
+    }
+
+    #[test]
     fn test_normalize_color_argb() {
         assert_eq!(normalize_color("FF4472C4"), "#4472C4");
     }
@@ -1340,7 +1553,7 @@ mod tests {
     #[test]
     fn test_format_number_general() {
         assert_eq!(format_number(42.0, "General"), "42");
-        assert_eq!(format_number(3.14, "General"), "3.14");
+        assert_eq!(format_number(2.75, "General"), "2.75");
     }
 
     #[test]
@@ -1542,5 +1755,20 @@ mod tests {
             "应包含背景颜色, 实际: {css}"
         );
         assert!(css.contains("font-weight:bold"), "应包含加粗, 实际: {css}");
+    }
+
+    #[test]
+    fn test_format_excel_datetime_time_before_date_keeps_month() {
+        let dt =
+            calamine::ExcelDateTime::new(45292.5, calamine::ExcelDateTimeType::DateTime, false);
+        assert_eq!(
+            format_excel_datetime(&dt, Some("hh:mm dd/mm/yyyy")),
+            "12:00 01/01/2024"
+        );
+        assert_eq!(
+            format_excel_datetime(&dt, Some("yyyy-mm-dd hh:mm")),
+            "2024-01-01 12:00"
+        );
+        assert_eq!(format_excel_datetime(&dt, Some("mm:ss")), "00:00");
     }
 }

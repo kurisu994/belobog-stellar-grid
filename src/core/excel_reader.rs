@@ -6,7 +6,10 @@ use calamine::{Data, Reader, SheetVisible, Sheets, open_workbook_auto_from_rs};
 use serde::Serialize;
 use std::io::{Cursor, Read, Seek};
 
-use super::excel_style::{ExcelStyleSheet, cell_style_to_css, format_number};
+use super::excel_preflight::{MAX_RANGE_CELLS, cell_ref as cell_ref_impl, preflight};
+use super::excel_style::{
+    ExcelStyleSheet, cell_style_to_css, format_excel_datetime, format_number,
+};
 
 /// 最大渲染行数上限（防止 DOM 假死）
 const MAX_ROWS_LIMIT: usize = 100_000;
@@ -197,13 +200,19 @@ struct ConditionalFormatRule {
     /// 比较操作符
     operator: String,
     /// 差异格式索引（对应 styles.xml 中的 dxfs）
-    dxf_id: usize,
+    dxf_id: Option<usize>,
+    /// 数字越小，优先级越高；所有 conditionalFormatting 共享优先级。
+    priority: u32,
+    /// 命中后不再处理更低优先级规则（即使该规则没有 dxf）。
+    stop_if_true: bool,
     /// 公式/阈值
     formulas: Vec<String>,
 }
 
 /// 获取 Excel 文件的工作表列表（含隐藏状态）
 pub fn get_sheet_list(data: &[u8]) -> Result<Vec<SheetInfo>, String> {
+    // 在 calamine 打开文件或分配 Range 前完成解压量和真实坐标预检。
+    let _preflight = preflight(data)?;
     let cursor = Cursor::new(data);
     let mut workbook =
         open_workbook_auto_from_rs(cursor).map_err(|e| format!("无法解析 Excel 文件: {e}"))?;
@@ -234,6 +243,7 @@ pub fn get_sheet_list(data: &[u8]) -> Result<Vec<SheetInfo>, String> {
 /// 解析 Excel 文件为结构化数据
 pub fn parse_excel(data: &[u8], options: &PreviewOptions) -> Result<ParsedWorkbook, String> {
     let xlsx = is_xlsx_format(data);
+    let mut prechecked = preflight(data)?;
 
     let cursor = Cursor::new(data);
     let mut workbook =
@@ -256,16 +266,16 @@ pub fn parse_excel(data: &[u8], options: &PreviewOptions) -> Result<ParsedWorkbo
     let target_name = &sheet_names[target_index];
 
     // XLSX 辅助信息：同一 ZipArchive 解析 styles + sheet 维度，避免重复解压
-    let (style_sheet, dimensions) = if xlsx && options.include_styles {
-        match zip::ZipArchive::new(Cursor::new(data)) {
-            Ok(mut archive) => {
-                let styles = ExcelStyleSheet::from_zip_archive(&mut archive).ok();
-                let dims = parse_sheet_dimensions_from_archive(&mut archive, target_index)
-                    .unwrap_or_default();
-                (styles, dims)
-            }
-            Err(_) => (None, SheetDimensions::default()),
-        }
+    let (style_sheet, dimensions) = if let Some((archive, paths)) = prechecked.as_mut() {
+        let styles = if options.include_styles {
+            ExcelStyleSheet::from_zip_archive(archive).ok()
+        } else {
+            None
+        };
+        let path = paths.get(target_index).ok_or("工作表关系索引不匹配")?;
+        // 隐藏状态和行列尺寸是布局信息，不受 includeStyles 控制。
+        let dims = parse_sheet_dimensions_from_archive(archive, path)?;
+        (styles, dims)
     } else {
         (None, SheetDimensions::default())
     };
@@ -415,8 +425,15 @@ fn build_parsed_sheet(
             .map(|m| m.min(MAX_COLS_LIMIT))
             .unwrap_or(total_cols.min(MAX_COLS_LIMIT));
         let truncated = max_rows < total_rows || max_cols < total_cols;
-        (max_rows, max_cols, truncated)
+        (
+            max_rows.min(total_rows),
+            max_cols.min(total_cols),
+            truncated,
+        )
     };
+    if (data_rows as u64).saturating_mul(data_cols as u64) > MAX_RANGE_CELLS {
+        return Err("预览单元格矩形超过安全上限".into());
+    }
 
     // 过滤掉原点在隐藏行/列中的合并区域（原点不可见则整个合并失效）
     let visible_merges: Vec<MergeRegion> = merge_regions
@@ -584,7 +601,11 @@ fn build_merge_map(
 ) -> std::collections::HashMap<(u32, u32), (u32, u32)> {
     let mut map = std::collections::HashMap::new();
     for m in regions {
-        if m.start_row < max_row && m.start_col < max_col {
+        if m.start_row < max_row
+            && m.start_col < max_col
+            && m.end_row >= m.start_row
+            && m.end_col >= m.start_col
+        {
             let row_span = (m.end_row - m.start_row + 1).min(max_row - m.start_row);
             let col_span = (m.end_col - m.start_col + 1).min(max_col - m.start_col);
             map.insert((m.start_row, m.start_col), (row_span, col_span));
@@ -665,26 +686,37 @@ fn evaluate_conditional_format(
         _ => return None,
     };
 
-    for entry in &dims.conditional_formats {
-        if !entry.ranges.iter().any(|r| r.contains(row, col)) {
+    let mut rules: Vec<_> = dims
+        .conditional_formats
+        .iter()
+        .filter(|entry| entry.ranges.iter().any(|r| r.contains(row, col)))
+        .flat_map(|entry| &entry.rules)
+        .collect();
+    rules.sort_by_key(|rule| rule.priority);
+    let mut styles = Vec::new();
+    for rule in rules {
+        if rule.rule_type != "cellIs"
+            || !evaluate_cell_is_rule(&rule.operator, &rule.formulas, cell_val)
+        {
             continue;
         }
-        // 按优先级顺序匹配规则（先定义的优先）
-        for rule in &entry.rules {
-            if rule.rule_type != "cellIs" {
-                continue;
-            }
-            if evaluate_cell_is_rule(&rule.operator, &rule.formulas, cell_val) {
-                if let Some(dxf_style) = style_sheet.get_dxf_style(rule.dxf_id) {
-                    let css = cell_style_to_css(dxf_style);
-                    if !css.is_empty() {
-                        return Some(css);
-                    }
-                }
+        if let Some(dxf_style) = rule.dxf_id.and_then(|id| style_sheet.get_dxf_style(id)) {
+            let css = cell_style_to_css(dxf_style);
+            if !css.is_empty() {
+                styles.push(css);
             }
         }
+        if rule.stop_if_true {
+            break;
+        }
     }
-    None
+    // CSS 同属性最后一个声明生效：低优先级在前，高优先级在后；独立属性仍合成。
+    styles.reverse();
+    if styles.is_empty() {
+        None
+    } else {
+        Some(styles.join(";"))
+    }
 }
 
 /// 评估 cellIs 类型的条件格式规则
@@ -768,7 +800,17 @@ fn cell_value_to_string(
             }
         }
         Some(Data::Error(e)) => format!("{e:?}"),
-        Some(Data::DateTime(dt)) => format!("{dt}"),
+        Some(Data::DateTime(dt)) => {
+            let fmt = style_sheet.and_then(|ss| {
+                let style_idx = dimensions
+                    .cell_styles
+                    .get(&(row, col))
+                    .copied()
+                    .unwrap_or(0);
+                ss.get_cell_style(style_idx).number_format
+            });
+            format_excel_datetime(dt, fmt.as_deref())
+        }
         Some(Data::DateTimeIso(s)) => s.clone(),
         Some(Data::DurationIso(s)) => s.clone(),
     }
@@ -777,91 +819,29 @@ fn cell_value_to_string(
 /// 从已打开的 ZipArchive 解析 sheet 维度（与样式表共享同一 archive）
 fn parse_sheet_dimensions_from_archive<R: Read + Seek>(
     archive: &mut zip::ZipArchive<R>,
-    sheet_index: usize,
+    sheet_path: &str,
 ) -> Result<SheetDimensions, String> {
-    let sheet_path = find_sheet_path(archive, sheet_index)?;
-
     let file = archive
-        .by_name(&sheet_path)
+        .by_name(sheet_path)
         .map_err(|e| format!("无法找到 {sheet_path}: {e}"))?;
     // 限制读取大小防止 Zip Bomb 攻击
     const MAX_SHEET_XML_SIZE: u64 = 50 * 1024 * 1024;
     let mut xml = String::new();
-    file.take(MAX_SHEET_XML_SIZE)
+    file.take(MAX_SHEET_XML_SIZE + 1)
         .read_to_string(&mut xml)
         .map_err(|e| format!("读取 {sheet_path} 失败: {e}"))?;
+    if xml.len() as u64 > MAX_SHEET_XML_SIZE {
+        return Err("工作表 XML 超过安全大小上限".into());
+    }
 
     parse_sheet_xml(&xml)
-}
-
-/// 查找 sheet xml 的路径
-fn find_sheet_path<R: Read + Seek>(
-    archive: &mut zip::ZipArchive<R>,
-    sheet_index: usize,
-) -> Result<String, String> {
-    // 先尝试直接路径
-    let direct = format!("xl/worksheets/sheet{}.xml", sheet_index + 1);
-    if archive.by_name(&direct).is_ok() {
-        return Ok(direct);
-    }
-
-    // 解析 workbook.xml.rels 获取正确路径
-    if let Ok(rels_file) = archive.by_name("xl/_rels/workbook.xml.rels") {
-        let mut rels_xml = String::new();
-        // 限制读取大小防止 Zip Bomb
-        if rels_file
-            .take(10 * 1024 * 1024)
-            .read_to_string(&mut rels_xml)
-            .is_ok()
-        {
-            let mut reader = quick_xml::Reader::from_str(&rels_xml);
-            let mut buf = Vec::new();
-            let mut sheet_paths = Vec::new();
-
-            loop {
-                match reader.read_event_into(&mut buf) {
-                    Ok(quick_xml::events::Event::Empty(ref e))
-                    | Ok(quick_xml::events::Event::Start(ref e)) => {
-                        let name_bytes = e.name().as_ref().to_vec();
-                        let local = std::str::from_utf8(&name_bytes).unwrap_or("");
-                        if local.ends_with("Relationship") {
-                            let typ = get_rel_attr(e, "Type");
-                            let target = get_rel_attr(e, "Target");
-                            if let (Some(t), Some(tgt)) = (typ, target) {
-                                if t.contains("worksheet") {
-                                    // 归一化路径
-                                    let path = if let Some(stripped) = tgt.strip_prefix('/') {
-                                        stripped.to_string()
-                                    } else {
-                                        format!("xl/{tgt}")
-                                    };
-                                    sheet_paths.push(path);
-                                }
-                            }
-                        }
-                    }
-                    Ok(quick_xml::events::Event::Eof) => break,
-                    Err(_) => break,
-                    _ => {}
-                }
-                buf.clear();
-            }
-
-            if let Some(path) = sheet_paths.get(sheet_index) {
-                return Ok(path.clone());
-            }
-        }
-    }
-
-    // 回退：使用默认路径
-    Ok(direct)
 }
 
 /// 从 rels XML 属性获取值
 fn get_rel_attr(event: &quick_xml::events::BytesStart, name: &str) -> Option<String> {
     for attr in event.attributes().flatten() {
         if attr.key.as_ref() == name.as_bytes() {
-            return String::from_utf8(attr.value.to_vec()).ok();
+            return attr.unescape_value().ok().map(|value| value.into_owned());
         }
     }
     None
@@ -899,9 +879,10 @@ fn handle_sheet_start_or_empty(
             dims.default_col_width =
                 get_rel_attr(e, "defaultColWidth").and_then(|v| v.parse::<f64>().ok());
         }
-        "row" if !is_empty => {
-            if let Some(row) = get_rel_attr(e, "r").and_then(|v| v.parse::<u32>().ok())
-                && (row as usize) <= MAX_ROWS_LIMIT
+        "row" => {
+            if let Some(row) = get_rel_attr(e, "r")
+                .and_then(|v| v.parse::<u32>().ok())
+                .filter(|row| (1..=1_048_576).contains(row))
             {
                 let row_idx = row - 1;
                 if let Some(ht) = get_rel_attr(e, "ht").and_then(|v| v.parse::<f64>().ok()) {
@@ -913,13 +894,14 @@ fn handle_sheet_start_or_empty(
             }
         }
         "col" => {
-            if let (Some(min_s), Some(max_s)) = (get_rel_attr(e, "min"), get_rel_attr(e, "max"))
-                && let (Ok(min), Ok(max)) = (min_s.parse::<u32>(), max_s.parse::<u32>())
-            {
+            if let (Some(min), Some(max)) = (
+                get_rel_attr(e, "min").and_then(|v| v.parse::<u32>().ok()),
+                get_rel_attr(e, "max").and_then(|v| v.parse::<u32>().ok()),
+            ) {
                 let safe_max = max.min(MAX_COLS_LIMIT as u32);
                 let hidden = is_hidden_attr(e);
                 let width = get_rel_attr(e, "width").and_then(|v| v.parse::<f64>().ok());
-                for col in min..=safe_max {
+                for col in min.max(1)..=safe_max {
                     let col_idx = col - 1;
                     if let Some(w) = width {
                         dims.col_widths.insert(col_idx, w);
@@ -931,10 +913,10 @@ fn handle_sheet_start_or_empty(
             }
         }
         "c" => {
-            if let Some(r_attr) = get_rel_attr(e, "r")
-                && let Some((row, col)) = parse_cell_ref(&r_attr)
-                && let Some(s) = get_rel_attr(e, "s").and_then(|v| v.parse::<usize>().ok())
-            {
+            if let (Some((row, col)), Some(s)) = (
+                get_rel_attr(e, "r").and_then(|value| parse_cell_ref(&value)),
+                get_rel_attr(e, "s").and_then(|v| v.parse::<usize>().ok()),
+            ) {
                 dims.cell_styles.insert((row, col), s);
             }
         }
@@ -946,9 +928,12 @@ fn handle_sheet_start_or_empty(
             let rule = ConditionalFormatRule {
                 rule_type: get_rel_attr(e, "type").unwrap_or_default(),
                 operator: get_rel_attr(e, "operator").unwrap_or_default(),
-                dxf_id: get_rel_attr(e, "dxfId")
+                dxf_id: get_rel_attr(e, "dxfId").and_then(|v| v.parse().ok()),
+                priority: get_rel_attr(e, "priority")
                     .and_then(|v| v.parse().ok())
-                    .unwrap_or(0),
+                    .unwrap_or(u32::MAX),
+                stop_if_true: get_rel_attr(e, "stopIfTrue")
+                    .is_some_and(|v| v == "1" || v == "true"),
                 formulas: Vec::new(),
             };
             if is_empty {
@@ -1065,32 +1050,7 @@ fn parse_sqref(sqref: &str) -> Vec<CellRange> {
 
 /// 解析单元格引用（如 "A1" → (0, 0)、"B3" → (2, 1)）
 fn parse_cell_ref(cell_ref: &str) -> Option<(u32, u32)> {
-    let mut col: u32 = 0;
-    let mut row_str = String::new();
-
-    for ch in cell_ref.chars() {
-        if ch.is_ascii_alphabetic() {
-            // 超长字母串（如 "AAAAAAAA1"）会溢出 u32，判为非法引用直接丢弃
-            col = col
-                .checked_mul(26)?
-                .checked_add(ch.to_ascii_uppercase() as u32 - b'A' as u32 + 1)?;
-        } else if ch.is_ascii_digit() {
-            row_str.push(ch);
-        }
-    }
-
-    if col == 0 || row_str.is_empty() {
-        return None;
-    }
-
-    let row = row_str.parse::<u32>().ok()?;
-    // 行号从 1 开始，"A0" 这类非法引用直接丢弃（避免 0 - 1 下溢）
-    if row == 0 {
-        return None;
-    }
-
-    // 转为 0-based
-    Some((row - 1, col - 1))
+    cell_ref_impl(cell_ref)
 }
 
 /// 获取 XML 元素的本地名称
@@ -1191,8 +1151,8 @@ mod tests {
             "hello"
         );
         assert_eq!(
-            cell_value_to_string(Some(&Data::Float(3.14)), &dims, 0, 0, None),
-            "3.14"
+            cell_value_to_string(Some(&Data::Float(2.75)), &dims, 0, 0, None),
+            "2.75"
         );
         assert_eq!(
             cell_value_to_string(Some(&Data::Int(42)), &dims, 0, 0, None),
@@ -1350,7 +1310,7 @@ mod tests {
         ws.write_string(0, 1, "数据").unwrap();
         for i in 1..=count {
             ws.write_number(i as u32, 0, i as f64).unwrap();
-            ws.write_string(i as u32, 1, &format!("行{i}")).unwrap();
+            ws.write_string(i as u32, 1, format!("行{i}")).unwrap();
         }
         wb.save_to_buffer().unwrap()
     }
@@ -1449,7 +1409,7 @@ mod tests {
 
         // 浮点数
         ws.write_string(3, 0, "浮点数").unwrap();
-        ws.write_number(3, 1, 3.14159).unwrap();
+        ws.write_number(3, 1, 12.34567).unwrap();
 
         // 布尔值
         ws.write_string(4, 0, "布尔值").unwrap();
@@ -1465,7 +1425,7 @@ mod tests {
 
         // 长文本
         ws.write_string(7, 0, "长文本").unwrap();
-        ws.write_string(7, 1, &"测试".repeat(100)).unwrap();
+        ws.write_string(7, 1, "测试".repeat(100)).unwrap();
 
         wb.save_to_buffer().unwrap()
     }
@@ -1623,8 +1583,8 @@ mod tests {
         // 浮点数
         let float_cell = sheet.rows[3].cells[1].as_ref().unwrap();
         assert!(
-            float_cell.value.starts_with("3.14"),
-            "浮点数值应以 3.14 开头，实际: {}",
+            float_cell.value.starts_with("12.345"),
+            "浮点数值应以 12.345 开头，实际: {}",
             float_cell.value
         );
 
@@ -1805,7 +1765,7 @@ mod tests {
         let ws = wb.add_worksheet();
         ws.set_name("Sheet1").unwrap();
         for col in 0..20u16 {
-            ws.write_string(0, col, &format!("列{col}")).unwrap();
+            ws.write_string(0, col, format!("列{col}")).unwrap();
         }
         let xlsx_data = wb.save_to_buffer().unwrap();
 
@@ -1967,7 +1927,7 @@ mod tests {
         assert_eq!(entry.rules.len(), 1);
         assert_eq!(entry.rules[0].rule_type, "cellIs");
         assert_eq!(entry.rules[0].operator, "lessThan");
-        assert_eq!(entry.rules[0].dxf_id, 0);
+        assert_eq!(entry.rules[0].dxf_id, Some(0));
         assert_eq!(entry.rules[0].formulas, vec!["75"]);
     }
 
@@ -1983,8 +1943,19 @@ mod tests {
         let dims = parse_sheet_xml(xml).unwrap();
         assert_eq!(dims.conditional_formats.len(), 1);
         assert_eq!(dims.conditional_formats[0].rules.len(), 1);
-        assert_eq!(dims.conditional_formats[0].rules[0].dxf_id, 1);
+        assert_eq!(dims.conditional_formats[0].rules[0].dxf_id, Some(1));
         assert!(dims.conditional_formats[0].rules[0].formulas.is_empty());
+    }
+
+    #[test]
+    fn test_sheet_xml_zero_layout_indices_and_self_closing_rows() {
+        let dims = parse_sheet_xml(
+            r#"<worksheet><cols><col min="0" max="1" hidden="1"/></cols><sheetData><row r="0" hidden="1"/><row r="1" hidden="1" ht="25"/></sheetData></worksheet>"#,
+        )
+        .unwrap();
+        assert_eq!(dims.hidden_rows, std::collections::HashSet::from([0]));
+        assert_eq!(dims.hidden_cols, std::collections::HashSet::from([0]));
+        assert_eq!(dims.row_heights.get(&0), Some(&25.0));
     }
 
     #[test]
@@ -2059,11 +2030,8 @@ mod tests {
         // 每行的 Some 单元格数（不含 None）+ colspan 占位 应等于 4
         for (i, row) in sheet.rows.iter().enumerate() {
             let mut col_slots = 0u32;
-            for cell in &row.cells {
-                match cell {
-                    Some(c) => col_slots += c.col_span.unwrap_or(1),
-                    None => {} // None 被 HTML 跳过，不占列槽
-                }
+            for cell in row.cells.iter().flatten() {
+                col_slots += cell.col_span.unwrap_or(1);
             }
             assert_eq!(
                 col_slots, 4,

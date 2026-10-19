@@ -26,6 +26,7 @@ export type {
   CellValue,
   MergeableCellValue,
   DataRow,
+  TreeDataRow,
   ExportDataOptions,
   SheetConfig,
   BatchSheetConfig,

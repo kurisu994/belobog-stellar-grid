@@ -177,11 +177,10 @@ impl CellStyle {
         }
 
         // Excel 字号合法范围约 1–409；过滤非有限值与越界，避免写入异常 XML
-        if let Some(size) = self.font_size
-            && size.is_finite()
-            && (1.0..=409.0).contains(&size)
-        {
-            format = format.set_font_size(size);
+        if let Some(size) = self.font_size {
+            if size.is_finite() && (1.0..=409.0).contains(&size) {
+                format = format.set_font_size(size);
+            }
         }
 
         if let Some(ref name) = self.font_name {
@@ -401,39 +400,27 @@ pub fn normalize_hex_color(color: &str) -> String {
 ///   textWrap: true
 /// }
 /// ```
-pub fn parse_cell_style(val: &wasm_bindgen::JsValue) -> Option<CellStyle> {
+pub fn parse_cell_style(
+    val: &wasm_bindgen::JsValue,
+) -> Result<Option<CellStyle>, wasm_bindgen::JsValue> {
     if val.is_null() || val.is_undefined() || !val.is_object() {
-        return None;
+        return Ok(None);
     }
 
-    let bold = js_sys::Reflect::get(val, &wasm_bindgen::JsValue::from_str("bold"))
-        .ok()
-        .and_then(|v| v.as_bool());
+    let bold = crate::utils::get_js_property(val, "bold")?.as_bool();
 
-    let italic = js_sys::Reflect::get(val, &wasm_bindgen::JsValue::from_str("italic"))
-        .ok()
-        .and_then(|v| v.as_bool());
+    let italic = crate::utils::get_js_property(val, "italic")?.as_bool();
 
-    let font_size = js_sys::Reflect::get(val, &wasm_bindgen::JsValue::from_str("fontSize"))
-        .ok()
-        .and_then(|v| v.as_f64());
+    let font_size = crate::utils::get_js_property(val, "fontSize")?.as_f64();
 
-    let font_name = js_sys::Reflect::get(val, &wasm_bindgen::JsValue::from_str("fontName"))
-        .ok()
-        .and_then(|v| v.as_string());
+    let font_name = crate::utils::get_js_property(val, "fontName")?.as_string();
 
-    let font_color = js_sys::Reflect::get(val, &wasm_bindgen::JsValue::from_str("fontColor"))
-        .ok()
-        .and_then(|v| v.as_string());
+    let font_color = crate::utils::get_js_property(val, "fontColor")?.as_string();
 
-    let background_color =
-        js_sys::Reflect::get(val, &wasm_bindgen::JsValue::from_str("backgroundColor"))
-            .ok()
-            .and_then(|v| v.as_string());
+    let background_color = crate::utils::get_js_property(val, "backgroundColor")?.as_string();
 
-    let align = js_sys::Reflect::get(val, &wasm_bindgen::JsValue::from_str("align"))
-        .ok()
-        .and_then(|v| v.as_string())
+    let align = crate::utils::get_js_property(val, "align")?
+        .as_string()
         .and_then(|s| match s.to_lowercase().as_str() {
             "left" => Some(HAlign::Left),
             "center" => Some(HAlign::Center),
@@ -441,26 +428,20 @@ pub fn parse_cell_style(val: &wasm_bindgen::JsValue) -> Option<CellStyle> {
             _ => None,
         });
 
-    let vertical_align =
-        js_sys::Reflect::get(val, &wasm_bindgen::JsValue::from_str("verticalAlign"))
-            .ok()
-            .and_then(|v| v.as_string())
-            .and_then(|s| match s.to_lowercase().as_str() {
-                "top" => Some(VAlign::Top),
-                "center" => Some(VAlign::Center),
-                "bottom" => Some(VAlign::Bottom),
-                _ => None,
-            });
+    let vertical_align = crate::utils::get_js_property(val, "verticalAlign")?
+        .as_string()
+        .and_then(|s| match s.to_lowercase().as_str() {
+            "top" => Some(VAlign::Top),
+            "center" => Some(VAlign::Center),
+            "bottom" => Some(VAlign::Bottom),
+            _ => None,
+        });
 
-    let border = parse_border_config(val);
+    let border = parse_border_config(val)?;
 
-    let number_format = js_sys::Reflect::get(val, &wasm_bindgen::JsValue::from_str("numberFormat"))
-        .ok()
-        .and_then(|v| v.as_string());
+    let number_format = crate::utils::get_js_property(val, "numberFormat")?.as_string();
 
-    let text_wrap = js_sys::Reflect::get(val, &wasm_bindgen::JsValue::from_str("textWrap"))
-        .ok()
-        .and_then(|v| v.as_bool());
+    let text_wrap = crate::utils::get_js_property(val, "textWrap")?.as_bool();
 
     let style = CellStyle {
         bold,
@@ -476,7 +457,7 @@ pub fn parse_cell_style(val: &wasm_bindgen::JsValue) -> Option<CellStyle> {
         text_wrap,
     };
 
-    if style.is_empty() { None } else { Some(style) }
+    Ok(if style.is_empty() { None } else { Some(style) })
 }
 
 /// 解析边框配置
@@ -484,49 +465,48 @@ pub fn parse_cell_style(val: &wasm_bindgen::JsValue) -> Option<CellStyle> {
 /// 支持两种格式：
 /// - `border: true` → 四边细线
 /// - `border: { top: "thin", bottom: "medium", left: "thick", right: "dashed" }` → 分别指定
-fn parse_border_config(val: &wasm_bindgen::JsValue) -> Option<BorderConfig> {
-    let border_val = js_sys::Reflect::get(val, &wasm_bindgen::JsValue::from_str("border"))
-        .ok()
-        .filter(|v| !v.is_undefined() && !v.is_null())?;
+fn parse_border_config(
+    val: &wasm_bindgen::JsValue,
+) -> Result<Option<BorderConfig>, wasm_bindgen::JsValue> {
+    let border_val = crate::utils::get_js_property(val, "border")?;
+    if border_val.is_null() || border_val.is_undefined() {
+        return Ok(None);
+    }
 
     // boolean: true → 四边细线
     if let Some(b) = border_val.as_bool() {
-        return if b { Some(BorderConfig::All) } else { None };
+        return Ok(if b { Some(BorderConfig::All) } else { None });
     }
 
     // 对象: 分别指定四边
     if border_val.is_object() {
-        let top = js_sys::Reflect::get(&border_val, &wasm_bindgen::JsValue::from_str("top"))
-            .ok()
-            .and_then(|v| v.as_string())
+        let top = crate::utils::get_js_property(&border_val, "top")?
+            .as_string()
             .and_then(|s| BorderLine::from_str(&s));
 
-        let bottom = js_sys::Reflect::get(&border_val, &wasm_bindgen::JsValue::from_str("bottom"))
-            .ok()
-            .and_then(|v| v.as_string())
+        let bottom = crate::utils::get_js_property(&border_val, "bottom")?
+            .as_string()
             .and_then(|s| BorderLine::from_str(&s));
 
-        let left = js_sys::Reflect::get(&border_val, &wasm_bindgen::JsValue::from_str("left"))
-            .ok()
-            .and_then(|v| v.as_string())
+        let left = crate::utils::get_js_property(&border_val, "left")?
+            .as_string()
             .and_then(|s| BorderLine::from_str(&s));
 
-        let right = js_sys::Reflect::get(&border_val, &wasm_bindgen::JsValue::from_str("right"))
-            .ok()
-            .and_then(|v| v.as_string())
+        let right = crate::utils::get_js_property(&border_val, "right")?
+            .as_string()
             .and_then(|s| BorderLine::from_str(&s));
 
         if top.is_some() || bottom.is_some() || left.is_some() || right.is_some() {
-            return Some(BorderConfig::Individual {
+            return Ok(Some(BorderConfig::Individual {
                 top,
                 bottom,
                 left,
                 right,
-            });
+            }));
         }
     }
 
-    None
+    Ok(None)
 }
 
 #[cfg(test)]

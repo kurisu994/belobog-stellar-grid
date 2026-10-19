@@ -151,7 +151,12 @@ export function useWorkerExporter(createWorker: () => Worker): UseWorkerExporter
     });
 
     const request: WorkerRequest = { type: 'init', id };
-    worker.postMessage(request);
+    try {
+      worker.postMessage(request);
+    } catch (err) {
+      pendingRef.current.get(id)?.reject(err instanceof Error ? err : new Error(String(err)));
+      pendingRef.current.delete(id);
+    }
 
     initPromise
       .then(() => {
@@ -190,13 +195,20 @@ export function useWorkerExporter(createWorker: () => Worker): UseWorkerExporter
           },
         });
 
-        const request: WorkerRequest = {
-          type: 'generate',
-          id,
-          data,
-          options: (options ?? {}) as Record<string, unknown>,
-        };
-        worker.postMessage(request);
+        try {
+          const safeOptions = { ...options } as ExportDataOptions;
+          delete safeOptions.progressCallback;
+          const request: WorkerRequest = {
+            type: 'generate',
+            id,
+            data,
+            options: safeOptions as Record<string, unknown>,
+          };
+          worker.postMessage(request);
+        } catch (err) {
+          pendingRef.current.delete(id);
+          reject(err instanceof Error ? err : new Error(String(err)));
+        }
       });
     },
     [],

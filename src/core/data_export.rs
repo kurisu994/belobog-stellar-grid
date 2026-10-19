@@ -125,11 +125,11 @@ fn parse_column_node_with_depth(
 
     // 解析数据单元格样式
     let style_val = get_object_property(item, "style")?;
-    let style = super::style::parse_cell_style(&style_val);
+    let style = super::style::parse_cell_style(&style_val)?;
 
     // 解析表头单元格样式
     let header_style_val = get_object_property(item, "headerStyle")?;
-    let header_style = super::style::parse_cell_style(&header_style_val);
+    let header_style = super::style::parse_cell_style(&header_style_val)?;
 
     Ok(ColumnNode {
         title,
@@ -339,19 +339,13 @@ struct CellInfo {
 /// 2. 对象值: `{ value: "张三", colSpan: 2, rowSpan: 3 }`
 ///
 /// 当 colSpan 或 rowSpan 为 0 时，表示该单元格被其他单元格的合并覆盖
-fn parse_cell_value(val: &JsValue) -> CellInfo {
+fn parse_cell_value(val: &JsValue) -> Result<CellInfo, JsValue> {
     // 如果是对象（非 null/undefined/string/number/bool），尝试解析合并属性
     if val.is_object() && !val.is_null() && val.as_string().is_none() {
         // 一次性读取各属性（避免重复的 JS Reflect 调用）
-        let value_js = js_sys::Reflect::get(val, &JsValue::from_str("value"))
-            .ok()
-            .filter(|v| !v.is_undefined());
-        let col_span_js = js_sys::Reflect::get(val, &JsValue::from_str("colSpan"))
-            .ok()
-            .filter(|v| !v.is_undefined());
-        let row_span_js = js_sys::Reflect::get(val, &JsValue::from_str("rowSpan"))
-            .ok()
-            .filter(|v| !v.is_undefined());
+        let value_js = Some(get_object_property(val, "value")?).filter(|v| !v.is_undefined());
+        let col_span_js = Some(get_object_property(val, "colSpan")?).filter(|v| !v.is_undefined());
+        let row_span_js = Some(get_object_property(val, "rowSpan")?).filter(|v| !v.is_undefined());
 
         // 只有当对象包含 value、colSpan 或 rowSpan 属性时，才按合并单元格处理
         if value_js.is_some() || col_span_js.is_some() || row_span_js.is_some() {
@@ -368,26 +362,24 @@ fn parse_cell_value(val: &JsValue) -> CellInfo {
                 .unwrap_or(1);
 
             // 解析单元格级别样式
-            let style = js_sys::Reflect::get(val, &JsValue::from_str("style"))
-                .ok()
-                .and_then(|v| super::style::parse_cell_style(&v));
+            let style = super::style::parse_cell_style(&get_object_property(val, "style")?)?;
 
-            return CellInfo {
+            return Ok(CellInfo {
                 value,
                 col_span,
                 row_span,
                 style,
-            };
+            });
         }
     }
 
     // 普通值
-    CellInfo {
+    Ok(CellInfo {
         value: js_value_to_string(val),
         col_span: 1,
         row_span: 1,
         style: None,
-    }
+    })
 }
 
 /// 从 JS 对象数组中按 key 顺序提取数据行，支持 colSpan/rowSpan 和单元格样式
@@ -424,18 +416,31 @@ fn extract_data_rows(
         }
     }
 
+    // 普通对象按行解析，避免额外缓存整个数据区的 CellInfo。
+    let cell_rows = (0..length).map(|i| {
+        let item = array.get(i);
+        keys.iter()
+            .map(|key| parse_cell_value(&get_object_property(&item, key)?))
+            .collect()
+    });
+    extract_cell_rows(cell_rows, row_count, header_row_count)
+}
+
+/// 统一提取普通数据与树形数据的文本、合并区域和样式，span 按最终网格钳制。
+fn extract_cell_rows(
+    cell_rows: impl IntoIterator<Item = Result<Vec<CellInfo>, JsValue>>,
+    row_count: usize,
+    header_row_count: usize,
+) -> Result<ExtractedDataRows, JsValue> {
     let mut rows = Vec::with_capacity(row_count);
     let mut merge_ranges = Vec::new();
     let mut cell_overrides = std::collections::HashMap::new();
 
-    for i in 0..length {
-        let item = array.get(i);
+    for (i, cells) in cell_rows.into_iter().enumerate() {
+        let cells = cells?;
+        let col_count = cells.len();
         let mut row = Vec::with_capacity(col_count);
-
-        for (col_idx, key) in keys.iter().enumerate() {
-            let val = get_object_property(&item, key)?;
-            let cell_info = parse_cell_value(&val);
-
+        for (col_idx, cell_info) in cells.into_iter().enumerate() {
             if cell_info.col_span == 0 || cell_info.row_span == 0 {
                 // 被其他单元格的合并覆盖，输出空字符串
                 row.push(String::new());
@@ -444,25 +449,29 @@ fn extract_data_rows(
 
                 // 收集单元格级样式
                 if let Some(style) = cell_info.style {
-                    let abs_row = (i as usize + header_row_count) as u32;
+                    let abs_row = (i + header_row_count) as u32;
                     cell_overrides.insert((abs_row, col_idx as u16), style);
                 }
 
                 // 生成合并区域（colSpan>1 或 rowSpan>1）
                 // 增加防护：确保 row_span 和 col_span 至少为 1，防止计算下溢
                 if cell_info.col_span > 1 || cell_info.row_span > 1 {
-                    let first_row = (i as usize + header_row_count) as u32;
+                    let first_row = (i + header_row_count) as u32;
                     let first_col = col_idx as u16;
 
                     // 按真实网格钳制 span，避免生成越界 MergeRange
-                    let remaining_rows = row_count.saturating_sub(i as usize).max(1) as u32;
+                    let remaining_rows = row_count.saturating_sub(i).max(1) as u32;
                     let remaining_cols = col_count.saturating_sub(col_idx).max(1) as u32;
                     let safe_row_span = cell_info.row_span.min(remaining_rows).min(1_000_000);
                     let safe_col_span = cell_info.col_span.min(remaining_cols).min(16_384) as u16;
                     let last_row = first_row.saturating_add(safe_row_span).saturating_sub(1);
                     let last_col = first_col.saturating_add(safe_col_span).saturating_sub(1);
 
-                    merge_ranges.push(MergeRange::new(first_row, first_col, last_row, last_col));
+                    // 钳制后可能仅剩一个单元格，XLSX 不接受单格合并。
+                    if last_row > first_row || last_col > first_col {
+                        merge_ranges
+                            .push(MergeRange::new(first_row, first_col, last_row, last_col));
+                    }
                 }
             }
         }
@@ -498,7 +507,7 @@ pub(crate) fn js_value_to_string(val: &JsValue) -> String {
     }
 }
 
-/// 稳定的 JS 数字格式化，避免 `0.30000000000000004` 与无意义科学计数
+/// 使用可往返还原的最短表示，保留有限 JS 数字的全部精度。
 fn format_js_number(n: f64) -> String {
     if !n.is_finite() {
         return String::new();
@@ -506,25 +515,7 @@ fn format_js_number(n: f64) -> String {
     if n == 0.0 {
         return "0".to_string();
     }
-    if n == n.floor() && n.abs() < 1e15 {
-        return format!("{}", n as i64);
-    }
-    // 极小/极大值保留原始精度：固定 10 位小数会把 1e-15 截成 0
-    if n.abs() < 1e-6 || n.abs() >= 1e15 {
-        return n.to_string();
-    }
-    // 限制小数位并去掉尾随 0
-    let s = format!("{n:.10}");
-    if let Some(dot) = s.find('.') {
-        let trimmed = s[dot..].trim_end_matches('0');
-        if trimmed == "." {
-            s[..dot].to_string()
-        } else {
-            format!("{}{}", &s[..dot], trimmed)
-        }
-    } else {
-        s
-    }
+    n.to_string()
 }
 
 /// 递归遍历树形数据，将嵌套的 children 拍平为行数据
@@ -542,7 +533,7 @@ fn flatten_tree_data(
     indent_key: Option<&str>,
     children_key: &str,
     depth: usize,
-    rows: &mut Vec<Vec<String>>,
+    rows: &mut Vec<Vec<CellInfo>>,
 ) -> Result<(), JsValue> {
     if depth >= MAX_DEPTH {
         return Err(JsValue::from_str(&format!(
@@ -560,18 +551,16 @@ fn flatten_tree_data(
 
         for key in keys {
             let val = get_object_property(&item, key)?;
-            let mut cell_text = js_value_to_string(&val);
+            let mut cell = parse_cell_value(&val)?;
 
-            // 对指定的缩进列添加层级缩进（每层 4 个空格）
-            if let Some(ik) = indent_key
-                && key == ik
-                && depth > 0
-            {
-                let indent = "    ".repeat(depth);
-                cell_text = format!("{}{}", indent, cell_text);
+            // 缩进只改变可见文本，保留包装单元格的合并和样式信息。
+            if let Some(ik) = indent_key {
+                if key == ik && depth > 0 {
+                    cell.value = format!("{}{}", "    ".repeat(depth), cell.value);
+                }
             }
 
-            row.push(cell_text);
+            row.push(cell);
         }
 
         rows.push(row);
@@ -633,7 +622,7 @@ pub fn build_table_data_from_tree(
     let max_depth = calc_depth(&column_nodes);
 
     // 3. 构建多行表头和合并区域
-    let (header_rows, merge_ranges) = build_header_rows(&column_nodes, max_depth)?;
+    let (header_rows, mut merge_ranges) = build_header_rows(&column_nodes, max_depth)?;
 
     // 4. 收集叶子 key 和样式
     let leaf_keys = collect_leaf_keys(&column_nodes);
@@ -650,12 +639,16 @@ pub fn build_table_data_from_tree(
         &mut data_rows,
     )?;
 
-    // 6. 合并表头行和数据行
+    // 6. 沿用普通对象数据的提取逻辑，按拍平后的完整网格处理合并与样式。
+    let row_count = data_rows.len();
+    let (data_rows, data_merge_ranges, cell_overrides) =
+        extract_cell_rows(data_rows.into_iter().map(Ok), row_count, max_depth)?;
     let mut rows = header_rows;
     rows.extend(data_rows);
+    merge_ranges.extend(data_merge_ranges);
 
-    // 7. 构建 StyleSheet（来自列配置）
-    let style_sheet = build_column_style_sheet(&leaf_styles);
+    // 7. 构建 StyleSheet（来自列配置 + 单元格级覆盖）
+    let style_sheet = build_column_style_sheet_with_overrides(&leaf_styles, cell_overrides);
 
     Ok(TableData {
         rows,
@@ -718,11 +711,6 @@ pub fn build_table_data_from_array(
     })
 }
 
-/// 从叶子列样式构建 StyleSheet（不含单元格级覆盖）
-fn build_column_style_sheet(leaf_styles: &[LeafColumnStyle]) -> Option<super::style::StyleSheet> {
-    build_column_style_sheet_with_overrides(leaf_styles, std::collections::HashMap::new())
-}
-
 /// 从叶子列样式和单元格级覆盖构建 StyleSheet
 fn build_column_style_sheet_with_overrides(
     leaf_styles: &[LeafColumnStyle],
@@ -752,8 +740,12 @@ mod tests {
 
     #[test]
     fn test_format_js_number_precision() {
-        // 修复浮点噪声
-        assert_eq!(format_js_number(0.1 + 0.2), "0.3");
+        // 不把有效尾数当成噪声截断。
+        assert_eq!(format_js_number(0.1 + 0.2), "0.30000000000000004");
+        assert_eq!(format_js_number(1.2345678901234567), "1.2345678901234567");
+        assert_eq!(format_js_number(-0.0), "0");
+        assert_eq!(format_js_number(f64::NAN), "");
+        assert_eq!(format_js_number(f64::INFINITY), "");
         assert_eq!(format_js_number(12.3456), "12.3456");
         // 整数不走科学计数
         assert_eq!(format_js_number(1234567890.0), "1234567890");
@@ -761,6 +753,59 @@ mod tests {
         // 极小值不能被截成 0
         assert_ne!(format_js_number(1e-15), "0");
         assert_ne!(format_js_number(2.5e-9), "0");
+    }
+
+    #[test]
+    fn test_format_js_number_roundtrip_boundaries() {
+        for value in [
+            0.1 + 0.2,
+            1.2345678901234567,
+            -1.2345678901234567,
+            1.0000000000000002,
+            0.0000012345678901234567,
+            f64::MIN_POSITIVE,
+            f64::MAX,
+        ] {
+            assert_eq!(format_js_number(value).parse::<f64>().unwrap(), value);
+        }
+    }
+
+    #[test]
+    fn test_extract_cell_rows_clamp_single_cell_keeps_style() {
+        let style = super::super::style::CellStyle {
+            bold: Some(true),
+            ..Default::default()
+        };
+        let cells = vec![vec![CellInfo {
+            value: "风堇🌸".to_string(),
+            col_span: u32::MAX,
+            row_span: u32::MAX,
+            style: Some(style),
+        }]];
+        let (rows, merges, overrides) = extract_cell_rows(cells.into_iter().map(Ok), 1, 2).unwrap();
+        assert_eq!(rows, vec![vec!["风堇🌸"]]);
+        assert!(merges.is_empty());
+        assert_eq!(overrides[&(2, 0)].bold, Some(true));
+    }
+
+    #[test]
+    fn test_extract_cell_rows_clamp_preserves_multi_cell_merge() {
+        let cell = |value: &str, col_span, row_span| CellInfo {
+            value: value.to_string(),
+            col_span,
+            row_span,
+            style: None,
+        };
+        let cells = vec![
+            vec![cell("合并", u32::MAX, u32::MAX), cell("隐藏", 0, 1)],
+            vec![cell("隐藏", 1, 0), cell("边界", u32::MAX, u32::MAX)],
+        ];
+        let (rows, merges, _) = extract_cell_rows(cells.into_iter().map(Ok), 2, 1).unwrap();
+        assert_eq!(rows, vec![vec!["合并", ""], vec!["", "边界"]]);
+        assert_eq!(merges.len(), 1);
+        assert_eq!(merges[0].first_row, 1);
+        assert_eq!(merges[0].last_row, 2);
+        assert_eq!(merges[0].last_col, 1);
     }
 
     #[test]
@@ -1132,38 +1177,38 @@ mod tests {
 
     /// 测试 JS 值转字符串（需要 wasm 环境，仅在 wasm32 下运行）
     #[cfg(target_arch = "wasm32")]
-    #[test]
+    #[wasm_bindgen_test::wasm_bindgen_test]
     fn test_js_value_to_string_null() {
         assert_eq!(js_value_to_string(&JsValue::NULL), "");
         assert_eq!(js_value_to_string(&JsValue::UNDEFINED), "");
     }
 
     #[cfg(target_arch = "wasm32")]
-    #[test]
+    #[wasm_bindgen_test::wasm_bindgen_test]
     fn test_js_value_to_string_number() {
         assert_eq!(js_value_to_string(&JsValue::from_f64(42.0)), "42");
         assert_eq!(js_value_to_string(&JsValue::from_f64(3.14)), "3.14");
     }
 
     #[cfg(target_arch = "wasm32")]
-    #[test]
+    #[wasm_bindgen_test::wasm_bindgen_test]
     fn test_js_value_to_string_bool() {
         assert_eq!(js_value_to_string(&JsValue::from_bool(true)), "true");
         assert_eq!(js_value_to_string(&JsValue::from_bool(false)), "false");
     }
 
     #[cfg(target_arch = "wasm32")]
-    #[test]
+    #[wasm_bindgen_test::wasm_bindgen_test]
     fn test_js_value_to_string_string() {
         assert_eq!(js_value_to_string(&JsValue::from_str("hello")), "hello");
     }
 
     /// 测试 parse_cell_value - 普通字符串值
     #[cfg(target_arch = "wasm32")]
-    #[test]
+    #[wasm_bindgen_test::wasm_bindgen_test]
     fn test_parse_cell_value_plain_string() {
         let val = JsValue::from_str("张三");
-        let info = parse_cell_value(&val);
+        let info = parse_cell_value(&val).unwrap();
         assert_eq!(info.value, "张三");
         assert_eq!(info.col_span, 1);
         assert_eq!(info.row_span, 1);
@@ -1171,10 +1216,10 @@ mod tests {
 
     /// 测试 parse_cell_value - 普通数字值
     #[cfg(target_arch = "wasm32")]
-    #[test]
+    #[wasm_bindgen_test::wasm_bindgen_test]
     fn test_parse_cell_value_plain_number() {
         let val = JsValue::from_f64(42.0);
-        let info = parse_cell_value(&val);
+        let info = parse_cell_value(&val).unwrap();
         assert_eq!(info.value, "42");
         assert_eq!(info.col_span, 1);
         assert_eq!(info.row_span, 1);
@@ -1182,14 +1227,14 @@ mod tests {
 
     /// 测试 parse_cell_value - null/undefined
     #[cfg(target_arch = "wasm32")]
-    #[test]
+    #[wasm_bindgen_test::wasm_bindgen_test]
     fn test_parse_cell_value_null() {
-        let info_null = parse_cell_value(&JsValue::NULL);
+        let info_null = parse_cell_value(&JsValue::NULL).unwrap();
         assert_eq!(info_null.value, "");
         assert_eq!(info_null.col_span, 1);
         assert_eq!(info_null.row_span, 1);
 
-        let info_undef = parse_cell_value(&JsValue::UNDEFINED);
+        let info_undef = parse_cell_value(&JsValue::UNDEFINED).unwrap();
         assert_eq!(info_undef.value, "");
         assert_eq!(info_undef.col_span, 1);
         assert_eq!(info_undef.row_span, 1);
@@ -1197,7 +1242,7 @@ mod tests {
 
     /// 测试 parse_cell_value - 带 rowSpan 的对象
     #[cfg(target_arch = "wasm32")]
-    #[test]
+    #[wasm_bindgen_test::wasm_bindgen_test]
     fn test_parse_cell_value_with_row_span() {
         let obj = js_sys::Object::new();
         js_sys::Reflect::set(
@@ -1209,7 +1254,7 @@ mod tests {
         js_sys::Reflect::set(&obj, &JsValue::from_str("rowSpan"), &JsValue::from_f64(2.0)).unwrap();
         let val = JsValue::from(obj);
 
-        let info = parse_cell_value(&val);
+        let info = parse_cell_value(&val).unwrap();
         assert_eq!(info.value, "张三");
         assert_eq!(info.col_span, 1);
         assert_eq!(info.row_span, 2);
@@ -1217,7 +1262,7 @@ mod tests {
 
     /// 测试 parse_cell_value - 带 colSpan 的对象
     #[cfg(target_arch = "wasm32")]
-    #[test]
+    #[wasm_bindgen_test::wasm_bindgen_test]
     fn test_parse_cell_value_with_col_span() {
         let obj = js_sys::Object::new();
         js_sys::Reflect::set(
@@ -1229,7 +1274,7 @@ mod tests {
         js_sys::Reflect::set(&obj, &JsValue::from_str("colSpan"), &JsValue::from_f64(3.0)).unwrap();
         let val = JsValue::from(obj);
 
-        let info = parse_cell_value(&val);
+        let info = parse_cell_value(&val).unwrap();
         assert_eq!(info.value, "北京");
         assert_eq!(info.col_span, 3);
         assert_eq!(info.row_span, 1);
@@ -1237,14 +1282,14 @@ mod tests {
 
     /// 测试 parse_cell_value - span 为 0（被合并覆盖）
     #[cfg(target_arch = "wasm32")]
-    #[test]
+    #[wasm_bindgen_test::wasm_bindgen_test]
     fn test_parse_cell_value_span_zero() {
         let obj = js_sys::Object::new();
         js_sys::Reflect::set(&obj, &JsValue::from_str("value"), &JsValue::from_str("")).unwrap();
         js_sys::Reflect::set(&obj, &JsValue::from_str("rowSpan"), &JsValue::from_f64(0.0)).unwrap();
         let val = JsValue::from(obj);
 
-        let info = parse_cell_value(&val);
+        let info = parse_cell_value(&val).unwrap();
         assert_eq!(info.value, "");
         assert_eq!(info.col_span, 1);
         assert_eq!(info.row_span, 0);
@@ -1252,7 +1297,7 @@ mod tests {
 
     /// 测试 parse_cell_value - 同时有 colSpan 和 rowSpan
     #[cfg(target_arch = "wasm32")]
-    #[test]
+    #[wasm_bindgen_test::wasm_bindgen_test]
     fn test_parse_cell_value_with_both_spans() {
         let obj = js_sys::Object::new();
         js_sys::Reflect::set(
@@ -1265,7 +1310,7 @@ mod tests {
         js_sys::Reflect::set(&obj, &JsValue::from_str("rowSpan"), &JsValue::from_f64(3.0)).unwrap();
         let val = JsValue::from(obj);
 
-        let info = parse_cell_value(&val);
+        let info = parse_cell_value(&val).unwrap();
         assert_eq!(info.value, "合并");
         assert_eq!(info.col_span, 2);
         assert_eq!(info.row_span, 3);
@@ -1273,13 +1318,13 @@ mod tests {
 
     /// 测试 parse_cell_value - 普通对象（没有 value/colSpan/rowSpan，不当合并处理）
     #[cfg(target_arch = "wasm32")]
-    #[test]
+    #[wasm_bindgen_test::wasm_bindgen_test]
     fn test_parse_cell_value_plain_object() {
         let obj = js_sys::Object::new();
         js_sys::Reflect::set(&obj, &JsValue::from_str("name"), &JsValue::from_str("test")).unwrap();
         let val = JsValue::from(obj);
 
-        let info = parse_cell_value(&val);
+        let info = parse_cell_value(&val).unwrap();
         // 没有 value/colSpan/rowSpan，按普通值处理
         assert_eq!(info.col_span, 1);
         assert_eq!(info.row_span, 1);
@@ -1291,7 +1336,7 @@ mod tests {
 
     /// 测试 flatten_tree_data - 基本拍平（无缩进）
     #[cfg(target_arch = "wasm32")]
-    #[test]
+    #[wasm_bindgen_test::wasm_bindgen_test]
     fn test_flatten_tree_data_basic() {
         let root = js_sys::Array::new();
         let item1 = js_sys::Object::new();
@@ -1311,13 +1356,13 @@ mod tests {
         flatten_tree_data(&root.into(), &keys, None, "children", 0, &mut rows).unwrap();
 
         assert_eq!(rows.len(), 2);
-        assert_eq!(rows[0][0], "A");
-        assert_eq!(rows[1][0], "B");
+        assert_eq!(rows[0][0].value, "A");
+        assert_eq!(rows[1][0].value, "B");
     }
 
     /// 测试 flatten_tree_data - 带缩进
     #[cfg(target_arch = "wasm32")]
-    #[test]
+    #[wasm_bindgen_test::wasm_bindgen_test]
     fn test_flatten_tree_data_with_indent() {
         let root = js_sys::Array::new();
         let item1 = js_sys::Object::new();
@@ -1349,14 +1394,14 @@ mod tests {
         flatten_tree_data(&root.into(), &keys, Some("name"), "children", 0, &mut rows).unwrap();
 
         assert_eq!(rows.len(), 3);
-        assert_eq!(rows[0][0], "根"); // 根节点，depth=0，无缩进
-        assert_eq!(rows[1][0], "    子"); // depth=1，4 个空格
-        assert_eq!(rows[2][0], "        孙"); // depth=2，8 个空格
+        assert_eq!(rows[0][0].value, "根"); // 根节点，depth=0，无缩进
+        assert_eq!(rows[1][0].value, "    子"); // depth=1，4 个空格
+        assert_eq!(rows[2][0].value, "        孙"); // depth=2，8 个空格
     }
 
     /// 测试 flatten_tree_data - 自定义 children_key
     #[cfg(target_arch = "wasm32")]
-    #[test]
+    #[wasm_bindgen_test::wasm_bindgen_test]
     fn test_flatten_tree_data_custom_children_key() {
         let root = js_sys::Array::new();
         let item1 = js_sys::Object::new();
@@ -1377,13 +1422,13 @@ mod tests {
         flatten_tree_data(&root.into(), &keys, None, "subs", 0, &mut rows).unwrap();
 
         assert_eq!(rows.len(), 2);
-        assert_eq!(rows[0][0], "A");
-        assert_eq!(rows[1][0], "B");
+        assert_eq!(rows[0][0].value, "A");
+        assert_eq!(rows[1][0].value, "B");
     }
 
     /// 测试 flatten_tree_data - 空数组
     #[cfg(target_arch = "wasm32")]
-    #[test]
+    #[wasm_bindgen_test::wasm_bindgen_test]
     fn test_flatten_tree_data_empty() {
         let root = js_sys::Array::new();
         let keys = vec!["name".to_string()];
@@ -1394,7 +1439,7 @@ mod tests {
 
     /// 测试 flatten_tree_data - 多个根节点
     #[cfg(target_arch = "wasm32")]
-    #[test]
+    #[wasm_bindgen_test::wasm_bindgen_test]
     fn test_flatten_tree_data_multiple_roots() {
         let root = js_sys::Array::new();
         for name in &["A", "B", "C"] {
@@ -1409,14 +1454,14 @@ mod tests {
         flatten_tree_data(&root.into(), &keys, None, "children", 0, &mut rows).unwrap();
 
         assert_eq!(rows.len(), 3);
-        assert_eq!(rows[0][0], "A");
-        assert_eq!(rows[1][0], "B");
-        assert_eq!(rows[2][0], "C");
+        assert_eq!(rows[0][0].value, "A");
+        assert_eq!(rows[1][0].value, "B");
+        assert_eq!(rows[2][0].value, "C");
     }
 
     /// 测试 flatten_tree_data - 缩进不影响非目标列
     #[cfg(target_arch = "wasm32")]
-    #[test]
+    #[wasm_bindgen_test::wasm_bindgen_test]
     fn test_flatten_tree_indent_only_affects_target_column() {
         let root = js_sys::Array::new();
         let item = js_sys::Object::new();
@@ -1439,8 +1484,8 @@ mod tests {
 
         assert_eq!(rows.len(), 2);
         // name 列：子节点有缩进
-        assert_eq!(rows[1][0], "    B");
+        assert_eq!(rows[1][0].value, "    B");
         // age 列：子节点没有缩进
-        assert_eq!(rows[1][1], "5");
+        assert_eq!(rows[1][1].value, "5");
     }
 }

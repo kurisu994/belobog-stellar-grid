@@ -15,7 +15,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "vue-tsc --declaration --emitDeclarationOnly --outDir dist && esbuild src/index.ts src/use-exporter.ts src/use-worker-exporter.ts --outdir=dist --format=esm --bundle=false && cp src/ExportButton.vue dist/ExportButton.vue",
+    "build": "vue-tsc --declaration --emitDeclarationOnly --outDir dist && esbuild src/index.ts src/use-exporter.ts src/use-worker-exporter.ts src/useExcelPreview.ts --outdir=dist --format=esm --bundle=false && cp src/ExportButton.vue src/ExcelPreview.vue dist/",
     "typecheck": "vue-tsc --noEmit"
   },
   "keywords": [
@@ -37,7 +37,7 @@
     "vue": ">=3.3.0"
   },
   "dependencies": {
-    "@bsg-export/types": "^1.1.2"
+    "@bsg-export/types": "file:../types"
   },
   "devDependencies": {
     "esbuild": "^0.25.12",

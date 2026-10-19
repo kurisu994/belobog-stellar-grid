@@ -841,7 +841,11 @@
         sheetList.forEach((sheet, idx) => {
           const tab = document.createElement("button");
           tab.className = "sheet-tab" + (idx === activeSheet ? " active" : "");
-          tab.innerHTML = `${sheet.name} <span class="row-count">(${sheet.rows}行×${sheet.cols}列)</span>`;
+          tab.textContent = `${sheet.name} `;
+          const rowCount = document.createElement("span");
+          rowCount.className = "row-count";
+          rowCount.textContent = `(${sheet.rows}行×${sheet.cols}列)`;
+          tab.appendChild(rowCount);
           tab.onclick = () => switchSheet(idx);
           container.appendChild(tab);
         });

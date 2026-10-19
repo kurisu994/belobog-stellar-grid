@@ -19,7 +19,7 @@
  * ```
  */
 
-import { writable, readonly, get, type Readable } from 'svelte/store';
+import { writable, readonly, type Readable } from 'svelte/store';
 import type { PreviewOptions, ParsedWorkbook, SheetInfo } from '@bsg-export/types';
 
 /** Excel 预览 Store 配置 */
@@ -69,20 +69,21 @@ export interface ExcelPreviewStore {
  *
  * 管理 WASM 初始化、文件解析、Sheet 切换等完整预览生命周期。
  */
-/**
- * 将可见列表位置映射为原始工作簿索引
- *
- * `PreviewOptions.sheetIndex` 是原始工作簿索引，而 `activeSheet` / `switchSheet`
- * 用的是可见列表位置，存在隐藏 Sheet 时两者不相等，必须显式转换。
- */
-function toRealIndex(visible: SheetInfo[], pos: number): number {
-  return visible[pos]?.index ?? pos;
-}
-
-/** 将原始工作簿索引反查为可见列表位置（指向隐藏 Sheet 时回退到 0） */
-function toVisiblePos(visible: SheetInfo[], realIndex: number): number {
-  const pos = visible.findIndex(s => s.index === realIndex);
-  return pos >= 0 ? pos : 0;
+/** 按核心规则选择工作表，保留显式选中的隐藏表以确保活动标签与内容一致。 */
+function selectSheets(allSheets: SheetInfo[], options: PreviewOptions) {
+  const selected = options.sheetName !== undefined
+    ? allSheets.find(s => s.name === options.sheetName)
+    : options.sheetIndex !== undefined
+      ? allSheets.find(s => s.index === options.sheetIndex)
+      : allSheets.find(s => options.skipHidden === false || !s.hidden) ?? allSheets[0];
+  if (!selected) throw new Error('未找到指定工作表');
+  const visible = allSheets.filter(s => options.skipHidden === false || !s.hidden || s.index === selected.index);
+  return {
+    visible,
+    // 将名称选择固化为真实索引，后续切表不能继续沿用旧名称。
+    options: { ...options, sheetName: undefined, sheetIndex: selected.index },
+    activeSheet: visible.findIndex(s => s.index === selected.index),
+  };
 }
 
 export function createExcelPreview(config: CreateExcelPreviewOptions): ExcelPreviewStore {
@@ -97,6 +98,9 @@ export function createExcelPreview(config: CreateExcelPreviewOptions): ExcelPrev
   let fileData: Uint8Array | null = null;
   /** 可见 sheets 缓存（用于 switchSheet 中解析真实索引） */
   let visibleSheets: SheetInfo[] = [];
+  let currentOptions: PreviewOptions = {};
+  // 每次加载、切表和重置均使旧异步任务失效。
+  let generation = 0;
 
   /** 确保 WASM 已初始化 */
   async function ensureInit() {
@@ -106,78 +110,98 @@ export function createExcelPreview(config: CreateExcelPreviewOptions): ExcelPrev
     }
   }
 
-  /** 内部加载逻辑（统一处理 hidden sheet 过滤） */
+  /** 解析成功后统一提交文件、选项和工作表状态。 */
   function applySheets(bytes: Uint8Array, mergedOptions: PreviewOptions) {
-    const allSheets = config.getExcelSheetList(bytes);
-    visibleSheets = allSheets.filter(s => !s.hidden);
-    sheets.set(visibleSheets);
-    html.set(config.parseExcelToHtml(bytes, mergedOptions));
+    const selection = selectSheets(config.getExcelSheetList(bytes), mergedOptions);
+    const rendered = config.parseExcelToHtml(bytes, selection.options);
+    fileData = bytes;
+    currentOptions = selection.options;
+    visibleSheets = selection.visible;
+    sheets.set(selection.visible);
+    html.set(rendered);
     data.set(null);
-    activeSheet.set(toVisiblePos(visibleSheets, mergedOptions.sheetIndex ?? 0));
+    activeSheet.set(selection.activeSheet);
   }
 
   /** 加载 Excel 文件（从 File 对象） */
   async function loadFile(file: File, options?: PreviewOptions) {
+    const request = ++generation;
+    const mergedOptions = { ...config.defaultOptions, ...options };
     loading.set(true);
     error.set(null);
     try {
       await ensureInit();
+      if (request !== generation) return;
       const buffer = await file.arrayBuffer();
       const bytes = new Uint8Array(buffer);
-      fileData = bytes;
-      applySheets(bytes, { ...config.defaultOptions, ...options });
+      if (request !== generation) return;
+      applySheets(bytes, mergedOptions);
     } catch (e) {
+      if (request !== generation) return;
       error.set(e instanceof Error ? e.message : String(e));
     } finally {
+      if (request !== generation) return;
       loading.set(false);
     }
   }
 
   /** 加载 Excel 文件（从 Uint8Array） */
   async function loadData(bytes: Uint8Array, options?: PreviewOptions) {
+    const request = ++generation;
+    const mergedOptions = { ...config.defaultOptions, ...options };
     loading.set(true);
     error.set(null);
     try {
       await ensureInit();
-      fileData = bytes;
-      applySheets(bytes, { ...config.defaultOptions, ...options });
+      if (request !== generation) return;
+      applySheets(bytes, mergedOptions);
     } catch (e) {
+      if (request !== generation) return;
       error.set(e instanceof Error ? e.message : String(e));
     } finally {
+      if (request !== generation) return;
       loading.set(false);
     }
   }
 
   /** 加载远程 Excel 文件（从 URL） */
   async function loadUrl(url: string, options?: PreviewOptions, fetchInit?: RequestInit) {
+    const request = ++generation;
+    const mergedOptions = { ...config.defaultOptions, ...options };
     loading.set(true);
     error.set(null);
     try {
       await ensureInit();
+      if (request !== generation) return;
       const response = await fetch(url, fetchInit);
       if (!response.ok) {
         throw new Error(`远程文件加载失败: HTTP ${response.status} ${response.statusText}`);
       }
       const buffer = await response.arrayBuffer();
       const bytes = new Uint8Array(buffer);
-      fileData = bytes;
-      applySheets(bytes, { ...config.defaultOptions, ...options });
+      if (request !== generation) return;
+      applySheets(bytes, mergedOptions);
     } catch (e) {
+      if (request !== generation) return;
       error.set(e instanceof Error ? e.message : String(e));
     } finally {
+      if (request !== generation) return;
       loading.set(false);
     }
   }
 
   /** 切换 Sheet（传入可见 sheets 列表中的位置） */
   async function switchSheet(sheetIndex: number) {
-    if (!fileData) return;
+    if (!fileData || !visibleSheets[sheetIndex]) return;
+    ++generation;
     loading.set(true);
+    error.set(null);
     try {
       // 将可见列表位置映射为原始工作簿索引
-      const realIndex = toRealIndex(visibleSheets, sheetIndex);
-      const options = { ...config.defaultOptions, sheetIndex: realIndex };
+      const realIndex = visibleSheets[sheetIndex].index;
+      const options = { ...currentOptions, sheetName: undefined, sheetIndex: realIndex };
       html.set(config.parseExcelToHtml(fileData, options));
+      currentOptions = options;
       data.set(null);
       activeSheet.set(sheetIndex);
     } catch (e) {
@@ -190,19 +214,21 @@ export function createExcelPreview(config: CreateExcelPreviewOptions): ExcelPrev
   /**
    * 获取 JSON 数据
    *
-   * 默认解析当前活动 Sheet；`options.sheetIndex`（原始工作簿索引）可覆盖此默认值。
+   * 默认沿用当前 Sheet 与本次加载选项；显式 sheetName 优先于 sheetIndex 覆盖选择。
    */
   async function getJsonData(options?: PreviewOptions): Promise<ParsedWorkbook | null> {
     if (!fileData) return null;
+    const request = generation;
+    const bytes = fileData;
+    const mergedOptions = { ...currentOptions, ...options };
     try {
       await ensureInit();
-      // activeSheet 是可见列表位置，需转换为原始工作簿索引后才能传给 WASM
-      const realIndex = options?.sheetIndex ?? toRealIndex(visibleSheets, get(activeSheet));
-      const mergedOptions = { ...config.defaultOptions, ...options, sheetIndex: realIndex };
-      const result = config.parseExcelToJson(fileData, mergedOptions);
+      if (request !== generation || bytes !== fileData) return null;
+      const result = config.parseExcelToJson(bytes, mergedOptions);
       data.set(result);
       return result;
     } catch (e) {
+      if (request !== generation || bytes !== fileData) return null;
       error.set(e instanceof Error ? e.message : String(e));
       return null;
     }
@@ -210,6 +236,8 @@ export function createExcelPreview(config: CreateExcelPreviewOptions): ExcelPrev
 
   /** 重置状态 */
   function reset() {
+    ++generation;
+    currentOptions = {};
     fileData = null;
     visibleSheets = [];
     loading.set(false);

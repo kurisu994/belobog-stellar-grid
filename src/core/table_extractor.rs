@@ -170,9 +170,7 @@ impl TableRowSources {
         let mut tbody_rows = None;
         let mut tbody_row_count = 0;
 
-        if let Some(tid) = tbody_id
-            && !tid.is_empty()
-        {
+        if let Some(tid) = tbody_id.filter(|tid| !tid.is_empty()) {
             let window =
                 web_sys::window().ok_or_else(|| JsValue::from_str("无法获取 window 对象"))?;
             let document = window
@@ -205,10 +203,12 @@ impl TableRowSources {
         })
     }
 
+    /// 获取表格和外部 tbody 的总行数。
     pub fn total_rows(&self) -> usize {
         self.table_row_count + self.tbody_row_count
     }
 
+    /// 根据跨源索引读取原始表格行。
     pub fn get_row(&self, index: usize) -> Result<HtmlTableRowElement, JsValue> {
         if index < self.table_row_count {
             get_table_row(&self.table_rows, index as u32)
@@ -273,6 +273,8 @@ pub fn process_row_cells(
     tracker: &mut RowSpanTracker,
     exclude_hidden: bool,
 ) -> Result<RowProcessResult, JsValue> {
+    tracker.begin_row(row, row_idx);
+    let remaining_rows = tracker.group_end_row.saturating_sub(row_idx).max(1);
     let mut row_data = Vec::new();
     let mut cell_spans = Vec::new();
     let cells = row.cells();
@@ -306,12 +308,22 @@ pub fn process_row_cells(
             continue;
         }
 
-        let span = get_cell_span(&cell);
+        let mut span = get_cell_span(&cell);
+        // HTML 的 rowspan=0 延伸到当前行组末尾，正跨度也不能越过行组。
+        span.rowspan = if span.rowspan == 0 {
+            remaining_rows
+        } else {
+            span.rowspan.min(remaining_rows)
+        };
+        let next_col = col_idx
+            .checked_add(span.colspan as usize)
+            .filter(|&col| col <= MAX_DOM_COLUMNS)
+            .ok_or_else(|| JsValue::from_str("列数超过表格导出限制 (16384)"))?;
 
         // 记录单元格位置和跨度信息（供调用方计算合并区域）
         cell_spans.push((col_idx, span.clone()));
 
-        // 处理 rowspan: 将当前单元格内容预填到后续行的对应位置
+        // 仅记录每列的活跃区间，不展开未来行的占位矩阵。
         tracker.add(row_idx, col_idx, &span);
 
         // 处理 colspan: 当前单元格内容 + 空白填充
@@ -320,14 +332,17 @@ pub fn process_row_cells(
             row_data.push(String::new());
         }
 
-        col_idx += span.colspan as usize;
+        col_idx = next_col;
     }
 
-    // 处理行尾残留的 rowspan 占位
-    while let Some(text) = tracker.pop(row_idx, col_idx) {
-        row_data.push(text);
-        col_idx += 1;
+    // 行尾可能存在不连续的跨行占位，保留中间的空列。
+    if let Some(last_col) = tracker.last_active_column(row_idx) {
+        while col_idx <= last_col {
+            row_data.push(tracker.pop(row_idx, col_idx).unwrap_or_default());
+            col_idx += 1;
+        }
     }
+    tracker.record_output_cells(row_data.len())?;
 
     Ok(RowProcessResult {
         row_data,
@@ -355,9 +370,9 @@ pub(crate) struct CellSpan {
 /// 包含文本内容和跨度信息的 CellSpan 结构
 pub(crate) fn get_cell_span(cell: &HtmlTableCellElement) -> CellSpan {
     let text = cell.inner_text();
-    // colspan/rowspan 最小为 1
+    // rowspan=0 有特殊的行组语义，在处理行时结合剩余行数规范化。
     let colspan = cell.col_span().max(1);
-    let rowspan = cell.row_span().max(1);
+    let rowspan = cell.row_span();
 
     CellSpan {
         text,
@@ -366,37 +381,121 @@ pub(crate) fn get_cell_span(cell: &HtmlTableCellElement) -> CellSpan {
     }
 }
 
-/// 用于追踪被 rowspan 占用的单元格
+/// DOM 导出与数据导出使用相同量级的总单元格预算，避免跨度放大内存。
+const MAX_DOM_CELLS: usize = 5_000_000;
+const MAX_DOM_COLUMNS: usize = 16_384;
+
+/// 计算当前行组内剩余的真实行数（含当前行）。
+fn remaining_group_rows(row: &HtmlTableRowElement) -> u32 {
+    let row_index = row.section_row_index();
+    if row_index < 0 {
+        return 1;
+    }
+    if let Some(parent) = row.parent_element() {
+        if let Some(section) = parent.dyn_ref::<HtmlTableSectionElement>() {
+            return section
+                .rows()
+                .length()
+                .saturating_sub(row_index as u32)
+                .max(1);
+        }
+        // 通过 DOM API 直接插入 table 的 tr 不一定有 tbody，只覆盖连续的兄弟行。
+        let mut remaining = 1_u32;
+        let mut next = row.next_element_sibling();
+        while let Some(element) = next {
+            if !element.is_instance_of::<HtmlTableRowElement>() {
+                break;
+            }
+            remaining = remaining.saturating_add(1);
+            next = element.next_element_sibling();
+        }
+        return remaining;
+    }
+    1
+}
+
+/// 一列的跨行占位区间，结束行不包含在区间内。
+struct ActiveRowSpan {
+    first_row: u32,
+    end_row: u32,
+    text: String,
+}
+
+/// 用于追踪被 rowspan 占用的列，内存仅与活跃列数有关。
 pub struct RowSpanTracker {
-    tracker: HashMap<(u32, usize), String>,
+    tracker: HashMap<usize, ActiveRowSpan>,
+    row_group: Option<Element>,
+    group_end_row: u32,
+    output_cells: usize,
 }
 
 impl RowSpanTracker {
+    /// 创建空的跨行占位追踪器。
     pub fn new() -> Self {
         Self {
             tracker: HashMap::new(),
+            row_group: None,
+            group_end_row: 0,
+            output_cells: 0,
         }
     }
 
-    /// 获取并移除指定位置的预填内容
-    pub fn pop(&mut self, row_idx: u32, col_idx: usize) -> Option<String> {
-        self.tracker.remove(&(row_idx, col_idx))
+    /// 清理过期占位，并确保任何跨度都不会进入下一个行组或外部 tbody。
+    fn begin_row(&mut self, row: &HtmlTableRowElement, row_idx: u32) {
+        let group = row.parent_element();
+        if self.row_group != group || row_idx >= self.group_end_row {
+            self.tracker.clear();
+            self.row_group = group;
+            // sectionRowIndex 可能遍历前面的兄弟行，只在进入行组时读取一次。
+            self.group_end_row = row_idx.saturating_add(remaining_group_rows(row));
+        }
+        self.tracker.retain(|_, span| span.end_row > row_idx);
     }
 
-    /// 记录跨行单元格的占位
+    /// 读取指定位置的占位；区间保留至末行，不为未来每行分配字符串。
+    pub fn pop(&mut self, row_idx: u32, col_idx: usize) -> Option<String> {
+        self.tracker.get(&col_idx).and_then(|span| {
+            (span.first_row <= row_idx && row_idx < span.end_row).then(|| span.text.clone())
+        })
+    }
+
+    /// 获取当前行最后一个活跃占位列。
+    fn last_active_column(&self, row_idx: u32) -> Option<usize> {
+        self.tracker
+            .iter()
+            .filter(|(_, span)| span.first_row <= row_idx && row_idx < span.end_row)
+            .map(|(&col, _)| col)
+            .max()
+    }
+
+    /// 记录跨行单元格的列区间，不按 rowspan × colspan 展开。
     pub fn add(&mut self, row_idx: u32, col_idx: usize, span: &CellSpan) {
         if span.rowspan > 1 {
-            for r in 1..span.rowspan {
-                for c in 0..span.colspan as usize {
-                    let fill_text = if c == 0 {
-                        span.text.clone()
-                    } else {
-                        String::new()
-                    };
-                    self.tracker.insert((row_idx + r, col_idx + c), fill_text);
-                }
+            for c in 0..span.colspan as usize {
+                self.tracker.insert(
+                    col_idx + c,
+                    ActiveRowSpan {
+                        first_row: row_idx.saturating_add(1),
+                        end_row: row_idx.saturating_add(span.rowspan),
+                        text: if c == 0 {
+                            span.text.clone()
+                        } else {
+                            String::new()
+                        },
+                    },
+                );
             }
         }
+    }
+
+    /// 累计实际输出规模，空行也计入预算以限制行容器分配。
+    fn record_output_cells(&mut self, count: usize) -> Result<(), JsValue> {
+        self.output_cells = self
+            .output_cells
+            .checked_add(count.max(1))
+            .filter(|&total| total <= MAX_DOM_CELLS)
+            .ok_or_else(|| JsValue::from_str("表格数据总量超过单元格限制 (5000000)"))?;
+        Ok(())
     }
 }
 
@@ -444,6 +543,9 @@ pub fn extract_table_data(
         result.push(proc_result.row_data);
     }
 
+    if result.is_empty() {
+        return Err(JsValue::from_str("没有可导出的可见数据"));
+    }
     Ok(result)
 }
 
@@ -470,14 +572,13 @@ pub fn extract_table_data_with_merge(
         return Err(JsValue::from_str("表格为空，没有数据可导出"));
     }
 
-    // 自动检测 thead 行数，用于 XLSX 冻结窗格
+    // 按原始 thead 范围识别表头，再累计实际导出的可见表头行。
     let header_row_count = table
         .t_head()
         .map(|thead| thead.rows().length() as usize)
         .unwrap_or(0);
 
     let mut result = TableData::new();
-    result.header_row_count = header_row_count;
     let mut tracker = RowSpanTracker::new();
     let mut output_row_idx: u32 = 0;
 
@@ -500,10 +601,16 @@ pub fn extract_table_data_with_merge(
             &mut result.merge_ranges,
         );
 
+        if (row_idx as usize) < header_row_count {
+            result.header_row_count += 1;
+        }
         result.rows.push(proc_result.row_data);
         output_row_idx += 1;
     }
 
+    if result.rows.is_empty() {
+        return Err(JsValue::from_str("没有可导出的可见数据"));
+    }
     Ok(result)
 }
 
@@ -571,10 +678,9 @@ pub(crate) fn count_visible_rows(
     }
 
     let mut visible_rows_covered = 0;
-    for r in 1..rowspan {
-        let next_row_idx = row_idx + r;
+    let end = row_idx.saturating_add(rowspan).min(rows.length());
+    for next_row_idx in row_idx.saturating_add(1)..end {
         if let Some(next_row) = rows.get_with_index(next_row_idx) {
-            #[allow(clippy::collapsible_if)]
             if let Ok(next_row_el) = next_row.dyn_into::<HtmlTableRowElement>() {
                 if !exclude_hidden || !is_element_hidden(&next_row_el) {
                     visible_rows_covered += 1;
@@ -583,4 +689,68 @@ pub(crate) fn count_visible_rows(
         }
     }
     visible_rows_covered
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{CellSpan, RowSpanTracker};
+
+    #[test]
+    fn test_row_span_tracker_storage_scales_with_columns() {
+        let mut tracker = RowSpanTracker::new();
+        tracker.add(
+            0,
+            0,
+            &CellSpan {
+                text: "边界🌟".to_string(),
+                colspan: 1000,
+                rowspan: 65_534,
+            },
+        );
+
+        // 即使声明六万多行，也只记录一千个活跃列，而非六千多万个坐标。
+        assert_eq!(tracker.tracker.len(), 1000);
+        assert_eq!(tracker.pop(0, 0), None);
+        assert_eq!(tracker.pop(1, 0).as_deref(), Some("边界🌟"));
+        assert_eq!(tracker.pop(65_533, 0).as_deref(), Some("边界🌟"));
+        assert_eq!(tracker.pop(65_533, 999).as_deref(), Some(""));
+        assert_eq!(tracker.pop(65_534, 0), None);
+        assert_eq!(tracker.pop(1, 1000), None);
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn test_row_span_tracker_output_budget_and_overflow() {
+        let mut tracker = RowSpanTracker::new();
+        tracker.output_cells = super::MAX_DOM_CELLS - 1;
+        tracker.record_output_cells(0).unwrap();
+        assert_eq!(tracker.output_cells, super::MAX_DOM_CELLS);
+        assert!(
+            tracker
+                .record_output_cells(1)
+                .unwrap_err()
+                .as_string()
+                .unwrap()
+                .contains("5000000")
+        );
+        tracker.output_cells = usize::MAX;
+        assert!(tracker.record_output_cells(1).is_err());
+    }
+
+    #[test]
+    fn test_row_span_tracker_sparse_tail_column() {
+        let mut tracker = RowSpanTracker::new();
+        tracker.add(
+            2,
+            4,
+            &CellSpan {
+                text: "尾列".to_string(),
+                colspan: 2,
+                rowspan: 3,
+            },
+        );
+        assert_eq!(tracker.last_active_column(2), None);
+        assert_eq!(tracker.last_active_column(3), Some(5));
+        assert_eq!(tracker.last_active_column(5), None);
+    }
 }

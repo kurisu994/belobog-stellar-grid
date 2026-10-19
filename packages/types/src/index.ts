@@ -117,14 +117,17 @@ export type MergeableCellValue = CellValue | MergeCellValue;
  *
  * - 二维数组模式：`CellValue[]`
  * - 对象数组模式：`Record<string, MergeableCellValue>`
+ * - 树形模式：`TreeDataRow`，支持默认或自定义子节点字段
  */
-export type DataRow = CellValue[] | Record<string, MergeableCellValue>;
+export type DataRow = CellValue[] | ObjectDataRow;
 
-/** 树形数据行（含可选子节点） */
-export type TreeDataRow<TChildrenKey extends string = "children"> = Record<
-  string,
-  MergeableCellValue
-> & {
+/** 对象行的任意字段可为单元格或子节点数组；不能用 TreeDataRow<string> 强制所有字段为数组。 */
+interface ObjectDataRow {
+  [key: string]: MergeableCellValue | ObjectDataRow[];
+}
+
+/** 树形数据行；索引签名同时允许单元格和递归子节点，避免 children 与索引签名冲突。 */
+export type TreeDataRow<TChildrenKey extends string = "children"> = ObjectDataRow & {
   [K in TChildrenKey]?: TreeDataRow<TChildrenKey>[];
 };
 

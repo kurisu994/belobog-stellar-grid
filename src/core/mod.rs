@@ -8,6 +8,7 @@ pub(crate) mod style;
 pub(crate) mod table_extractor;
 
 // Excel 预览模块
+pub(crate) mod excel_preflight;
 pub mod excel_reader;
 pub mod excel_style;
 pub mod html_builder;
@@ -95,8 +96,16 @@ pub fn export_table(
     }
 
     // 解析全局样式
-    let hs = header_style.as_ref().and_then(style::parse_cell_style);
-    let cs = cell_style.as_ref().and_then(style::parse_cell_style);
+    let hs = header_style
+        .as_ref()
+        .map(style::parse_cell_style)
+        .transpose()?
+        .flatten();
+    let cs = cell_style
+        .as_ref()
+        .map(style::parse_cell_style)
+        .transpose()?
+        .flatten();
 
     // 根据格式导出
     match format {
@@ -165,9 +174,8 @@ fn parse_sheet_configs(sheets: &JsValue) -> Result<Vec<SheetConfig>, JsValue> {
         let item = array.get(i);
 
         // 提取 tableId（必填）
-        let table_id = js_sys::Reflect::get(&item, &JsValue::from_str("tableId"))
-            .ok()
-            .and_then(|v| v.as_string())
+        let table_id = crate::utils::get_js_property(&item, "tableId")?
+            .as_string()
             .ok_or_else(|| {
                 JsValue::from_str(&format!("第 {} 个工作表配置缺少有效的 tableId", i + 1))
             })?;
@@ -180,14 +188,11 @@ fn parse_sheet_configs(sheets: &JsValue) -> Result<Vec<SheetConfig>, JsValue> {
         }
 
         // 提取 sheetName（可选）
-        let sheet_name = js_sys::Reflect::get(&item, &JsValue::from_str("sheetName"))
-            .ok()
-            .and_then(|v| v.as_string());
+        let sheet_name = crate::utils::get_js_property(&item, "sheetName")?.as_string();
 
         // 提取 excludeHidden（可选，默认 false）
-        let exclude_hidden = js_sys::Reflect::get(&item, &JsValue::from_str("excludeHidden"))
-            .ok()
-            .and_then(|v| v.as_bool())
+        let exclude_hidden = crate::utils::get_js_property(&item, "excludeHidden")?
+            .as_bool()
             .unwrap_or(false);
 
         configs.push(SheetConfig {
@@ -234,8 +239,16 @@ pub fn export_tables_xlsx(
     let strict_progress = strict_progress_callback.unwrap_or(false);
 
     // 解析全局样式
-    let hs = header_style.as_ref().and_then(style::parse_cell_style);
-    let cs = cell_style.as_ref().and_then(style::parse_cell_style);
+    let hs = header_style
+        .as_ref()
+        .map(style::parse_cell_style)
+        .transpose()?
+        .flatten();
+    let cs = cell_style
+        .as_ref()
+        .map(style::parse_cell_style)
+        .transpose()?
+        .flatten();
     let global_ss = if hs.is_some() || cs.is_some() {
         Some(style::StyleSheet {
             header_style: hs,
@@ -453,19 +466,15 @@ pub(crate) fn parse_export_data_options(
     };
 
     // 解析 columns
-    let columns = js_sys::Reflect::get(options, &JsValue::from_str("columns"))
-        .ok()
+    let columns = Some(crate::utils::get_js_property(options, "columns")?)
         .filter(|v| !v.is_undefined() && !v.is_null());
 
     // 解析 filename
-    let filename = js_sys::Reflect::get(options, &JsValue::from_str("filename"))
-        .ok()
-        .and_then(|v| v.as_string());
+    let filename = crate::utils::get_js_property(options, "filename")?.as_string();
 
     // 解析 format（ExportFormat 在 wasm_bindgen 中编码为数字：0 = Csv, 1 = Xlsx）
     // 严格校验：仅接受 0 (Csv) 和 1 (Xlsx)，其他值返回明确错误
-    let format_val = js_sys::Reflect::get(options, &JsValue::from_str("format"))
-        .ok()
+    let format_val = Some(crate::utils::get_js_property(options, "format")?)
         .filter(|v| !v.is_undefined() && !v.is_null());
 
     let format = match format_val {
@@ -475,9 +484,9 @@ pub(crate) fn parse_export_data_options(
                     "format 参数类型错误：期望数字（ExportFormat.Csv = 0, ExportFormat.Xlsx = 1）",
                 )
             })?;
-            match n as u32 {
-                0 => ExportFormat::Csv,
-                1 => ExportFormat::Xlsx,
+            match n {
+                0.0 => ExportFormat::Csv,
+                1.0 => ExportFormat::Xlsx,
                 other => {
                     return Err(JsValue::from_str(&format!(
                         "format 参数值非法：{}。仅支持 ExportFormat.Csv (0) 和 ExportFormat.Xlsx (1)",
@@ -490,57 +499,39 @@ pub(crate) fn parse_export_data_options(
     };
 
     // 解析 progressCallback
-    let progress_callback = js_sys::Reflect::get(options, &JsValue::from_str("progressCallback"))
-        .ok()
+    let progress_callback = Some(crate::utils::get_js_property(options, "progressCallback")?)
         .filter(|v| v.is_function())
         .map(js_sys::Function::from);
 
     // 解析 indentColumn
-    let indent_column = js_sys::Reflect::get(options, &JsValue::from_str("indentColumn"))
-        .ok()
-        .and_then(|v| v.as_string());
+    let indent_column = crate::utils::get_js_property(options, "indentColumn")?.as_string();
 
     // 解析 childrenKey
-    let children_key = js_sys::Reflect::get(options, &JsValue::from_str("childrenKey"))
-        .ok()
-        .and_then(|v| v.as_string());
+    let children_key = crate::utils::get_js_property(options, "childrenKey")?.as_string();
 
     // 解析 withBom
-    let with_bom = js_sys::Reflect::get(options, &JsValue::from_str("withBom"))
-        .ok()
-        .and_then(|v| v.as_bool())
+    let with_bom = crate::utils::get_js_property(options, "withBom")?
+        .as_bool()
         .unwrap_or(false);
 
     // 解析 strictProgressCallback
-    let strict_progress =
-        js_sys::Reflect::get(options, &JsValue::from_str("strictProgressCallback"))
-            .ok()
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false);
+    let strict_progress = crate::utils::get_js_property(options, "strictProgressCallback")?
+        .as_bool()
+        .unwrap_or(false);
 
-    // 解析 freezeRows（校验有限非负值）
-    let freeze_rows = js_sys::Reflect::get(options, &JsValue::from_str("freezeRows"))
-        .ok()
-        .and_then(|v| v.as_f64())
-        .filter(|n| n.is_finite() && *n >= 0.0)
-        .map(|n| n as u32);
-
-    // 解析 freezeCols（校验有限非负值）
-    let freeze_cols = js_sys::Reflect::get(options, &JsValue::from_str("freezeCols"))
-        .ok()
-        .and_then(|v| v.as_f64())
-        .filter(|n| n.is_finite() && *n >= 0.0)
-        .map(|n| n as u16);
+    // 先校验整数范围，再转换，避免小数截断和窄化溢出。
+    let freeze_rows = crate::utils::get_optional_integer(options, "freezeRows", 0, u32::MAX)?;
+    let freeze_cols =
+        crate::utils::get_optional_integer(options, "freezeCols", 0, u16::MAX as u32)?
+            .map(|value| value as u16);
 
     // 解析 headerStyle（全局表头样式）
-    let header_style = js_sys::Reflect::get(options, &JsValue::from_str("headerStyle"))
-        .ok()
-        .and_then(|v| style::parse_cell_style(&v));
+    let header_style =
+        style::parse_cell_style(&crate::utils::get_js_property(options, "headerStyle")?)?;
 
     // 解析 cellStyle（全局数据行样式）
-    let cell_style = js_sys::Reflect::get(options, &JsValue::from_str("cellStyle"))
-        .ok()
-        .and_then(|v| style::parse_cell_style(&v));
+    let cell_style =
+        style::parse_cell_style(&crate::utils::get_js_property(options, "cellStyle")?)?;
 
     Ok(ExportDataOptions {
         columns,
@@ -865,62 +856,27 @@ pub fn get_excel_sheet_list(data: &[u8]) -> Result<JsValue, JsValue> {
     js_sys::JSON::parse(&json_str)
 }
 
-/// 解析预览配置选项
+/// 解析预览配置选项，getter 异常与无效数值均返回明确错误。
 fn parse_preview_options(options: &JsValue) -> Result<excel_reader::PreviewOptions, JsValue> {
     if options.is_undefined() || options.is_null() {
         return Ok(excel_reader::PreviewOptions::default());
     }
-
-    let mut opts = excel_reader::PreviewOptions::default();
-
-    // sheetIndex（校验有限非负值）
-    if let Ok(val) = js_sys::Reflect::get(options, &JsValue::from_str("sheetIndex")) {
-        if let Some(n) = val.as_f64().filter(|n| n.is_finite() && *n >= 0.0) {
-            opts.sheet_index = Some(n as usize);
-        }
-    }
-
-    // sheetName
-    if let Ok(val) = js_sys::Reflect::get(options, &JsValue::from_str("sheetName")) {
-        if let Some(s) = val.as_string() {
-            opts.sheet_name = Some(s);
-        }
-    }
-
-    // maxRows（校验有限正值）
-    if let Ok(val) = js_sys::Reflect::get(options, &JsValue::from_str("maxRows")) {
-        if let Some(n) = val.as_f64().filter(|n| n.is_finite() && *n >= 1.0) {
-            opts.max_rows = Some(n as usize);
-        }
-    }
-
-    // maxCols（校验有限正值）
-    if let Ok(val) = js_sys::Reflect::get(options, &JsValue::from_str("maxCols")) {
-        if let Some(n) = val.as_f64().filter(|n| n.is_finite() && *n >= 1.0) {
-            opts.max_cols = Some(n as usize);
-        }
-    }
-
-    // includeStyles
-    if let Ok(val) = js_sys::Reflect::get(options, &JsValue::from_str("includeStyles")) {
-        if let Some(b) = val.as_bool() {
-            opts.include_styles = b;
-        }
-    }
-
-    // trimEmpty
-    if let Ok(val) = js_sys::Reflect::get(options, &JsValue::from_str("trimEmpty")) {
-        if let Some(b) = val.as_bool() {
-            opts.trim_empty = b;
-        }
-    }
-
-    // skipHidden
-    if let Ok(val) = js_sys::Reflect::get(options, &JsValue::from_str("skipHidden")) {
-        if let Some(b) = val.as_bool() {
-            opts.skip_hidden = b;
-        }
-    }
-
-    Ok(opts)
+    Ok(excel_reader::PreviewOptions {
+        sheet_index: crate::utils::get_optional_integer(options, "sheetIndex", 0, u32::MAX)?
+            .map(|value| value as usize),
+        sheet_name: crate::utils::get_js_property(options, "sheetName")?.as_string(),
+        max_rows: crate::utils::get_optional_integer(options, "maxRows", 1, u32::MAX)?
+            .map(|value| value as usize),
+        max_cols: crate::utils::get_optional_integer(options, "maxCols", 1, u32::MAX)?
+            .map(|value| value as usize),
+        include_styles: crate::utils::get_js_property(options, "includeStyles")?
+            .as_bool()
+            .unwrap_or(true),
+        trim_empty: crate::utils::get_js_property(options, "trimEmpty")?
+            .as_bool()
+            .unwrap_or(true),
+        skip_hidden: crate::utils::get_js_property(options, "skipHidden")?
+            .as_bool()
+            .unwrap_or(true),
+    })
 }

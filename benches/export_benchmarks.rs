@@ -33,7 +33,7 @@ fn generate_table_data_with_merges(row_count: usize, col_count: usize) -> TableD
     // 模拟合并区域：每 10 行第一列 rowSpan=2
     let mut merge_ranges = Vec::new();
     for r in (1..=row_count).step_by(10) {
-        if r + 1 <= row_count {
+        if r < row_count {
             merge_ranges.push(MergeRange::new(r as u32, 0, (r + 1) as u32, 0));
         }
     }

@@ -174,12 +174,11 @@ fn write_sheet(
             }
         }
 
-        if let Some(ref p) = progress
-            && total_rows > 0
-            && (i % p.every_n == 0 || i == total_rows - 1)
-        {
-            let ratio = (i + 1) as f64 / total_rows as f64;
-            report_progress(p.callback, p.start + ratio * p.range, p.strict)?;
+        if let Some(ref p) = progress {
+            if total_rows > 0 && (i % p.every_n == 0 || i == total_rows - 1) {
+                let ratio = (i + 1) as f64 / total_rows as f64;
+                report_progress(p.callback, p.start + ratio * p.range, p.strict)?;
+            }
         }
     }
 

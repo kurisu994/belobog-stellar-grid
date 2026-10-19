@@ -10,8 +10,15 @@ pub fn build_html_table(sheet: &ParsedSheet) -> String {
         return String::from("<table></table>");
     }
 
-    // 预估容量
-    let estimated_capacity = sheet.rows.len() * sheet.col_widths.len() * 60 + 512;
+    // 仅预留有界容量，防止乘积溢出或稀疏输入导致一次性巨额分配。
+    let estimated_capacity = sheet
+        .rows
+        .iter()
+        .try_fold(0_usize, |sum, row| sum.checked_add(row.cells.len()))
+        .and_then(|cells| cells.checked_mul(60))
+        .and_then(|bytes| bytes.checked_add(512))
+        .unwrap_or(512)
+        .min(8 * 1024 * 1024);
     let mut html = String::with_capacity(estimated_capacity);
 
     // 嵌入默认样式（通过 class 作用域隔离，内联样式可覆盖）

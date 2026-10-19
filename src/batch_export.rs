@@ -27,7 +27,7 @@ use wasm_bindgen::prelude::*;
 /// * `exclude_hidden` - 可选，是否排除隐藏的行和列（默认为 false）
 /// * `progress_callback` - 进度回调函数，接收进度百分比 (0-100)
 /// * `with_bom` - 可选，是否添加 UTF-8 BOM（默认为 false）
-/// * `strict_progress_callback` - 可选，是否严格报告进度（默认为 false）。如果为 true，则每次进度更新都会触发回调；如果为 false，则可能跳过一些更新以提高性能。
+/// * `strict_progress_callback` - 可选，进度回调失败时是否中断导出（默认为 false）。为 false 时仅记录警告，不影响回调频率。
 ///
 /// # 返回值
 /// * `Promise<void>` - 异步操作的 Promise
@@ -85,8 +85,10 @@ pub async fn export_table_to_csv_batch(
         report_progress(callback, 0.0, strict)?;
     }
 
-    // 用于追踪被 rowspan 占用的位置: (row, col) -> cell_text
+    // 按列追踪活跃的 rowspan 区间，避免按声明跨度展开未来行。
     let mut tracker = RowSpanTracker::new();
+    let mut exported_rows = 0_usize;
+    let mut expected_columns = None;
 
     // 收集 Blob 片段（分块策略，降低内存峰值）
     let blob_parts = js_sys::Array::new();
@@ -100,7 +102,7 @@ pub async fn export_table_to_csv_batch(
     // 分批处理数据，每个 batch 生成一个 CSV 片段
     let mut current_row = 0;
     while current_row < total_rows {
-        let batch_end = std::cmp::min(current_row + batch_size, total_rows);
+        let batch_end = current_row.saturating_add(batch_size).min(total_rows);
 
         // 创建当前批次的 CSV Writer
         let mut wtr = Writer::from_writer(Cursor::new(Vec::new()));
@@ -116,6 +118,21 @@ pub async fn export_table_to_csv_batch(
 
             let proc_result = process_row_cells(&row, i as u32, &mut tracker, exclude_hidden)?;
 
+            // Writer 每批重建，但列数约束必须跨批保留，与同步 CSV 语义一致。
+            let column_count = proc_result.row_data.len();
+            if let Some(expected) = expected_columns {
+                if column_count != expected {
+                    return Err(JsValue::from_str(&format!(
+                        "CSV 第 {} 行列数不一致，期望 {} 列，实际 {} 列",
+                        i + 1,
+                        expected,
+                        column_count
+                    )));
+                }
+            } else {
+                expected_columns = Some(column_count);
+            }
+
             // CSV 需要转义注入字符
             let safe_row: Vec<_> = proc_result
                 .row_data
@@ -126,6 +143,7 @@ pub async fn export_table_to_csv_batch(
             // 写入 CSV 记录
             wtr.write_record(safe_row.iter().map(|s| s.as_ref()))
                 .map_err(|e| JsValue::from_str(&format!("写入 CSV 记录失败: {:?}", e)))?;
+            exported_rows += 1;
         }
 
         // 完成当前批次的 CSV 写入
@@ -156,6 +174,10 @@ pub async fn export_table_to_csv_batch(
         if current_row < total_rows {
             yield_to_browser().await?;
         }
+    }
+
+    if exported_rows == 0 {
+        return Err(JsValue::from_str("没有可导出的可见数据"));
     }
 
     // 用所有 Blob 片段创建 CSV 文件并触发下载

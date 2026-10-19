@@ -27,16 +27,28 @@ jobs:
         run: cargo fmt -- --check
 
       - name: 运行 Clippy
-        run: cargo clippy -- -D warnings
+        run: cargo clippy --locked --all-targets -- -D warnings
 
       - name: 运行测试
-        run: cargo test --lib --verbose
+        run: cargo test --locked --verbose
+
+  # 保留声明的最低 Rust 版本，避免 stable 掩盖兼容性回退
+  msrv:
+    name: Rust 1.85 兼容性
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.85.0
+        with:
+          targets: wasm32-unknown-unknown
+      - run: cargo check --locked --lib
+      - run: cargo check --locked --lib --target wasm32-unknown-unknown
 
   # WebAssembly 构建
   build-wasm:
     name: WebAssembly 构建
     runs-on: ubuntu-latest
-    needs: check
+    needs: [check, msrv]
 
     steps:
       - uses: actions/checkout@v4
@@ -49,8 +61,23 @@ jobs:
       - name: 安装 wasm-pack
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
-      - name: 构建项目
-        run: cargo check --target wasm32-unknown-unknown --verbose
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: 编译 WASM 测试
+        run: cargo check --locked --target wasm32-unknown-unknown --tests --verbose
+
+      - name: 执行 JS 数据与选项回归测试
+        run: wasm-pack test --node . --locked --lib --test test_data_regressions --test test_options_regressions
+
+      - uses: browser-actions/setup-chrome@v1
+        id: chrome
+        with:
+          install-chromedriver: true
+
+      - name: 执行真实 DOM 回归测试
+        run: wasm-pack test --headless --chromedriver "${{ steps.chrome.outputs.chromedriver-path }}" . --locked --test test_dom_regressions
 
       - name: 构建 WebAssembly 包
         run: wasm-pack build --target web --release
@@ -77,133 +104,67 @@ jobs:
           path: pkg/
           retention-days: 30
 
-  # 浏览器测试
+  # 使用实际示例页和下载文件内容作为发布门禁
   browser-test:
     name: 浏览器测试
     runs-on: ubuntu-latest
     needs: build-wasm
-
     steps:
       - uses: actions/checkout@v4
-
-      - name: 下载 WebAssembly 包
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           name: wasm-package
           path: pkg/
-
-      - name: 安装 Node.js
-        uses: actions/setup-node@v4
+      - uses: pnpm/action-setup@v4
         with:
-          node-version: "18"
-
-      - name: 创建测试页面
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: dtolnay/rust-toolchain@stable
+      - name: 安装静态服务器和浏览器测试依赖
         run: |
-          # 将测试页面放在项目根目录，方便引用 pkg/
-          cat > test-page.html << 'EOF'
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <meta charset="UTF-8">
-            <title>WebAssembly 测试</title>
-          </head>
-          <body>
-            <h1>WebAssembly 功能测试</h1>
-            <table id="test-table">
-              <tr><td>测试数据1</td><td>测试数据2</td></tr>
-              <tr><td>测试数据3</td><td>测试数据4</td></tr>
-            </table>
-            <button id="test-btn">运行测试</button>
-            <div id="result"></div>
+          cargo install basic-http-server --locked
+          pnpm --dir e2e install --frozen-lockfile
+          pnpm --dir e2e exec playwright install --with-deps chromium
+      - name: 执行浏览器 E2E
+        run: pnpm --dir e2e exec playwright test
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: e2e/playwright-report/
 
-            <script type="module">
-              import init, { export_table } from './pkg/belobog_stellar_grid.js';
-
-              document.getElementById('test-btn').addEventListener('click', async () => {
-                try {
-                  await init();
-                  export_table('test-table', 'test.csv');
-                  document.getElementById('result').innerHTML =
-                    '<div style="color: green;">✅ 测试成功</div>';
-                } catch (error) {
-                  document.getElementById('result').innerHTML =
-                    '<div style="color: red;">❌ 测试失败: ' + error.message + '</div>';
-                }
-              });
-            </script>
-          </body>
-          </html>
-          EOF
-
-      - name: 在浏览器中测试
+  packages-check:
+    name: 框架子包构建与回归
+    runs-on: ubuntu-latest
+    needs: build-wasm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: wasm-package
+          path: pkg/
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: 构建所有子包
         run: |
-          # 安装测试依赖
-          npm install puppeteer http-server
-
-          # 启动 HTTP 服务器（后台运行）
-          npx http-server . -p 8080 --silent &
-          SERVER_PID=$!
-          sleep 2
-
-          # 运行 Puppeteer 测试
-          node << 'SCRIPT'
-          const puppeteer = require('puppeteer');
-
-          (async () => {
-            const browser = await puppeteer.launch({
-              args: ['--no-sandbox', '--disable-setuid-sandbox']
-            });
-            const page = await browser.newPage();
-
-            // 监听控制台消息
-            page.on('console', msg => {
-              console.log('Browser console:', msg.text());
-            });
-
-            page.on('pageerror', error => {
-              console.error('Page error:', error.message);
-            });
-
-            try {
-              await page.goto('http://localhost:8080/test-page.html', { waitUntil: 'networkidle0' });
-
-              // 等待页面加载
-              await page.waitForSelector('h1');
-
-              // 点击测试按钮
-              await page.click('#test-btn');
-
-              // 等待测试结果
-              await page.waitForSelector('#result div', { timeout: 10000 });
-
-              const result = await page.$eval('#result', el => el.textContent);
-              console.log('Test result:', result);
-
-              await browser.close();
-
-              if (result.includes('测试成功')) {
-                console.log('✅ WebAssembly 测试通过');
-                process.exit(0);
-              } else {
-                console.log('❌ WebAssembly 测试失败');
-                process.exit(1);
-              }
-            } catch (error) {
-              console.error('Test error:', error.message);
-              await browser.close();
-              process.exit(1);
-            }
-          })();
-          SCRIPT
-
-          # 清理 HTTP 服务器
-          kill $SERVER_PID 2>/dev/null || true
+          for package in types react vue svelte solid worker; do
+            pnpm --dir "packages/$package" install --frozen-lockfile
+            pnpm --dir "packages/$package" run build
+          done
+      - name: 验证预览生命周期、类型与发布产物
+        run: node --test packages/scripts/*.test.mjs
 
   # 发布到 npm
   publish-npm:
     name: 发布到 npm
     runs-on: ubuntu-latest
-    needs: [check, build-wasm, browser-test]
+    needs: [check, build-wasm, browser-test, packages-check]
     if: startsWith(github.ref, 'refs/tags/v')
 
     steps:
@@ -215,10 +176,13 @@ jobs:
           name: wasm-package
           path: pkg/
 
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
       - name: 安装 Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "18"
+          node-version: "22"
           registry-url: "https://registry.npmjs.org"
 
       - name: 检查版本一致性
@@ -254,20 +218,20 @@ jobs:
 
       - name: 发布到 npm
         working-directory: pkg
-        run: npm publish --access public
+        run: pnpm publish --access public --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: 构建并发布子包
         run: |
-          for pkg in packages/types packages/react packages/vue packages/svelte packages/solid packages/worker; do
-            if [ -d "$pkg" ]; then
-              echo "📦 构建 $pkg..."
-              cd "$pkg" && npm install && npm run build
-              echo "📤 发布 $pkg..."
-              npm publish --access public
-              cd $GITHUB_WORKSPACE
-            fi
+          for package in types react vue svelte solid worker; do
+            pnpm --dir "packages/$package" install --frozen-lockfile
+            pnpm --dir "packages/$package" run build
+          done
+          STAGING_DIR="$RUNNER_TEMP/bsg-packages"
+          node packages/scripts/prepare-publish.mjs "$STAGING_DIR"
+          for package in types react vue svelte solid worker; do
+            pnpm --dir "$STAGING_DIR/$package" publish --access public --no-git-checks
           done
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -282,7 +246,7 @@ jobs:
   create-release:
     name: 创建 GitHub Release
     runs-on: ubuntu-latest
-    needs: [check, build-wasm, browser-test]
+    needs: [check, build-wasm, browser-test, packages-check]
     if: startsWith(github.ref, 'refs/tags/v')
     permissions:
       contents: write

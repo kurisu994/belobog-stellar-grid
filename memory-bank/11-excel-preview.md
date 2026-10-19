@@ -3,6 +3,7 @@ name: 11-excel-preview
 description: Excel 在线预览的 OOXML 解析、合并坐标、条件格式与安全上限
 paths:
   - "src/core/excel_reader.rs"
+  - "src/core/excel_preflight.rs"
   - "src/core/excel_style.rs"
   - "src/core/html_builder.rs"
 ---
@@ -87,6 +88,8 @@ Excel 条件格式常省略 `patternType`，缺省即视为 `patternType="solid"
 | `MAX_MERGE_EXPAND_CELLS` | 1_000_000 | `src/core/excel_reader.rs` |
 | `MAX_SHEET_XML_SIZE` | 50 MB | `src/core/excel_reader.rs` |
 | `MAX_XML_SIZE` | 50 MB | `src/core/excel_style.rs` |
+| 预检输入 / 单项解压 / 总解压 | 50 MiB / 50 MiB / 100 MiB | `src/core/excel_preflight.rs` |
+| `MAX_RANGE_CELLS` / `MAX_SHARED_STRINGS` | 1,000,000 / 1,000,000 | `src/core/excel_preflight.rs` |
 
 ## 负向约束（❌ 不要这么做）
 
@@ -96,3 +99,7 @@ Excel 条件格式常省略 `patternType`，缺省即视为 `patternType="solid"
 - ❌ **不要用相对坐标比较合并边界**——一律加 `range.start()` 转绝对坐标
 - ❌ **dxf 填充不要要求 `patternType="solid"`**——缺省即 solid，仅 `"none"` 不上色
 - ❌ **不要把预览 HTML 的文本/样式直出**——文本实体转义，`style` 值过滤 `;{}<>`
+- ❌ **不要只信 `dimension` 或中央目录声明的大小**——已用矩形按 `sheetData` 里 calamine 会保留的非空单元格计算；自闭合 `<row/>` 也要推进隐式行号
+- ❌ **不要把纯样式空单元格算进矩形**——calamine 会跳过 `DataRef::Empty`，但空的非 `s`/`n` 类型 `<v>` 仍会占格
+- ❌ **不要漏掉 `uniqueCount`**——calamine 在读共享字符串正文前就 `Vec::reserve`
+- ❌ **`.xls` 不能宣称已按坐标预检**——calamine 打开 BIFF 时就会整体解码，目前只有 50 MiB 原始输入上限

@@ -72,7 +72,7 @@ pub async fn export_data_streaming(
     options: Option<JsValue>,
 ) -> Result<JsValue, JsValue> {
     // 解析分块大小（从 options 中提取 chunkSize，默认 5000）
-    let chunk_size = extract_chunk_size(&options);
+    let chunk_size = extract_chunk_size(&options)?;
 
     // 解析其他配置项（复用 export_data 的解析逻辑）
     let opts = parse_export_data_options(options)?;
@@ -90,6 +90,12 @@ pub async fn export_data_streaming(
     // 构建表格数据（解析 JS 对象 → Rust 二维数组）
     let rows = build_rows_from_data(data, &opts)?;
 
+    // 与同步 CSV 一致，不能因每块重建 Writer 而放过不等宽记录。
+    if let Some(first) = rows.first() {
+        if rows.iter().any(|row| row.len() != first.len()) {
+            return Err(JsValue::from_str("CSV 数据各行的列数必须一致"));
+        }
+    }
     let total_rows = rows.len();
     if total_rows == 0 {
         return Err(JsValue::from_str("没有可导出的数据"));
@@ -166,17 +172,18 @@ pub async fn export_data_streaming(
 }
 
 /// 从 options 对象中提取 chunkSize 参数
-fn extract_chunk_size(options: &Option<JsValue>) -> usize {
-    options
+fn extract_chunk_size(options: &Option<JsValue>) -> Result<usize, JsValue> {
+    match options
         .as_ref()
         .filter(|opt| !opt.is_null() && !opt.is_undefined())
-        .and_then(|opt| {
-            js_sys::Reflect::get(opt, &JsValue::from_str("chunkSize"))
-                .ok()
-                .and_then(|v| v.as_f64())
-                .map(|n| (n as usize).max(1)) // 至少为 1
-        })
-        .unwrap_or(DEFAULT_CHUNK_SIZE)
+    {
+        Some(options) => Ok(
+            crate::utils::get_optional_integer(options, "chunkSize", 1, u32::MAX)?
+                .map(|size| size as usize)
+                .unwrap_or(DEFAULT_CHUNK_SIZE),
+        ),
+        None => Ok(DEFAULT_CHUNK_SIZE),
+    }
 }
 
 /// 根据配置构建行数据（统一处理三种数据模式）

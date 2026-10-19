@@ -47,11 +47,11 @@ pub fn generate_csv_bytes(
             .map_err(|e| JsValue::from_str(&format!("写入 CSV 数据失败: {}", e)))?;
 
         // 定期报告进度（每10行或最后一行）
-        if let Some(callback) = progress_callback
-            && (index % 10 == 0 || index == total_rows - 1)
-        {
-            let progress = ((index + 1) as f64 / total_rows as f64) * 100.0;
-            report_progress(callback, progress, strict_progress)?;
+        if let Some(callback) = progress_callback {
+            if index % 10 == 0 || index == total_rows - 1 {
+                let progress = ((index + 1) as f64 / total_rows as f64) * 100.0;
+                report_progress(callback, progress, strict_progress)?;
+            }
         }
     }
 
