@@ -77,7 +77,7 @@ jobs:
           install-chromedriver: true
 
       - name: 执行真实 DOM 回归测试
-        run: wasm-pack test --headless --chromedriver "${{ steps.chrome.outputs.chromedriver-path }}" . --locked --test test_dom_regressions
+        run: wasm-pack test --headless --chrome --chromedriver "${{ steps.chrome.outputs.chromedriver-path }}" . --locked --test test_dom_regressions
 
       - name: 构建 WebAssembly 包
         run: wasm-pack build --target web --release
