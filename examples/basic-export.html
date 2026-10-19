@@ -150,7 +150,7 @@
     </div>
 
     <script type="module">
-        import init, { export_table, ExportFormat } from '../pkg/belobog_stellar_grid.js';
+        import init, { export_table, export_data, ExportFormat } from '../pkg/belobog_stellar_grid.js';
 
         // 初始化 WebAssembly
         await init();
@@ -182,8 +182,16 @@
 
         // 导出为 Excel (带冻结配置)
         window.exportToExcelWithFreeze = () => {
-            // 参数: tableId, filename, format, excludeHidden, progressCallback, withBom, freezeRowCount, freezeColCount
-            export_table('employees-table', '员工信息表(冻结).xlsx', ExportFormat.Xlsx, false, undefined, false, 2, 1);
+            // export_table 不接收冻结参数；提取完整表格后通过 export_data 配置冻结窗格。
+            const data = Array.from(document.getElementById('employees-table').rows, row =>
+                Array.from(row.cells, cell => cell.textContent.trim())
+            );
+            export_data(data, {
+                filename: '员工信息表(冻结).xlsx',
+                format: ExportFormat.Xlsx,
+                freezeRows: 2,
+                freezeCols: 1
+            });
             console.log('✅ 导出为 Excel (带冻结配置) 完成');
         };
 

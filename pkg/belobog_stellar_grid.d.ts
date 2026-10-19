@@ -186,7 +186,7 @@ export function export_table(table_id: string, filename?: string | null, format?
  * * `exclude_hidden` - 可选，是否排除隐藏的行和列（默认为 false）
  * * `progress_callback` - 进度回调函数，接收进度百分比 (0-100)
  * * `with_bom` - 可选，是否添加 UTF-8 BOM（默认为 false）
- * * `strict_progress_callback` - 可选，是否严格报告进度（默认为 false）。如果为 true，则每次进度更新都会触发回调；如果为 false，则可能跳过一些更新以提高性能。
+ * * `strict_progress_callback` - 可选，进度回调失败时是否中断导出（默认为 false）。为 false 时仅记录警告，不影响回调频率。
  *
  * # 返回值
  * * `Promise<void>` - 异步操作的 Promise
@@ -224,6 +224,7 @@ export function export_table_to_csv_batch(table_id: string, tbody_id?: string | 
  * * `batch_size` - 每批处理的行数（默认 1000）
  * * `exclude_hidden` - 可选，是否排除隐藏的行和列（默认为 false）
  * * `progress_callback` - 进度回调函数，接收进度百分比 (0-100)
+ * * `strict_progress_callback` - 回调失败时是否中断导出（默认 false，仅记录警告）；不改变回调频率。
  *
  * # 返回值
  * * `Promise<void>` - 异步操作的 Promise
@@ -256,6 +257,7 @@ export function export_table_to_xlsx_batch(table_id: string, tbody_id?: string |
  * * `filename` - 可选的导出文件名（默认为 "table_export.xlsx"）
  * * `batch_size` - 每批处理的行数（默认 1000）
  * * `progress_callback` - 进度回调函数，接收进度百分比 (0-100)
+ * * `strict_progress_callback` - 回调失败时是否中断导出（默认 false，仅记录警告）；不改变回调频率。
  *
  * # 返回值
  * * `Promise<void>` - 异步操作的 Promise
@@ -377,6 +379,16 @@ export function parseExcelToHtml(data: Uint8Array, options: any): any;
  */
 export function parseExcelToJson(data: Uint8Array, options: any): any;
 
+/**
+ * 设置 panic 钩子
+ *
+ * 启用 `console_error_panic_hook` 后，当 WASM 代码 panic 时，
+ * 可以在浏览器控制台看到更友好的错误信息。
+ *
+ * 建议在初始化时调用一次。
+ */
+export function set_panic_hook(): void;
+
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
@@ -392,14 +404,16 @@ export interface InitOutput {
     readonly getExcelSheetList: (a: number, b: number) => [number, number, number];
     readonly parseExcelToHtml: (a: number, b: number, c: any) => [number, number, number];
     readonly parseExcelToJson: (a: number, b: number, c: any) => [number, number, number];
-    readonly wasm_bindgen_c67f70b73c5176f0___convert__closures_____invoke___wasm_bindgen_c67f70b73c5176f0___JsValue__core_9b3796e30d99ddb7___result__Result_____wasm_bindgen_c67f70b73c5176f0___JsError___true_: (a: number, b: number, c: any) => [number, number];
-    readonly wasm_bindgen_c67f70b73c5176f0___convert__closures_____invoke___js_sys_d4c08035d3a67332___Function_fn_wasm_bindgen_c67f70b73c5176f0___JsValue_____wasm_bindgen_c67f70b73c5176f0___sys__Undefined___js_sys_d4c08035d3a67332___Function_fn_wasm_bindgen_c67f70b73c5176f0___JsValue_____wasm_bindgen_c67f70b73c5176f0___sys__Undefined_______true_: (a: number, b: number, c: any, d: any) => void;
-    readonly wasm_bindgen_c67f70b73c5176f0___convert__closures_____invoke_______true_: (a: number, b: number) => void;
+    readonly set_panic_hook: () => void;
+    readonly wasm_bindgen_dd364be2ada2afa4___convert__closures_____invoke___wasm_bindgen_dd364be2ada2afa4___JsValue__core_37ee0ce0c4cd57d5___result__Result_____wasm_bindgen_dd364be2ada2afa4___JsError___true_: (a: number, b: number, c: any) => [number, number];
+    readonly wasm_bindgen_dd364be2ada2afa4___convert__closures_____invoke___js_sys_296188a1f700435d___Function_fn_wasm_bindgen_dd364be2ada2afa4___JsValue_____wasm_bindgen_dd364be2ada2afa4___sys__Undefined___js_sys_296188a1f700435d___Function_fn_wasm_bindgen_dd364be2ada2afa4___JsValue_____wasm_bindgen_dd364be2ada2afa4___sys__Undefined_______true_: (a: number, b: number, c: any, d: any) => void;
+    readonly wasm_bindgen_dd364be2ada2afa4___convert__closures_____invoke_______true_: (a: number, b: number) => void;
     readonly __wbindgen_malloc: (a: number, b: number) => number;
     readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
     readonly __wbindgen_exn_store: (a: number) => void;
     readonly __externref_table_alloc: () => number;
     readonly __wbindgen_externrefs: WebAssembly.Table;
+    readonly __wbindgen_free: (a: number, b: number, c: number) => void;
     readonly __wbindgen_destroy_closure: (a: number, b: number) => void;
     readonly __externref_table_dealloc: (a: number) => void;
     readonly __wbindgen_start: () => void;

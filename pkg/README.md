@@ -7,7 +7,7 @@
   <p>一个安全、高效、易用的 Rust WebAssembly 库，用于将 HTML 表格导出为 CSV 和 XLSX 文件</p>
 
   <p>
-    <img src="https://img.shields.io/badge/version-1.1.9-blue.svg" alt="Version" />
+    <img src="https://img.shields.io/badge/version-1.1.10-blue.svg" alt="Version" />
     <img src="https://img.shields.io/badge/rust-edition%202024-orange.svg" alt="Rust Edition" />
     <img src="https://img.shields.io/badge/test_coverage-100%25-brightgreen.svg" alt="Test Coverage" />
     <img src="https://img.shields.io/badge/license-MIT%2FApache--2.0-green.svg" alt="License" />
@@ -159,7 +159,7 @@ pnpm add -D @bsg-export/types
 ```html
 <script type="module">
   // 引入后，模块会自动从同一 CDN 路径拉取 .wasm 文件
-  import init, { export_table } from "https://unpkg.com/belobog-stellar-grid@1.0.8/pkg/belobog_stellar_grid.js";
+  import init, { export_table } from "https://unpkg.com/belobog-stellar-grid@1.1.10/belobog_stellar_grid.js";
 
   await init();
   export_table("my-table", "导出数据.csv");

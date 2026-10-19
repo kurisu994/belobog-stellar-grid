@@ -364,7 +364,7 @@
     </div>
 
     <script type="module">
-        import init, { export_table, ExportFormat } from '../pkg/belobog_stellar_grid.js';
+        import init, { export_data, ExportFormat } from '../pkg/belobog_stellar_grid.js';
 
         // 全局数据存储
         let tableData = [];
@@ -589,7 +589,19 @@
                 const today = new Date().toISOString().split('T')[0];
                 const filename = `虚拟滚动数据_${today}.csv`;
 
-                export_table('large-data-table', filename);
+                // 虚拟 DOM 只包含可见行，必须从完整数据源导出。
+                export_data(tableData, {
+                    columns: [
+                        { title: 'ID', key: 'id' },
+                        { title: '产品名称', key: 'product' },
+                        { title: '类别', key: 'category' },
+                        { title: '价格', key: 'price' },
+                        { title: '库存', key: 'stock' },
+                        { title: '销量', key: 'sales' }
+                    ],
+                    filename,
+                    format: ExportFormat.Csv
+                });
 
                 const endTime = performance.now();
                 const duration = ((endTime - startTime) / 1000).toFixed(2);
