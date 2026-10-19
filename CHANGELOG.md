@@ -9,6 +9,10 @@
 
 ## [Unreleased]
 
+---
+
+## [1.1.10] - 2026-10-19
+
 ### 修复 (Fixed)
 
 - 🐛 Excel 预览在解码前预检 XLSX：限制 50 MiB 输入、单项/总解压体积，并按真实非空单元格的外接矩形拒绝超过 100 万格的工作表；`maxRows` 和工作表列表都不能绕过
@@ -41,6 +45,7 @@
 
 - 🔧 CI 增加 MSRV 1.85、WASM/DOM 测试、Playwright 和子包类型检查；源码去掉 let-chains，与声明的 1.85 对齐
 - 🔧 框架包的 TypeScript `paths` 指向仓库内的 WASM 声明和 `@bsg-export/types` 构建产物，避免解析到旧的已发布类型
+- 🔧 CDN 回归测试从本次构建产物读取版本，避免升级版本后仍只拦截旧 CDN 地址
 - 📝 澄清流式 CSV 导出的内存语义：JS 侧仍会持有全部分片直至组成最终 Blob
 - 🔧 预览 `truncated` 同时反映行/列截断
 - ♻️ 抽取统一 Blob 下载助手、`write_sheet` 写入路径、`TableRowSources` 行源，消除 CSV/XLSX 下载与分批导出重复代码
@@ -51,7 +56,7 @@
 
 ### 文档 (Documentation)
 
-- 📝 CDN 引入示例与 README 的 unpkg 版本号从 1.0.8 更新到 1.1.9
+- 📝 CDN 引入示例与 README 的 unpkg 版本号同步到 1.1.10，并修正 README 多余的 `/pkg/` 路径
 
 ---
 

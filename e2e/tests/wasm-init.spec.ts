@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 /** 验证示例真正完成 WASM 初始化，而不是只检查静态按钮可见。 */
@@ -79,9 +80,12 @@ test.describe('WASM 初始化', () => {
     const errors: string[] = [];
     const requestedFiles: string[] = [];
     page.on('pageerror', (error) => errors.push(error.message));
+    // 跟随本次构建版本，避免发版后仍只拦截旧 CDN 地址。
+    const { version } = JSON.parse(readFileSync(resolve(__dirname, '../../pkg/package.json'), 'utf8'));
+    const cdnPackagePath = `/belobog-stellar-grid@${version}/`;
     // 保留真实 CDN URL 及相对 WASM 路径解析，只将传输替换为本地构建产物，避免外网波动。
-    await page.route('https://unpkg.com/belobog-stellar-grid@1.1.9/**', async (route) => {
-      const filename = new URL(route.request().url()).pathname.replace('/belobog-stellar-grid@1.1.9/', '');
+    await page.route(`https://unpkg.com${cdnPackagePath}**`, async (route) => {
+      const filename = new URL(route.request().url()).pathname.replace(cdnPackagePath, '');
       requestedFiles.push(filename);
       if (!['belobog_stellar_grid.js', 'belobog_stellar_grid_bg.wasm'].includes(filename)) {
         await route.abort();
