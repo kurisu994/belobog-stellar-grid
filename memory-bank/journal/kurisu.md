@@ -59,3 +59,8 @@
 - 版本升级还要同步 CDN 示例和测试拦截地址；测试现从 `pkg/package.json` 读取版本，避免发版后请求未发布 CDN 而误失败。
 - GitHub Release、Pages、npm 是三个独立结果。本次前两项已完成；本机 npm 身份查询 401，上次标签发布 404，npm 主包 latest 仍是 1.1.8，须恢复发布权限后补发，不能仅凭标签存在宣布 npm 成功。
 
+## 2026-10-19 更正 npm 未发布的原因判断
+
+- 用户追问后复核：本次两个相关流程的 npm job 都是 `skipped`，没有实际执行 npm 发布。标签流程被上游门禁失败阻断，main 修复流程则被 `if: startsWith(github.ref, 'refs/tags/v')` 排除。
+- 上条「须恢复发布权限后补发」下结论过早：本机 `pnpm whoami` 的 401 不能证明 Actions 使用的 `secrets.NPM_TOKEN` 无效；旧版 E404 也不能代替本次发布结果。应先打通明确的已有标签补发路径、用现有 Secret 实际执行，再依据错误决定是否需要用户更换凭证。
+

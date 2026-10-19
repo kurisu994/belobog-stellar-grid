@@ -34,9 +34,9 @@
 
 ## 当前阻塞与下一步
 
-1. **npm 凭证待恢复**：本机 `pnpm whoami --registry https://registry.npmjs.org/` 返回 401；仓库 `NPM_TOKEN` 最近更新时间为 2026-02-26，上次 `1.1.9` CI 的 npm PUT 返回 E404。只能确认鉴权 / 发布权限有问题，不能断言具体过期原因。
-2. 主包 npm latest 核查仍为 `1.1.8`；`1.1.10` 尚未同步。恢复有发布权限的 npm 登录 / 凭证后，再补发本版本主包与六子包；不要把 token 写入仓库、日志或聊天。
-3. 原标签绑定旧 CI 文件，直接重跑原标签 CI 仍会遇到旧脚本问题；不要盲目重跑或强制移动标签。可在恢复本机认证后使用已验证产物发布主包，子包先构建并由 `packages/scripts/prepare-publish.mjs` 生成发布副本。
+1. **已确认的直接原因是 npm 发布 job 未执行，而非本次发布报鉴权错误**：标签 CI 在 WASM/DOM 门禁失败，发布 job 被跳过；修复后的 main 手动 CI 虽全绿，但 `publish-npm.if` 仅允许 `refs/tags/v*`，因此仍跳过。仓库已配置 `NPM_TOKEN`。
+2. 主包 npm latest 核查仍为 `1.1.8`；`1.1.10` 尚未同步。应补齐显式的已有标签补发路径，保留版本、产物来源和测试门禁，再用现有 CI Secret 实际执行发布。不能因本机 `pnpm whoami` 返回 401 就要求用户先更换 CI Token：本机登录与 Actions Secret 是独立认证环境；`1.1.9` 的 E404 也只属历史证据，当前 Secret 有效性尚未验证。
+3. 原标签绑定旧 CI 文件，直接重跑原标签 CI 仍会遇到旧脚本问题；不要盲目重跑或强制移动标签，也不要把 main 的所有手动检查都改成自动发布。新增补发入口时需明确发布版本与对应产物；子包继续由 `packages/scripts/prepare-publish.mjs` 生成发布副本。不要把 token 写入仓库、日志或聊天。
 4. 共识层 `00-project.md` / `14-build-release.md` 等仍是旧版本事实快照，本次未直接改动这些需 PR review 的文件。
 
 ## 未排期事项
