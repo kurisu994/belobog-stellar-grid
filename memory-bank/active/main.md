@@ -6,21 +6,32 @@
 ## 目标
 
 - **暂无进行中的代码任务**：主线停在 `1.1.9` 功能完备、尚未发版的状态
-- 本轮收尾目标：完成记忆银行从旧版 6 枢纽到四层结构的迁移
+- 记忆银行四层迁移已在 `abc4cdf` 完成并提交，本轮（2026-09-10）做了增量校准：
+  补齐 README 的「写入门槛」与「个人日志归属」、实测 paths 注入、复核事实与代码一致
 
 ## 验收标准
 
-- 旧的 6 个枢纽文件内容零丢失地落到新结构（`--verify` 通过）
-- `1X-*.md` 每份都带 `paths` 并能被 hook 实测命中
-- `AGENTS.md` 指向新的 `memory-bank/README.md`
+- 旧的 6 个枢纽内容零丢失地落到新结构（`--verify` 通过）✅
+- `1X-*.md` 每份都带 `paths` 并能被 hook 实测命中 ✅（`src/core/export_*.rs` →
+  `10-export-core`、`src/core/html_builder.rs` → `11-excel-preview`、`packages/**` →
+  `14-build-release`、`benches/**` → `13-testing` 均实测命中）
+- `AGENTS.md` 指向新的 `memory-bank/README.md` ✅
+- README 含写入门槛与个人日志归属，且不与全局规范冲突 ✅
 
 ## 当前状态
 
-- **当前 HEAD**：`33b1655`（修正记忆银行事实错误与分工）
-- **上一版文档记录点**：`c77cf71`（更新 CDN 示例版本号到 1.1.9）；其后的 `86fad2f`、`33b1655` 均为记忆银行文档改动，无代码变更
-- **最近代码验证基线**：`32c5361`（全量代码审查修复，解决 panic、合并坐标、Blob URL 泄漏、OOM 上限与重复代码重构）
-- **版本状态**：`1.1.9`（`CHANGELOG.md` 中 `[Unreleased]` 已记录本次审查修复，尚未发版）
-- **测试现状**：218 个 Rust 单元/集成测试全部通过；WASM 目标（`wasm32-unknown-unknown`）编译通过；Clippy 检查通过
+- **当前 HEAD**：`abc4cdf`（记忆银行迁移到四层结构并启用路径注入），工作区干净
+- **上一个代码提交**：`32c5361`（全量代码审查修复：panic、合并坐标、Blob URL 泄漏、
+  OOM 上限与重复代码重构）；其后所有提交均为文档/记忆银行改动，无代码变更
+- **版本状态**：`1.1.9`，六个 `packages/*` 子包版本一致；`CHANGELOG.md` 的 `[Unreleased]`
+  已记录审查修复，尚未发版
+- **事实复核结果**：常量（`MAX_DATA_CELLS=5_000_000`、`MAX_HEADER_CELLS=100_000`、
+  `MAX_DEPTH=64`、`DEFAULT_CHUNK_SIZE=5000`、`EXCEL_MAX_ROW/COL=1_048_575/16_383`、
+  预览侧 `100_000/16_384/1_000_000/50MB`）、分批默认 1000 行、15 个 HTML 示例、
+  8 个 E2E 用例、6 个子包版本，与 `memory-bank/` 记载全部一致
+- **测试基线**：218 个 Rust 单元/集成测试通过；wasm32 目标编译通过；`cargo clippy -- -D warnings` 通过
+- **注入机制**：`.claude/` 已装 hook（PostToolUse + SessionStart），`.gitattributes` 已配
+  `memory-bank/journal/*.md merge=union`；项目内无 `.codex/` / `.opencode/` 目录，故未装
 
 ## 活跃文件
 
@@ -41,6 +52,7 @@ src/
 ├── utils.rs                # escape_csv_injection 剥离 BOM
 └── validation.rs           # prepare_download_filename 预检
 CHANGELOG.md                # 记录 [Unreleased] 修复项
+memory-bank/                # 本轮唯一改动区域（README / active / journal）
 ```
 
 ## 最近已做决策
@@ -55,6 +67,7 @@ CHANGELOG.md                # 记录 [Unreleased] 修复项
 | 共享 `ZipArchive` 读取预览信息 | 样式表与 sheet XML 共用解包流，合并区域复用 workbook | `src/core/excel_reader.rs` |
 | dxf `patternType` 缺省视为 solid | 兼容 Excel 条件格式省略 patternType 的标准写法 | `src/core/excel_style.rs` |
 | 极值保留原始精度 | 避免固定 10 位小数把 `1e-15` 截为 `"0"` | `src/core/data_export.rs` |
+| README 的写入门槛/日志归属从全局规范回填 | 项目文档不得用「每轮追加流水」或「按日志文件名猜用户」覆盖底线 | `memory-bank/README.md` |
 
 ## 下一步
 
@@ -67,9 +80,12 @@ CHANGELOG.md                # 记录 [Unreleased] 修复项
 - [ ] 评估是否将 XLSX 分批与流式导出的公共 DOM 迭代再收窄
 - [ ] 评估 `packages/` 自动化测试与发布工作流联动
 - [ ] 针对大数据量导出补充端到端基准追踪
+- [ ] 如后续接入 Codex / OpenCode，为其补装对应 hook（当前项目只有 `.claude/`）
 
 ## 当前阻塞 / 注意事项
 
 - **无关键代码阻塞**
 - **注意事项**：`cargo clippy --all-targets` 中有 10 处既有的测试/基准代码告警（如近似 PI 常量），
   不影响生产代码 `cargo clippy -- -D warnings`；日常校验以 `just lint` / `cargo clippy -- -D warnings` 为准
+- **注意事项**：hook 对同一份规范每会话只注入一次，一次验证多份规范时要换 `session_id`，
+  否则会误判为「paths 没命中」
