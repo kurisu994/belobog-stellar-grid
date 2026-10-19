@@ -455,12 +455,24 @@ just ci-release major   # 主要版本 1.0.0 -> 2.0.0
 
 1. **代码质量检查** — `cargo fmt`、`cargo clippy`、`cargo test`
 2. **WebAssembly 构建** — `wasm-pack build --target web --release`
-3. **浏览器测试** — Puppeteer 自动化验证 WASM 加载和基本功能
+3. **浏览器与子包验证** — Chrome DOM 回归、Playwright E2E、六子包构建及回归测试
 4. **发布主包** — 将 `pkg/` 发布到 npm（`belobog-stellar-grid`）
 5. **发布子包** — 构建并发布 `@bsg-export/types`、`@bsg-export/react`、`@bsg-export/vue`、`@bsg-export/svelte`、`@bsg-export/solid`、`@bsg-export/worker`
 6. **创建 GitHub Release** — 自动提取 CHANGELOG 生成发布说明，附带 WASM 构建产物
 
 > ⚠️ 需要在 GitHub 仓库 Settings → Secrets 中配置 `NPM_TOKEN`
+
+#### 按已有标签补发
+
+标签已存在，但之前的 npm 发布被跳过或仅发布了部分包时，可以使用当前工作流补发，无须移动标签或升级版本：
+
+```bash
+gh workflow run ci.yml --ref main -f release_tag=v1.1.10
+```
+
+也可在 GitHub Actions 的 CI → Run workflow 中选择 `main`，填写 `release_tag`。工作流会校验标签与版本，并将全部验证、构建和发布固定到该标签的提交；只有所有门禁通过后才使用仓库的 `NPM_TOKEN` 发布。已存在的 npm 版本会跳过，以便补发剩余子包。此入口不会覆盖已有 GitHub Release，也不会重新部署 Pages。
+
+`release_tag` 留空时只执行检查，不发布 npm。
 
 #### 🔧 手动发布
 

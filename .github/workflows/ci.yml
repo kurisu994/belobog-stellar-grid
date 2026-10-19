@@ -2,6 +2,12 @@ name: CI
 
 on:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "补发已有版本标签（如 v1.1.10）；留空仅执行检查"
+        required: false
+        default: ""
+        type: string
   push:
     tags:
       - "v*"
@@ -11,12 +17,66 @@ env:
   RUST_BACKTRACE: 1
 
 jobs:
+  # 手动补发使用当前工作流，但所有源码与产物必须来自指定的已有标签。
+  resolve-release:
+    name: 确定验证与发布版本
+    runs-on: ubuntu-latest
+    outputs:
+      source_sha: ${{ steps.source.outputs.source_sha }}
+      version: ${{ steps.source.outputs.version }}
+      tag: ${{ steps.source.outputs.tag }}
+      publish: ${{ steps.source.outputs.publish }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: 校验标签并固定源码提交
+        id: source
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_REF: ${{ github.ref }}
+          WORKFLOW_SHA: ${{ github.sha }}
+          INPUT_RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          tag=""
+          publish=false
+          source_sha="$WORKFLOW_SHA"
+          if [[ "$EVENT_NAME" == "push" && "$EVENT_REF" == refs/tags/v* ]]; then
+            tag="${EVENT_REF#refs/tags/}"
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            tag="$INPUT_RELEASE_TAG"
+          fi
+          if [[ -n "$tag" ]]; then
+            if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
+              echo "错误：必须指定版本标签，例如 v1.1.10"
+              exit 1
+            fi
+            source_sha=$(git rev-parse --verify "refs/tags/$tag^{commit}")
+            publish=true
+          fi
+          version=$(git show "$source_sha:Cargo.toml" | python3 -c 'import sys,tomllib; print(tomllib.load(sys.stdin.buffer)["package"]["version"])')
+          if [[ "$publish" == true && "$tag" != "v$version" ]]; then
+            echo "错误：标签 $tag 与源码版本 $version 不一致"
+            exit 1
+          fi
+          {
+            echo "source_sha=$source_sha"
+            echo "version=$version"
+            echo "tag=$tag"
+            echo "publish=$publish"
+          } >> "$GITHUB_OUTPUT"
+          echo "源码提交：${source_sha}；版本：${version}；执行 npm 发布：${publish}"
+
   # 代码质量检查
   check:
     name: 代码质量检查
     runs-on: ubuntu-latest
+    needs: resolve-release
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-release.outputs.source_sha }}
 
       - name: 安装 Rust
         uses: dtolnay/rust-toolchain@stable
@@ -36,8 +96,11 @@ jobs:
   msrv:
     name: Rust 1.85 兼容性
     runs-on: ubuntu-latest
+    needs: resolve-release
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-release.outputs.source_sha }}
       - uses: dtolnay/rust-toolchain@1.85.0
         with:
           targets: wasm32-unknown-unknown
@@ -48,10 +111,12 @@ jobs:
   build-wasm:
     name: WebAssembly 构建
     runs-on: ubuntu-latest
-    needs: [check, msrv]
+    needs: [resolve-release, check, msrv]
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-release.outputs.source_sha }}
 
       - name: 安装 Rust
         uses: dtolnay/rust-toolchain@stable
@@ -119,9 +184,11 @@ jobs:
   browser-test:
     name: 浏览器测试
     runs-on: ubuntu-latest
-    needs: build-wasm
+    needs: [resolve-release, build-wasm]
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-release.outputs.source_sha }}
       - uses: actions/download-artifact@v4
         with:
           name: wasm-package
@@ -149,9 +216,11 @@ jobs:
   packages-check:
     name: 框架子包构建与回归
     runs-on: ubuntu-latest
-    needs: build-wasm
+    needs: [resolve-release, build-wasm]
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-release.outputs.source_sha }}
       - uses: actions/download-artifact@v4
         with:
           name: wasm-package
@@ -175,11 +244,16 @@ jobs:
   publish-npm:
     name: 发布到 npm
     runs-on: ubuntu-latest
-    needs: [check, build-wasm, browser-test, packages-check]
-    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [resolve-release, check, build-wasm, browser-test, packages-check]
+    if: needs.resolve-release.outputs.publish == 'true'
+    concurrency:
+      group: npm-publish-${{ needs.resolve-release.outputs.tag }}
+      cancel-in-progress: false
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-release.outputs.source_sha }}
 
       - name: 下载 WebAssembly 包
         uses: actions/download-artifact@v4
@@ -196,74 +270,78 @@ jobs:
           node-version: "22"
           registry-url: "https://registry.npmjs.org"
 
-      - name: 检查版本一致性
-        run: |
-          VERSION=$(echo ${{ github.ref }} | sed 's/refs\/tags\/v//')
-          echo "发布版本: $VERSION"
-
-          # 检查 Cargo.toml 版本
-          CARGO_VERSION=$(grep '^version = ' Cargo.toml | cut -d '"' -f 2)
-          if [ "$VERSION" != "$CARGO_VERSION" ]; then
-            echo "❌ 版本不一致: Git=$VERSION, Cargo=$CARGO_VERSION"
-            exit 1
-          fi
-
-          echo "✅ 版本一致性检查通过"
-
-      - name: 准备发布
-        working-directory: pkg
-        run: |
-          # 确保 package.json 存在
-          if [ ! -f package.json ]; then
-            echo "❌ pkg/package.json 不存在"
-            exit 1
-          fi
-
-          # 显示包信息
-          echo "📦 包信息:"
-          cat package.json
-
-          echo ""
-          echo "📂 包内容:"
-          ls -la
-
-      - name: 发布到 npm
-        working-directory: pkg
-        run: pnpm publish --access public --no-git-checks
+      - name: 检查版本并准备全部发布包
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: 构建并发布子包
+          RELEASE_VERSION: ${{ needs.resolve-release.outputs.version }}
         run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+          const directories = ['pkg', ...['types', 'react', 'vue', 'svelte', 'solid', 'worker'].map(name => `packages/${name}`)];
+          for (const directory of directories) {
+            const manifest = JSON.parse(readFileSync(`${directory}/package.json`, 'utf8'));
+            if (manifest.version !== process.env.RELEASE_VERSION) {
+              throw new Error(`${directory} 版本与标签版本不一致`);
+            }
+          }
+          NODE
           for package in types react vue svelte solid worker; do
             pnpm --dir "packages/$package" install --frozen-lockfile
             pnpm --dir "packages/$package" run build
           done
-          STAGING_DIR="$RUNNER_TEMP/bsg-packages"
-          node packages/scripts/prepare-publish.mjs "$STAGING_DIR"
-          for package in types react vue svelte solid worker; do
-            pnpm --dir "$STAGING_DIR/$package" publish --access public --no-git-checks
-          done
+          node packages/scripts/prepare-publish.mjs "$RUNNER_TEMP/bsg-packages"
+
+      - name: 发布缺失的 npm 版本
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          STAGING_DIR: ${{ runner.temp }}/bsg-packages
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+          import { spawnSync } from 'node:child_process';
+          if (!process.env.NODE_AUTH_TOKEN) throw new Error('未配置 NPM_TOKEN');
+          const directories = ['pkg', ...['types', 'react', 'vue', 'svelte', 'solid', 'worker'].map(name => `${process.env.STAGING_DIR}/${name}`)];
+          for (const directory of directories) {
+            const { name, version } = JSON.parse(readFileSync(`${directory}/package.json`, 'utf8'));
+            const response = await fetch(`https://registry.npmjs.org/${encodeURIComponent(name)}/${version}`, {
+              signal: AbortSignal.timeout(30000),
+            });
+            if (response.ok) {
+              const published = await response.json();
+              if (published.name !== name || published.version !== version) throw new Error(`${name} 的 registry 元数据不匹配`);
+              console.log(`已存在，跳过 ${name}@${version}`);
+              continue;
+            }
+            // 只有明确的 404 才表示版本缺失，鉴权或网络错误不能当成未发布。
+            if (response.status !== 404) throw new Error(`查询 ${name}@${version} 失败：HTTP ${response.status}`);
+            console.log(`正在发布 ${name}@${version}`);
+            const result = spawnSync('pnpm', ['publish', '--access', 'public', '--no-git-checks', '--registry', 'https://registry.npmjs.org/'], {
+              cwd: directory,
+              stdio: 'inherit',
+            });
+            if (result.status !== 0) throw new Error(`发布 ${name}@${version} 失败`);
+          }
+          NODE
 
       - name: 发布成功通知
+        env:
+          RELEASE_VERSION: ${{ needs.resolve-release.outputs.version }}
         run: |
-          VERSION=$(echo ${{ github.ref }} | sed 's/refs\/tags\/v//')
-          echo "🎉 成功发布 belobog-stellar-grid@$VERSION 到 npm!"
-          echo "📦 https://www.npmjs.com/package/belobog-stellar-grid"
+          echo "npm 主包与六子包的 $RELEASE_VERSION 版本发布处理完成"
+          echo "https://www.npmjs.com/package/belobog-stellar-grid"
 
   # 创建 GitHub Release
   create-release:
     name: 创建 GitHub Release
     runs-on: ubuntu-latest
-    needs: [check, build-wasm, browser-test, packages-check]
-    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [resolve-release, check, build-wasm, browser-test, packages-check]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     permissions:
       contents: write
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-release.outputs.source_sha }}
 
       - name: 提取版本号
         id: version
