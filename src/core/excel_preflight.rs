@@ -62,11 +62,26 @@ pub(super) fn preflight(data: &[u8]) -> Result<Option<PrecheckedArchive<'_>>, St
         }
     }
     check_shared_strings(&mut archive)?;
-    let paths = sheet_paths(&mut archive)?;
-    for path in &paths {
+    let Some(paths) = sheet_paths(&mut archive)? else {
+        // ODS / XLSB 等 ZIP 容器没有 OOXML 工作表关系，无法按坐标预检；
+        // 与 .xls 一致，只保留上面的体积上限。
+        return Ok(None);
+    };
+    // 多个 <sheet> 可以指向同一个 worksheet，去重后才不会重复整份扫描。
+    for path in unique_sheet_paths(&paths) {
         scan_sheet(&mut archive, path)?;
     }
     Ok(Some((archive, paths)))
+}
+
+/// 按首次出现顺序去重，保证同一条目只扫描一次。
+fn unique_sheet_paths(paths: &[String]) -> Vec<&str> {
+    let mut seen = HashSet::new();
+    paths
+        .iter()
+        .map(String::as_str)
+        .filter(|path| seen.insert(*path))
+        .collect()
 }
 
 /// 关系标识和目标保留原始属性值，与 calamine 0.34 的查找语义一致。
@@ -80,16 +95,23 @@ fn attr(event: &BytesStart<'_>, key: &[u8]) -> Option<String> {
 
 /// 按 calamine 相同的忽略 ASCII 大小写/斜线规则取得实际 ZIP 项名。
 fn archive_path<R: Read + Seek>(archive: &ZipArchive<R>, path: &str) -> Result<String, String> {
+    optional_archive_path(archive, path).ok_or_else(|| format!("Excel 压缩包缺少文件: {path}"))
+}
+
+/// 与 `archive_path` 相同，但缺失时返回 `None` 而不是报错。
+fn optional_archive_path<R: Read + Seek>(archive: &ZipArchive<R>, path: &str) -> Option<String> {
     archive
         .file_names()
         .find(|name| name.replace('\\', "/").eq_ignore_ascii_case(path))
         .map(str::to_owned)
-        .ok_or_else(|| format!("Excel 压缩包缺少文件: {path}"))
 }
 
 /// 从 workbook 的 r:id 定位关系，不能用 rels 的物理顺序猜工作表。
-fn sheet_paths<R: Read + Seek>(archive: &mut ZipArchive<R>) -> Result<Vec<String>, String> {
-    let workbook_path = archive_path(archive, "xl/workbook.xml")?;
+/// 不是 xlsx（缺少 `xl/workbook.xml`）时返回 `None`，由调用方降级处理。
+fn sheet_paths<R: Read + Seek>(archive: &mut ZipArchive<R>) -> Result<Option<Vec<String>>, String> {
+    let Some(workbook_path) = optional_archive_path(archive, "xl/workbook.xml") else {
+        return Ok(None);
+    };
     let rels_path = archive_path(archive, "xl/_rels/workbook.xml.rels")?;
     let mut ids = Vec::new();
     let mut reader = quick_xml::Reader::from_reader(BufReader::new(
@@ -137,25 +159,27 @@ fn sheet_paths<R: Read + Seek>(archive: &mut ZipArchive<R>) -> Result<Vec<String
         buf.clear();
     }
     drop(reader);
-    ids.into_iter()
-        .map(|id| {
-            let target = relations
-                .get(&id)
-                .ok_or_else(|| format!("找不到工作表关系: {id}"))?;
-            let path = normalize_path(target)?;
-            let calamine_path = if let Some(path) = target.strip_prefix("/xl/") {
-                format!("xl/{path}")
-            } else if target.starts_with("xl/") {
-                target.clone()
-            } else {
-                format!("xl/{target}")
-            };
-            if path != calamine_path {
-                return Err("工作表路径不规范，无法安全预检".into());
-            }
-            archive_path(archive, &path)
-        })
-        .collect()
+    Ok(Some(
+        ids.into_iter()
+            .map(|id| {
+                let target = relations
+                    .get(&id)
+                    .ok_or_else(|| format!("找不到工作表关系: {id}"))?;
+                let path = normalize_path(target)?;
+                let calamine_path = if let Some(path) = target.strip_prefix("/xl/") {
+                    format!("xl/{path}")
+                } else if target.starts_with("xl/") {
+                    target.clone()
+                } else {
+                    format!("xl/{target}")
+                };
+                if path != calamine_path {
+                    return Err("工作表路径不规范，无法安全预检".into());
+                }
+                archive_path(archive, &path)
+            })
+            .collect::<Result<Vec<_>, String>>()?,
+    ))
 }
 
 /// 按 OPC 相对路径规则解析 workbook.xml 的目标路径。
@@ -244,11 +268,22 @@ struct OpenCell {
     counts: bool,
 }
 
+/// 单元格正文容器；其中的嵌套标签按 calamine 语义忽略，不能改变行列状态。
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum BodyKind {
+    Value,
+    Formula,
+    Inline,
+}
+
 struct SheetScan {
     row: u32,
     col: u32,
     in_sheet_data: bool,
     open: Option<OpenCell>,
+    /// 正文容器及其内部嵌套深度（0 表示当前结束标签就是容器本身）。
+    body: Option<BodyKind>,
+    body_depth: u32,
     in_value: bool,
     in_inline: bool,
     value_text: String,
@@ -293,6 +328,8 @@ fn finish_open_cell(scan: &mut SheetScan) -> Result<(), String> {
             include_used_cell(&mut scan.bounds, cell.row, cell.col)?;
         }
     }
+    scan.body = None;
+    scan.body_depth = 0;
     scan.in_value = false;
     scan.in_inline = false;
     Ok(())
@@ -365,6 +402,8 @@ fn handle_sheet_tag(
                     cell.counts = value_occupies(cell.type_name.as_deref(), "");
                 }
             } else {
+                scan.body = Some(BodyKind::Value);
+                scan.body_depth = 0;
                 scan.in_value = true;
                 scan.in_inline = false;
                 scan.value_text.clear();
@@ -375,13 +414,28 @@ fn handle_sheet_tag(
                 // 空 inlineStr 仍是 String，不是 Empty。
                 cell.counts = true;
             }
+            scan.body = if is_empty {
+                None
+            } else {
+                Some(BodyKind::Inline)
+            };
+            scan.body_depth = 0;
             scan.in_inline = !is_empty;
             scan.in_value = false;
         }
-        b"f" if is_empty && scan.open.is_some() => {
+        b"f" if scan.open.is_some() => {
+            // 公式没有缓存值时 calamine 返回 Empty，后续 `<v>` 仍可覆盖回来。
             if let Some(cell) = scan.open.as_mut() {
                 cell.counts = false;
             }
+            scan.body = if is_empty {
+                None
+            } else {
+                Some(BodyKind::Formula)
+            };
+            scan.body_depth = 0;
+            scan.in_value = false;
+            scan.in_inline = false;
         }
         _ => {}
     }
@@ -400,6 +454,8 @@ fn scan_sheet<R: Read + Seek>(archive: &mut ZipArchive<R>, path: &str) -> Result
         col: 0,
         in_sheet_data: false,
         open: None,
+        body: None,
+        body_depth: 0,
         in_value: false,
         in_inline: false,
         value_text: String::new(),
@@ -407,8 +463,19 @@ fn scan_sheet<R: Read + Seek>(archive: &mut ZipArchive<R>, path: &str) -> Result
     };
     loop {
         match reader.read_event_into(&mut buf) {
-            Ok(Event::Start(event)) => handle_sheet_tag(&mut scan, &event, false)?,
-            Ok(Event::Empty(event)) => handle_sheet_tag(&mut scan, &event, true)?,
+            Ok(Event::Start(event)) => {
+                // 正文里的嵌套标签不推进行列，也不重置当前单元格。
+                if scan.body.is_some() {
+                    scan.body_depth += 1;
+                } else {
+                    handle_sheet_tag(&mut scan, &event, false)?;
+                }
+            }
+            Ok(Event::Empty(event)) => {
+                if scan.body.is_none() {
+                    handle_sheet_tag(&mut scan, &event, true)?;
+                }
+            }
             Ok(Event::Text(text)) if scan.in_value || scan.in_inline => match text.unescape() {
                 Ok(value) => scan.value_text.push_str(&value),
                 Err(_) => scan.value_text.push('\u{FFFD}'),
@@ -417,36 +484,44 @@ fn scan_sheet<R: Read + Seek>(archive: &mut ZipArchive<R>, path: &str) -> Result
                 scan.value_text
                     .push_str(&String::from_utf8_lossy(text.as_ref()));
             }
-            Ok(Event::End(event)) => match event.local_name().as_ref() {
-                b"sheetData" => {
-                    finish_open_cell(&mut scan)?;
-                    scan.in_sheet_data = false;
-                }
-                b"row" if scan.in_sheet_data => {
-                    finish_open_cell(&mut scan)?;
-                    scan.row = scan.row.saturating_add(1);
-                    scan.col = 0;
-                }
-                b"v" => {
-                    scan.in_value = false;
-                    if let Some(cell) = scan.open.as_mut() {
-                        cell.counts = value_occupies(cell.type_name.as_deref(), &scan.value_text);
+            Ok(Event::End(event)) => {
+                if scan.body.is_some() && scan.body_depth > 0 {
+                    scan.body_depth -= 1;
+                } else {
+                    scan.body = None;
+                    scan.body_depth = 0;
+                    match event.local_name().as_ref() {
+                        b"sheetData" => {
+                            finish_open_cell(&mut scan)?;
+                            scan.in_sheet_data = false;
+                        }
+                        b"row" if scan.in_sheet_data => {
+                            finish_open_cell(&mut scan)?;
+                            scan.row = scan.row.saturating_add(1);
+                            scan.col = 0;
+                        }
+                        b"v" => {
+                            scan.in_value = false;
+                            if let Some(cell) = scan.open.as_mut() {
+                                cell.counts =
+                                    value_occupies(cell.type_name.as_deref(), &scan.value_text);
+                            }
+                        }
+                        b"is" => {
+                            scan.in_inline = false;
+                            if let Some(cell) = scan.open.as_mut() {
+                                cell.counts = true;
+                            }
+                        }
+                        b"f" => {
+                            scan.in_value = false;
+                            scan.in_inline = false;
+                        }
+                        b"c" => finish_open_cell(&mut scan)?,
+                        _ => {}
                     }
                 }
-                b"is" => {
-                    scan.in_inline = false;
-                    if let Some(cell) = scan.open.as_mut() {
-                        cell.counts = true;
-                    }
-                }
-                b"f" => {
-                    if let Some(cell) = scan.open.as_mut() {
-                        cell.counts = false;
-                    }
-                }
-                b"c" => finish_open_cell(&mut scan)?,
-                _ => {}
-            },
+            }
             Ok(Event::Eof) => break,
             Err(e) => return Err(format!("预检工作表 XML 失败: {e}")),
             _ => {}
@@ -810,6 +885,114 @@ mod tests {
         let untyped = r#"<worksheet><sheetData><row r="1"><c r="A1"><v>1</v></c></row><row r="1048576"><c r="XFD1048576"><v></v></c></row></sheetData></worksheet>"#;
         let data = replace_entries(&base_fixture(), &[(SHEET, untyped)]);
         assert!(preflight(&data).unwrap_err().contains("矩形"));
+    }
+
+    #[test]
+    fn test_excel_preflight_nested_tags_inside_cell_body_are_ignored() {
+        // 单元格体内的同名标签不能推动行列或重置当前单元格，否则可绕过矩形限额。
+        for xml in [
+            r#"<worksheet><sheetData><row r="1"><c r="A1"><v>1</v></c></row><row r="200"><c r="XFD200"><f><row/></f><v>2</v></c></row></sheetData></worksheet>"#,
+            r#"<worksheet><sheetData><row r="1"><c r="A1"><v>1</v></c></row><row r="200"><c r="XFD200"><f><c r="A1"/></f><v>2</v></c></row></sheetData></worksheet>"#,
+            r#"<worksheet><sheetData><row r="1"><c r="A1"><v>1</v></c></row><row r="200"><c r="XFD200"><v><c r="A1"/></v></c></row></sheetData></worksheet>"#,
+            r#"<worksheet><sheetData><row r="1"><c r="A1"><v>1</v></c></row><row r="200"><c r="XFD200" t="inlineStr"><is><t><row/></t></is></c></row></sheetData></worksheet>"#,
+        ] {
+            let data = replace_entries(&base_fixture(), &[(SHEET, xml)]);
+            assert!(
+                preflight(&data).unwrap_err().contains("矩形超过安全上限"),
+                "{xml}"
+            );
+        }
+        // t="n" 的空值 calamine 同样当 Empty 跳过，属于正常情形而非绕过。
+        let empty_number = r#"<worksheet><sheetData><row r="1"><c r="A1"><v>1</v></c></row><row r="200"><c r="XFD200" t="n"><v><c r="A1"/></v></c></row></sheetData></worksheet>"#;
+        let data = replace_entries(&base_fixture(), &[(SHEET, empty_number)]);
+        assert!(preflight(&data).is_ok());
+    }
+
+    #[test]
+    fn test_excel_preflight_inline_string_text_is_still_collected() {
+        let xml = r#"<worksheet><sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>风宝</t></is></c></row></sheetData></worksheet>"#;
+        let data = replace_entries(&base_fixture(), &[(SHEET, xml)]);
+        preflight(&data).unwrap();
+        let parsed = parse_excel(&data, &PreviewOptions::default()).unwrap();
+        assert_eq!(
+            parsed.sheets[0].rows[0].cells[0].as_ref().unwrap().value,
+            "风宝"
+        );
+    }
+
+    /// 最小 ODS：calamine 可读，但不是 OOXML 工作簿。
+    fn ods_fixture() -> Vec<u8> {
+        let content = r#"<?xml version="1.0" encoding="UTF-8"?><office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" office:version="1.2"><office:body><office:spreadsheet><table:table table:name="Sheet1"><table:table-row><table:table-cell office:value-type="string"><text:p>hello</text:p></table:table-cell></table:table-row></table:table></office:spreadsheet></office:body></office:document-content>"#;
+        let manifest = r#"<?xml version="1.0" encoding="UTF-8"?><manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0"><manifest:file-entry manifest:full-path="/" manifest:media-type="application/vnd.oasis.opendocument.spreadsheet"/><manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/></manifest:manifest>"#;
+        let mut output = zip::ZipWriter::new(Cursor::new(Vec::new()));
+        output
+            .start_file(
+                "mimetype",
+                zip::write::SimpleFileOptions::default()
+                    .compression_method(zip::CompressionMethod::Stored),
+            )
+            .unwrap();
+        output
+            .write_all(b"application/vnd.oasis.opendocument.spreadsheet")
+            .unwrap();
+        for (name, body) in [
+            ("content.xml", content),
+            ("META-INF/manifest.xml", manifest),
+        ] {
+            output
+                .start_file(name, zip::write::SimpleFileOptions::default())
+                .unwrap();
+            output.write_all(body.as_bytes()).unwrap();
+        }
+        output.finish().unwrap().into_inner()
+    }
+
+    #[test]
+    fn test_excel_preflight_non_xlsx_zip_degrades_without_rejecting() {
+        let data = ods_fixture();
+        // 没有 OOXML 工作表关系时只能限制体积，不能把 calamine 认得的格式拒掉。
+        assert!(preflight(&data).unwrap().is_none());
+        let parsed = parse_excel(&data, &PreviewOptions::default()).unwrap();
+        assert_eq!(
+            parsed.sheets[0].rows[0].cells[0].as_ref().unwrap().value,
+            "hello"
+        );
+        assert_eq!(get_sheet_list(&data).unwrap()[0].name, "Sheet1");
+    }
+
+    #[test]
+    fn test_unique_sheet_paths_keeps_order_and_drops_repeats() {
+        let paths = vec![
+            "xl/worksheets/sheet1.xml".to_string(),
+            "xl/worksheets/sheet2.xml".to_string(),
+            "xl/worksheets/sheet1.xml".to_string(),
+        ];
+        assert_eq!(
+            unique_sheet_paths(&paths),
+            vec!["xl/worksheets/sheet1.xml", "xl/worksheets/sheet2.xml"]
+        );
+    }
+
+    #[test]
+    fn test_excel_preflight_repeated_sheet_relation_scans_once() {
+        let mut sheets = String::new();
+        for index in 1..=200 {
+            sheets.push_str(&format!(
+                r#"<sheet name="S{index}" sheetId="{index}" r:id="rId1"/>"#
+            ));
+        }
+        let workbook = format!(
+            r#"<?xml version="1.0"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>{sheets}</sheets></workbook>"#
+        );
+        let data = replace_entries(&base_fixture(), &[("xl/workbook.xml", &workbook)]);
+        let started = std::time::Instant::now();
+        assert!(preflight(&data).is_ok());
+        // 去重前这个夹具需要重复整份扫描 200 次；留足慢机器余量。
+        assert!(
+            started.elapsed() < std::time::Duration::from_secs(2),
+            "重复 relation 不应重复扫描同一工作表: {:?}",
+            started.elapsed()
+        );
     }
 
     #[test]

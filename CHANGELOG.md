@@ -12,14 +12,16 @@
 ### 修复 (Fixed)
 
 - 🐛 Excel 预览在解码前预检 XLSX：限制 50 MiB 输入、单项/总解压体积，并按真实非空单元格的外接矩形拒绝超过 100 万格的工作表；`maxRows` 和工作表列表都不能绕过
-- 🐛 补上两类仍可绕过预检的输入：自闭合 `<row/>` 现在会推进隐式行号；`sharedStrings/@uniqueCount` 超过 100 万时直接拒绝，避免底层库按声明值预分配
+- 🐛 补上仍可绕过预检的输入：自闭合 `<row/>` 会推进隐式行号；`<v>`/`<f>`/`<is>` 内的嵌套标签不再改动行列或重置当前单元格；`sharedStrings/@uniqueCount` 超过 100 万时直接拒绝，避免底层库按声明值预分配
 - 🐛 只有样式、没有值的单元格不再计入已用矩形，避免误拒合法工作簿；反向 dimension/合并范围仍会拒绝
 - 🐛 日期格式在时间出现在日期前面时不再把月份渲染成分钟（如 `hh:mm dd/mm/yyyy`）
 - 🐛 `includeStyles: false` 仍保留隐藏行列、行高和列宽；条件格式按全局 `priority` 合成，并遵守 `stopIfTrue`
 - 🐛 `.xls` 仅能在打开前限制原始文件大小。底层库会在打开时整体解码，稀疏 BIFF 坐标仍可能放大内存
 - 🐛 修复 DOM `rowspan=0`、跨行组占位和按 `rowspan × colspan` 展开导致的内存放大；隐藏祖先下的表头不再导出，整表隐藏会明确报错
 - 🐛 同步、分批和流式 CSV 都拒绝不等宽记录，分批边界不再放行 ragged 数据
-- 🐛 修复数据导出的数字尾随小数、树形包装单元格、单格合并和配置 getter 异常被吞掉的问题
+- 🐛 多个 `<sheet>` 指向同一 worksheet 时只扫描一次，避免预检把同一份 XML 重复解析到用户可感知的卡顿
+- 🐛 ODS / XLSB 等 ZIP 容器不再因缺少 `xl/workbook.xml` 被误拒；这类格式与 `.xls` 一致，只保留体积上限，不做坐标预检
+- 🐛 修复数据导出把有效数字截断到 10 位小数、树形包装单元格、单格合并和配置 getter 异常被吞掉的问题
 - 🐛 修复示例页工作表名 XSS、虚拟滚动只导出可见行、错误的导出 API、过期冻结参数和 CDN 路径
 - 🐛 修复四框架预览的 `sheetName` 残留、隐藏表标签和异步代际串扰；Vue 构建补齐预览产物，Worker 失败时不再留下 pending
 - 🐛 修复 `normalize_hex_color` 按字节长度分支导致的 UTF-8 越界 panic（如颜色值 `"中"`）
@@ -44,7 +46,8 @@
 - ♻️ 抽取统一 Blob 下载助手、`write_sheet` 写入路径、`TableRowSources` 行源，消除 CSV/XLSX 下载与分批导出重复代码
 - ♻️ `StyleSheet::resolve_column` + 列级 Format 缓存，降低大数据量逐格样式重建开销
 - ♻️ 合并 `parse_sheet_xml` Start/Empty 分支与 `build_column_style_sheet*` 实现
-- 🔧 JS 数字导出改用稳定格式化；span 非有限/负值显式归零；合并列越界钳制
+- 🔧 JS 数字导出改用可往返还原的最短表示，不再把有效尾数当浮点噪声截断
+- 🔧 span 非有限/负值显式归零；合并列越界钳制
 
 ### 文档 (Documentation)
 

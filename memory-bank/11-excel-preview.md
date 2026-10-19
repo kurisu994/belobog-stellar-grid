@@ -100,6 +100,9 @@ Excel 条件格式常省略 `patternType`，缺省即视为 `patternType="solid"
 - ❌ **dxf 填充不要要求 `patternType="solid"`**——缺省即 solid，仅 `"none"` 不上色
 - ❌ **不要把预览 HTML 的文本/样式直出**——文本实体转义，`style` 值过滤 `;{}<>`
 - ❌ **不要只信 `dimension` 或中央目录声明的大小**——已用矩形按 `sheetData` 里 calamine 会保留的非空单元格计算；自闭合 `<row/>` 也要推进隐式行号
+- ❌ **不要在 `<v>` / `<f>` / `<is>` 内部继续解析行列**——calamine 只看 `Text`/`GeneralRef`，嵌套标签必须整体忽略，否则状态机会失步放行巨矩形
+- ❌ **不要给同一个 worksheet 重复扫描**——多个 `<sheet>` 可指向同一 `r:id`，按路径去重后再扫
+- ❌ **不要把 ODS / XLSB 当 xlsx 预检**——缺少 `xl/workbook.xml` 时返回 `Ok(None)` 降级，不能硬拒 calamine 认得的格式
 - ❌ **不要把纯样式空单元格算进矩形**——calamine 会跳过 `DataRef::Empty`，但空的非 `s`/`n` 类型 `<v>` 仍会占格
 - ❌ **不要漏掉 `uniqueCount`**——calamine 在读共享字符串正文前就 `Vec::reserve`
-- ❌ **`.xls` 不能宣称已按坐标预检**——calamine 打开 BIFF 时就会整体解码，目前只有 50 MiB 原始输入上限
+- ❌ **`.xls` 不能宣称已按坐标预检**——calamine 打开 BIFF 时就会整体解码，目前只有 50 MiB 原始输入上限；ODS / XLSB 同理
